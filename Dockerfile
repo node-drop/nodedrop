@@ -8,7 +8,7 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 
 # Install frontend dependencies
-RUN npm ci && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # Copy frontend source
 COPY frontend/ ./
@@ -30,7 +30,7 @@ WORKDIR /app/backend
 COPY backend/package*.json ./
 
 # Install all dependencies (including dev for build)
-RUN npm ci && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # Copy backend source
 COPY backend/ ./
@@ -50,7 +50,7 @@ WORKDIR /app/backend
 COPY backend/package*.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Stage 4: Final production image
 FROM node:22-alpine AS production
