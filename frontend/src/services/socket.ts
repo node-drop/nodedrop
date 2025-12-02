@@ -100,7 +100,7 @@ export class SocketService {
     });
 
     // Server confirmation events
-    this.socket.on('connected', (data) => {
+    this.socket.on('connected', () => {
       // Connection confirmed
     });
 

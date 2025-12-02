@@ -51,7 +51,6 @@ export function NodeContextMenu({
   isDisabled = false,
   isCompact = false,
   readOnly = false,
-  canCopy = false,
   canPaste = false,
   isInGroup = false,
   canGroup = false,

@@ -192,24 +192,6 @@ export function ExecuteToolbarButton({
     return 'Executes this node individually for testing purposes.'
   }
 
-  const getButtonStyles = () => {
-    const baseClasses = []
-    
-    if (showSuccess) {
-      baseClasses.push('success')
-    } else if (hasError) {
-      if (executionError?.isRetryable && retryCountdown === 0) {
-        baseClasses.push('error-retryable')
-      } else {
-        baseClasses.push('error')
-      }
-    } else if (isExecuting) {
-      baseClasses.push('executing')
-    }
-    
-    return baseClasses.join(' ')
-  }
-
   return (
     <>
       <Button
