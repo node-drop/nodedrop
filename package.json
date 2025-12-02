@@ -32,8 +32,7 @@
     "nodedrop": "node scripts/nodedrop.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "react-devtools": "^7.0.1"
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0",
