@@ -1,27 +1,190 @@
-├── backend/            # Node.js backend
-├── scripts/            # Development scripts
-├── docker-compose.yml  # Production Docker setup
-├── docker-compose.override.yml  # Development overrides
-├── .env.example        # Environment template
-└── DEVELOPMENT.md      # This file
+# 🚀 Node-Drop
+
+A powerful workflow automation platform similar to n8n, built with Node.js, React, and TypeScript.
+
+## ✨ Features
+
+- 🔄 Visual workflow builder with drag-and-drop interface
+- 🔌 Extensible node system for custom integrations
+- �  Secure authentication and authorization
+- 📊 Real-time workflow execution monitoring
+- 🐳 Docker-ready with single-container architecture
+- 🎨 Modern, responsive UI built with React and Vite
+
+## 📋 Prerequisites
+
+- **Docker** and **Docker Compose** (recommended)
+- OR **Node.js** >= 18.0.0 and **npm** >= 9.0.0
+- **PostgreSQL** 14+ (if running without Docker)
+- **Redis** 6+ (if running without Docker)
+
+## 🐳 Quick Start with Docker (Recommended)
+
+### Option 1: Using Pre-built Images
+
+The fastest way to get started:
+
+```bash
+# Pull and run the latest image
+docker pull ghcr.io/node-drop/nodedrop:latest
+docker-compose -f docker-compose.published.yml up
 ```
+
+Access the application at **http://localhost:5678**
+
+### Option 2: Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/node-drop.git
+cd node-drop
+
+# Copy environment file
+cp .env.example .env
+
+# Start with Docker Compose
+docker-compose up --build
+```
+
+Access the application at **http://localhost:5678**
+
+## 💻 Local Development Setup
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your settings
+```
+
+Key environment variables:
+- `POSTGRES_PASSWORD` - Database password
+- `JWT_SECRET` - Authentication secret (generate a secure random string)
+- `REDIS_PASSWORD` - Redis password
+- `NODE_ENV` - Set to `development` for local dev
+
+### 3. Start Development Environment
+
+#### With Docker (Recommended)
+```bash
+# Start all services with hot reload
+npm run docker:setup
+```
+
+#### Without Docker
+```bash
+# Make sure PostgreSQL and Redis are running locally
+
+# Run database migrations
+cd backend
+npm run db:migrate
+
+# Start backend (in one terminal)
+npm run dev:backend
+
+# Start frontend (in another terminal)
+npm run dev:frontend
+```
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:4000
+
+## 📦 Project Structure
+
+```
+node-drop/
+├── frontend/           # React + Vite frontend
+│   ├── src/
+│   ├── public/
+│   └── package.json
+├── backend/            # Node.js + Express backend
+│   ├── src/
+│   ├── prisma/        # Database schema and migrations
+│   └── package.json
+├── cli/                # CLI tool for node-drop
+├── scripts/            # Development and deployment scripts
+├── docker-compose.yml  # Production Docker setup
+├── docker-compose.published.yml  # Pre-built image setup
+├── docker-compose.override.yml   # Development overrides
+├── Dockerfile          # Unified production image
+└── .env.example        # Environment template
+```
+
+## 🔧 Available Scripts
+
+### Root Level
+```bash
+npm run dev              # Start both frontend and backend in dev mode
+npm run build            # Build both frontend and backend
+npm run test             # Run all tests
+npm run docker:dev       # Start with Docker (development mode)
+npm run docker:prod      # Start with Docker (production mode)
+npm run logs             # View Docker logs
+npm run stop             # Stop Docker containers
+npm run restart          # Restart Docker containers
+npm run clean            # Clean Docker volumes and containers
+```
+
+### Database Management
+```bash
+npm run db:migrate       # Run database migrations
+npm run db:reset         # Reset database
+npm run db:seed          # Seed database with sample data
+```
+
+### CLI Tool
+```bash
+npm run cli:build        # Build CLI tool
+npm run nodedrop         # Run CLI commands
+```
+
+## 🐳 Docker Details
+
+Node-drop uses a **unified single-container architecture** for production:
+- Single container running on port **5678**
+- Backend serves frontend static files
+- PostgreSQL and Redis run as separate services
+- Multi-platform support (amd64, arm64)
+
+For more details, see [DOCKER.md](./DOCKER.md)
 
 ## 🔧 Configuration
 
 ### Environment Variables
-Copy `.env.example` to `.env` and update values:
+
+Copy `.env.example` to `.env` and configure:
 
 ```bash
-cp .env.example .env
+# Database
+POSTGRES_USER=nodedrop
+POSTGRES_PASSWORD=your_secure_password
+POSTGRES_DB=nodedrop
+DATABASE_URL=postgresql://nodedrop:your_secure_password@postgres:5432/nodedrop
+
+# Redis
+REDIS_PASSWORD=your_redis_password
+REDIS_URL=redis://:your_redis_password@redis:6379
+
+# Backend
+JWT_SECRET=your_jwt_secret_key
+NODE_ENV=production
+PORT=5678
+
+# Frontend (development only)
+VITE_API_URL=http://localhost:4000
 ```
 
-Key variables:
-- `POSTGRES_PASSWORD`: Database password
-- `JWT_SECRET`: Authentication secret
-- `VITE_API_URL`: Frontend API URL
-
 ### Docker Override
-The `docker-compose.override.yml` file automatically applies development-friendly settings:
+
+The `docker-compose.override.yml` file automatically applies development settings:
 - Exposes database ports for local tools
 - Enables hot reloading
 - Uses development Dockerfiles
@@ -30,6 +193,7 @@ The `docker-compose.override.yml` file automatically applies development-friendl
 ## 🐛 Troubleshooting
 
 ### Docker Issues
+
 ```bash
 # Check if Docker is running
 docker info
@@ -40,46 +204,100 @@ npm run logs
 # Restart everything
 npm run restart
 
-# Nuclear option - clean everything
+# Clean everything and start fresh
 npm run clean
+docker-compose up --build
 ```
 
 ### Database Issues
+
 ```bash
 # Reset database
 npm run db:reset
 
 # Check database connection
 docker-compose exec backend npm run db:check
+
+# View database logs
+docker-compose logs postgres
 ```
 
 ### Port Conflicts
-If ports 3000, 4000, 5432, or 6379 are in use:
+
+If ports 3000, 4000, 5432, 5678, or 6379 are in use:
 1. Stop conflicting services
-2. Or modify ports in `docker-compose.override.yml`
+2. Or modify ports in `docker-compose.yml` or `docker-compose.override.yml`
+
+### Build Issues
+
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Remove node_modules and reinstall
+rm -rf node_modules frontend/node_modules backend/node_modules cli/node_modules
+npm install
+
+# Rebuild Docker images from scratch
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+npm run test
+
+# Run backend tests only
+cd backend
+npm run test
+
+# Run frontend tests only
+cd frontend
+npm run test
+
+# Run tests with coverage
+npm run test:coverage
+```
 
 ## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Test with: `npm run test`
-5. Commit: `git commit -m 'Add amazing feature'`
-6. Push: `git push origin feature/amazing-feature`
+4. Run tests: `npm run test`
+5. Commit your changes: `git commit -m 'Add amazing feature'`
+6. Push to the branch: `git push origin feature/amazing-feature`
 7. Open a Pull Request
 
-## 📚 Additional Resources
+## 📚 Documentation
 
+- [Docker Setup Guide](./DOCKER.md)
 - [Backend API Documentation](./backend/README.md)
 - [Frontend Documentation](./frontend/README.md)
-- [Docker Documentation](https://docs.docker.com/)
-- [Node.js Documentation](https://nodejs.org/docs/)
+- [Database Schema](./backend/DATABASE.md)
 
 ## 💡 Tips
 
-- Use `npm run logs` to debug issues
+- Use `npm run logs` to debug issues in real-time
 - The development environment auto-reloads on code changes
-- Database data persists between restarts
-- Use `npm run clean` if you want a fresh start
+- Database data persists between restarts in Docker volumes
+- Use `npm run clean` for a completely fresh start
+- Install the React DevTools browser extension for debugging
 
-Happy coding! 🎉
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Inspired by [n8n](https://n8n.io/)
+- Built with [React](https://react.dev/), [Node.js](https://nodejs.org/), and [TypeScript](https://www.typescriptlang.org/)
+
+---
+
+Happy automating! 🎉
