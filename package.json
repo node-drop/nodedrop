@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "react-devtools": "^7.0.0"
+    "react-devtools": "^7.0.1"
   },
   "engines": {
     "node": ">=18.0.0",
