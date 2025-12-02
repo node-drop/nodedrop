@@ -1,0 +1,183 @@
+/**
+ * Node shape styles based on execution capability
+ */
+
+/* Base node shape */
+.node-shape-base {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  transition: all 0.2s ease;
+}
+
+/* Trigger Node: Pill/Rounded shape */
+.node-shape-trigger {
+  border-radius: 32px;
+}
+
+/* Action Node: Standard rectangle */
+.node-shape-rectangle {
+  border-radius: 8px;
+}
+
+/* Transform Node: Hexagon shape */
+.node-shape-hexagon {
+  border-radius: 6px;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+/* Condition Node: Diamond shape */
+.node-shape-diamond {
+  border-radius: 4px;
+  transform: rotate(45deg);
+}
+
+/* Diamond inner content needs counter-rotation */
+.node-shape-diamond > * {
+  transform: rotate(-45deg);
+}
+
+/* Special handling for diamond shape content positioning */
+.node-shape-diamond .node-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hexagon inner content adjustment */
+.node-shape-hexagon .node-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+/* Hover effects for different shapes */
+.node-shape-trigger:hover {
+  transform: scale(1.05);
+}
+
+.node-shape-rectangle:hover {
+  transform: scale(1.05);
+}
+
+.node-shape-hexagon:hover {
+  transform: scale(1.05);
+}
+
+.node-shape-diamond:hover {
+  transform: scale(1.05) rotate(45deg);
+}
+
+/* Selected state for different shapes */
+.node-shape-trigger.selected {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.node-shape-rectangle.selected {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.node-shape-hexagon.selected {
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8));
+}
+
+.node-shape-diamond.selected {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* Disabled state for different shapes */
+.node-shape-trigger.disabled,
+.node-shape-rectangle.disabled,
+.node-shape-hexagon.disabled,
+.node-shape-diamond.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Running animation adjustments for special shapes */
+@keyframes pulse-hexagon {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 12px currentColor);
+  }
+}
+
+@keyframes pulse-diamond {
+  0%,
+  100% {
+    box-shadow: 0 0 8px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 16px currentColor;
+  }
+}
+
+.node-shape-hexagon.running {
+  animation: pulse-hexagon 2s ease-in-out infinite;
+}
+
+.node-shape-diamond.running {
+  animation: pulse-diamond 2s ease-in-out infinite;
+}
+
+/* Handle positioning adjustments for diamond nodes */
+.node-shape-diamond .react-flow__handle {
+  transform: rotate(-45deg);
+}
+
+/* Responsive sizing for different shapes */
+@media (max-width: 768px) {
+  .node-shape-base {
+    width: 56px;
+    height: 56px;
+  }
+
+  .node-shape-trigger {
+    border-radius: 28px;
+  }
+}
+
+/* Color variations by capability */
+.node-shape-trigger.capability-trigger {
+  border-color: #10b981; /* Green for triggers */
+}
+
+.node-shape-rectangle.capability-action {
+  border-color: #3b82f6; /* Blue for actions */
+}
+
+.node-shape-hexagon.capability-transform {
+  border-color: #f59e0b; /* Amber for transforms */
+}
+
+.node-shape-diamond.capability-condition {
+  border-color: #8b5cf6; /* Purple for conditions */
+}
+
+/* Execution state colors */
+.node-shape-trigger.status-success,
+.node-shape-rectangle.status-success,
+.node-shape-hexagon.status-success,
+.node-shape-diamond.status-success {
+  border-color: #10b981;
+}
+
+.node-shape-trigger.status-error,
+.node-shape-rectangle.status-error,
+.node-shape-hexagon.status-error,
+.node-shape-diamond.status-error {
+  border-color: #ef4444;
+}
+
+.node-shape-trigger.status-running,
+.node-shape-rectangle.status-running,
+.node-shape-hexagon.status-running,
+.node-shape-diamond.status-running {
+  border-color: #3b82f6;
+}

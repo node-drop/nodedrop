@@ -1,0 +1,45 @@
+/* Widget base styles */
+:host {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+#widget-root {
+  box-sizing: border-box;
+}
+
+#widget-root * {
+  box-sizing: border-box;
+}
+
+/* Include Tailwind base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Widget-specific theme variables */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Ensure the widget is responsive */
+#widget-root {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Override any potential conflicts from parent page */
+#widget-root button {
+  font-family: inherit;
+}
+
+#widget-root input,
+#widget-root textarea,
+#widget-root select {
+  font-family: inherit;
+}

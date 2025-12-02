@@ -1,0 +1,532 @@
+/* ReactFlow Dark Theme Overrides */
+
+/* Note: Custom WorkflowControls now use shadcn UI styles */
+/* Legacy React Flow control styles are no longer needed */
+
+/* MiniMap in dark mode */
+.dark .react-flow__minimap {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+}
+
+.dark .react-flow__minimap-mask {
+  fill: hsl(var(--background));
+  fill-opacity: 0.6;
+}
+
+.dark .react-flow__minimap-node {
+  fill: hsl(var(--muted));
+  stroke: hsl(var(--border));
+}
+
+/* Attribution in dark mode */
+.dark .react-flow__attribution {
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  border-top: 1px solid hsl(var(--border));
+}
+
+.dark .react-flow__attribution a {
+  color: hsl(var(--primary));
+}
+
+/* Panel in dark mode */
+.dark .react-flow__panel {
+  color: hsl(var(--foreground));
+}
+
+/* Edges in dark mode */
+.dark .react-flow__edge-path {
+  stroke: hsl(var(--border));
+  stroke-width: 2;
+}
+
+.dark .react-flow__edge-path:hover {
+  stroke: hsl(var(--primary));
+}
+
+.dark .react-flow__edge.selected .react-flow__edge-path {
+  stroke: hsl(var(--primary));
+  stroke-width: 2.5;
+}
+
+.dark .react-flow__edge.animated .react-flow__edge-path {
+  stroke: hsl(var(--primary));
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+/* Edge interaction path (wider invisible area for hover) */
+.dark .react-flow__edge-interaction {
+  stroke: transparent;
+}
+
+/* Edge buttons in dark mode */
+.dark .react-flow__edge-textbg {
+  fill: hsl(var(--card));
+}
+
+.dark .react-flow__edge-text {
+  fill: hsl(var(--foreground));
+}
+
+/* Connection line while dragging */
+.dark .react-flow__connection-path {
+  stroke: hsl(var(--primary));
+  stroke-width: 2;
+  stroke-dasharray: 5;
+}
+
+/* Edge markers (arrows) in dark mode */
+.dark .react-flow__arrowhead,
+.dark .react-flow__edge-marker {
+  fill: hsl(var(--border));
+}
+
+.dark .react-flow__edge.selected .react-flow__arrowhead,
+.dark .react-flow__edge.selected .react-flow__edge-marker {
+  fill: hsl(var(--primary));
+}
+
+.dark .react-flow__edge.animated .react-flow__arrowhead,
+.dark .react-flow__edge.animated .react-flow__edge-marker {
+  fill: hsl(var(--primary));
+}
+
+/* Animation for edge flow */
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== Group Node Styling ===== */
+
+/* Group node container */
+.react-flow__node-group .group-node {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+}
+
+/* Light mode group node */
+.react-flow__node-group {
+  background-color: rgba(207, 182, 255, 0.4);
+  border: 1px solid rgb(139, 92, 246);
+  border-radius: 8px;
+}
+
+.react-flow__node-group.selectable:focus,
+.react-flow__node-group:focus {
+  outline: none !important;
+}
+
+.react-flow__node-group.selected,
+.react-flow__node-group.selectable.selected {
+  outline: none !important;
+  box-shadow: 0px 3.54px 4.55px 0px #00000005, 0px 3.54px 4.55px 0px #0000000d,
+    0px 0.51px 1.01px 0px #0000001a, 0px 0px 0px 2px rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__node-group.active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Active state when dragging a node over a group */
+.react-flow__node-group.active {
+  background-color: rgba(207, 182, 255, 0.6);
+  border-color: #7d5bd0;
+  border-width: 2px;
+  border-style: dashed;
+  animation: pulse-border 1s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    border-color: #7d5bd0;
+  }
+  50% {
+    border-color: #9e86ed;
+  }
+}
+
+/* Dark mode group node */
+.dark .react-flow__node-group {
+  background-color: rgba(120, 85, 200, 0.2);
+  border: 2px solid rgb(139, 92, 246);
+}
+
+.dark .react-flow__node-group.selectable:focus,
+.dark .react-flow__node-group:focus {
+  outline: none !important;
+}
+
+.dark .react-flow__node-group.selected,
+.dark .react-flow__node-group.selectable.selected {
+  outline: none !important;
+  box-shadow: 0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.05),
+    0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.13),
+    0px 0.51px 1.01px 0px rgba(255, 255, 255, 0.2),
+    0px 0px 0px 2px rgba(255, 255, 255, 0.15);
+}
+
+.dark .react-flow__node-group.active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Active state when dragging a node over a group in dark mode */
+.dark .react-flow__node-group.active {
+  background-color: rgba(120, 85, 200, 0.4);
+  border-color: #b59ef5;
+  border-width: 2px;
+  border-style: dashed;
+  animation: pulse-border-dark 1s ease-in-out infinite;
+}
+
+@keyframes pulse-border-dark {
+  0%,
+  100% {
+    border-color: #b59ef5;
+  }
+  50% {
+    border-color: #9e86ed;
+  }
+}
+
+/* Node resizer for group nodes - only show when selected */
+.react-flow__node-group .react-flow__resize-control.handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background-color: #9e86ed;
+  border: 1px solid #ffffff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* Hide resize control lines when not selected and make them transparent */
+.react-flow__node-group .react-flow__resize-control.line {
+  opacity: 0;
+  transition: opacity 0.2s;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.react-flow__node-group.selected .react-flow__resize-control.handle,
+.react-flow__node-group.selected .react-flow__resize-control.line {
+  opacity: 1;
+}
+
+/* Keep lines transparent even when selected */
+.react-flow__node-group.selected .react-flow__resize-control.line {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.dark .react-flow__node-group .react-flow__resize-control.handle {
+  background-color: #9e86ed;
+  border-color: hsl(var(--background));
+}
+
+/* Group node button styling */
+.group-node-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 100px;
+  border: 1px solid hsl(var(--primary));
+  background-color: hsl(var(--background));
+  color: hsl(var(--primary));
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+  box-shadow: 0px 3.54px 4.55px 0px #00000005, 0px 3.54px 4.55px 0px #0000000d,
+    0px 0.51px 1.01px 0px #0000001a;
+}
+
+.group-node-button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.group-node-button:active {
+  background-color: hsl(var(--accent));
+  opacity: 0.9;
+}
+
+.group-node-button:disabled {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+  cursor: not-allowed;
+  border: 1px solid hsl(var(--muted-foreground));
+}
+
+.dark .group-node-button {
+  box-shadow: 0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.05),
+    0px 3.54px 4.55px 0px rgba(255, 255, 255, 0.13),
+    0px 0.51px 1.01px 0px rgba(255, 255, 255, 0.2);
+}
+
+/* Add gap between adjacent buttons */
+.group-node-button + .group-node-button {
+  margin-left: 0.3rem;
+}
+
+/* Group node label container */
+.group-node-label-container {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+  max-width: calc(100% - 24px);
+  text-align: left;
+}
+
+/* Group node label */
+.group-node-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  opacity: 0.7;
+  text-align: left;
+}
+
+.dark .group-node-label {
+  opacity: 0.8;
+}
+
+/* Group node description */
+.group-node-description {
+  margin-top: 2px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.8;
+  line-height: 1.3;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  text-align: left;
+}
+
+.dark .group-node-description {
+  opacity: 0.7;
+}
+
+/* Node resizer styling for all nodes (improved visibility) */
+.react-flow__node-resizer {
+  border-radius: 0;
+  border: none;
+}
+
+.react-flow__resize-control.handle {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+
+/* Annotation Node Styles */
+.react-flow__node-annotation {
+  font-size: 12px;
+  background: transparent;
+  border: none;
+}
+
+/* Annotation Node */
+.react-flow__node-annotation {
+  font-size: 16px;
+  width: 200px;
+  color: #683bfa;
+  position: absolute;
+  box-shadow: none;
+  font-family: monospace;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  padding: 4px 8px;
+}
+
+.react-flow__node-annotation .annotation-content {
+  padding: 10px;
+  display: flex;
+}
+
+.react-flow__node-annotation .annotation-level {
+  margin-right: 4px;
+}
+
+.react-flow__node-annotation .annotation-arrow {
+  position: absolute;
+  font-size: 24px;
+}
+
+/* Annotation display mode (not editing) */
+.annotation-display {
+  color: #683bfa;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", sans-serif;
+  min-height: 24px;
+  padding: 8px;
+  cursor: pointer;
+  user-select: none;
+  overflow-wrap: break-word;
+}
+
+.annotation-display:hover {
+  background: rgba(104, 59, 250, 0.05);
+  border-radius: 2px;
+}
+
+/* Markdown content in annotation */
+.annotation-display p:last-child {
+  margin-bottom: 0;
+}
+
+.annotation-display code {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9em;
+}
+
+.annotation-display pre code {
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.annotation-display ul,
+.annotation-display ol {
+  margin-left: 4px;
+}
+
+.annotation-display li {
+  margin-bottom: 2px;
+}
+
+.annotation-display h1,
+.annotation-display h2,
+.annotation-display h3,
+.annotation-display h4,
+.annotation-display h5,
+.annotation-display h6 {
+  line-height: 1.3;
+}
+
+.annotation-display h1:first-child,
+.annotation-display h2:first-child,
+.annotation-display h3:first-child,
+.annotation-display h4:first-child,
+.annotation-display h5:first-child,
+.annotation-display h6:first-child,
+.annotation-display p:first-child {
+  margin-top: 0;
+}
+
+/* Annotation textarea (editing mode) */
+.annotation-textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  border: 2px solid #683bfa;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  background: white;
+  color: #683bfa;
+  font-family: "Courier New", Courier, monospace;
+  outline: none;
+}
+
+.annotation-textarea:focus {
+  border-color: #683bfa;
+  box-shadow: 0 0 0 3px rgba(104, 59, 250, 0.2);
+}
+
+.annotation-textarea::placeholder {
+  color: #683bfa;
+  opacity: 0.5;
+}
+
+/* Dark mode styles */
+.dark .annotation-display {
+  color: #8b6bff;
+}
+
+.dark .annotation-display:hover {
+  background: rgba(139, 107, 255, 0.05);
+}
+
+.dark .annotation-textarea {
+  color: #8b6bff;
+  border-color: #8b6bff;
+  background: rgba(139, 107, 255, 0.05);
+}
+
+.dark .annotation-textarea:focus {
+  box-shadow: 0 0 0 3px rgba(139, 107, 255, 0.2);
+}
+
+.dark .annotation-textarea::placeholder {
+  color: #8b6bff;
+}
+
+
+/* ===== Editable Edge Control Points ===== */
+
+/* Control point circles */
+.react-flow__edge circle.nopan.nodrag {
+  cursor: pointer;
+  transition: r 0.15s ease, fill 0.15s ease;
+}
+
+.react-flow__edge circle.nopan.nodrag:hover {
+  r: 6;
+}
+
+.react-flow__edge circle.nopan.nodrag:focus {
+  outline: none;
+}
+
+.react-flow__edge circle.nopan.nodrag:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Active control point */
+.react-flow__edge circle.nopan.nodrag.active {
+  cursor: grab;
+}
+
+.react-flow__edge circle.nopan.nodrag.active:active {
+  cursor: grabbing;
+}
+
+/* Editable edge path styling */
+.react-flow__edge.selected path {
+  stroke-width: 2.5;
+}
+
+/* Connection line animation */
+.react-flow__connection-path.animated {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+/* Dark mode editable edge styles */
+.dark .react-flow__edge circle.nopan.nodrag {
+  stroke-opacity: 0.5;
+}
+
+.dark .react-flow__edge circle.nopan.nodrag.active {
+  stroke-opacity: 1;
+}

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nodeDrop Form Widget - Themes Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: hsl(0 0% 98%);
+            color: hsl(222.2 84% 4.9%);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body.dark {
+            background: hsl(222.2 84% 4.9%);
+            color: hsl(210 40% 98%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            background: linear-gradient(135deg, hsl(222.2 84% 4.9%) 0%, hsl(210 40% 60%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.dark .header h1 {
+            background: linear-gradient(135deg, hsl(210 40% 98%) 0%, hsl(210 40% 80%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .theme-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .theme-btn {
+            padding: 0.75rem 1.5rem;
+            border: 1px solid hsl(214.3 31.8% 91.4%);
+            border-radius: 0.5rem;
+            background: white;
+            color: hsl(222.2 84% 4.9%);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        body.dark .theme-btn {
+            background: hsl(222.2 84% 10%);
+            color: hsl(210 40% 98%);
+            border-color: hsl(222.2 84% 20%);
+        }
+
+        .theme-btn:hover {
+            background: hsl(210 40% 98%);
+            border-color: hsl(210 40% 60%);
+        }
+
+        body.dark .theme-btn:hover {
+            background: hsl(222.2 84% 15%);
+            border-color: hsl(210 40% 60%);
+        }
+
+        .theme-btn.active {
+            background: hsl(222.2 84% 4.9%);
+            color: white;
+            border-color: hsl(222.2 84% 4.9%);
+        }
+
+        body.dark .theme-btn.active {
+            background: hsl(210 40% 98%);
+            color: hsl(222.2 84% 4.9%);
+            border-color: hsl(210 40% 98%);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .theme-demo {
+            background: white;
+            border: 1px solid hsl(214.3 31.8% 91.4%);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+
+        body.dark .theme-demo {
+            background: hsl(222.2 84% 10%);
+            border-color: hsl(222.2 84% 20%);
+            box-shadow: 0 1px 3px 0 rgba(255, 255, 255, 0.1), 0 1px 2px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .theme-demo h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: hsl(222.2 84% 4.9%);
+        }
+
+        body.dark .theme-demo h3 {
+            color: hsl(210 40% 98%);
+        }
+
+        .theme-demo p {
+            color: hsl(215.4 16.3% 46.9%);
+            margin: 0 0 1rem 0;
+        }
+
+        body.dark .theme-demo p {
+            color: hsl(215.4 16.3% 70%);
+        }
+
+        .form-container {
+            min-height: 300px;
+            border: 2px dashed hsl(214.3 31.8% 91.4%);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: hsl(215.4 16.3% 46.9%);
+            font-style: italic;
+            margin: 1rem 0;
+            transition: all 0.3s ease;
+        }
+
+        body.dark .form-container {
+            border-color: hsl(222.2 84% 20%);
+            color: hsl(215.4 16.3% 70%);
+        }
+
+        .form-container.has-form {
+            border: 1px solid hsl(214.3 31.8% 91.4%);
+            align-items: stretch;
+            justify-content: stretch;
+        }
+
+        body.dark .form-container.has-form {
+            border-color: hsl(222.2 84% 20%);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            border: 1px solid hsl(214.3 31.8% 91.4%);
+            background: hsl(210 40% 98%);
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: hsl(222.2 84% 4.9%);
+            margin-bottom: 1rem;
+        }
+
+        body.dark .badge {
+            background: hsl(222.2 84% 15%);
+            border-color: hsl(222.2 84% 25%);
+            color: hsl(210 40% 98%);
+        }
+
+        .status {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        body.dark .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        body.dark .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        body.dark .status.info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Form Widget Themes</h1>
+            <p>Experience different themes and styling options</p>
+        </div>
+
+        <div class="theme-controls">
+            <button class="theme-btn active" onclick="setPageTheme('light')" id="light-btn">☀️ Light Theme</button>
+            <button class="theme-btn" onclick="setPageTheme('dark')" id="dark-btn">🌙 Dark Theme</button>
+            <button class="theme-btn" onclick="setPageTheme('auto')" id="auto-btn">🔄 Auto Theme</button>
+        </div>
+
+        <div class="grid">
+            <div class="theme-demo">
+                <div class="badge">Light Theme</div>
+                <h3>Light Form Widget</h3>
+                <p>Clean and bright interface perfect for most websites.</p>
+                <div class="status info" id="light-status">Click to initialize light theme form</div>
+                <div id="light-form-container" class="form-container" onclick="initializeForm('light')">
+                    Click to load light theme form
+                </div>
+            </div>
+
+            <div class="theme-demo">
+                <div class="badge">Dark Theme</div>
+                <h3>Dark Form Widget</h3>
+                <p>Elegant dark interface for modern applications.</p>
+                <div class="status info" id="dark-status">Click to initialize dark theme form</div>
+                <div id="dark-form-container" class="form-container" onclick="initializeForm('dark')">
+                    Click to load dark theme form
+                </div>
+            </div>
+
+            <div class="theme-demo">
+                <div class="badge">Auto Theme</div>
+                <h3>Auto Theme Widget</h3>
+                <p>Automatically adapts to user's system preference.</p>
+                <div class="status info" id="auto-status">Click to initialize auto theme form</div>
+                <div id="auto-form-container" class="form-container" onclick="initializeForm('auto')">
+                    Click to load auto theme form
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the form widget script -->
+    <script src="http://localhost:3001/widgets/form/nd-form-widget.umd.js"></script>
+
+    <script>
+        let widgets = {
+            light: null,
+            dark: null,
+            auto: null
+        };
+
+        let currentPageTheme = 'light';
+
+        function setPageTheme(theme) {
+            // Update page theme
+            currentPageTheme = theme;
+            
+            // Update button states
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${theme}-btn`).classList.add('active');
+
+            // Apply theme to page
+            if (theme === 'dark') {
+                document.body.classList.add('dark');
+            } else if (theme === 'light') {
+                document.body.classList.remove('dark');
+            } else if (theme === 'auto') {
+                // Auto theme: detect system preference
+                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (isDark) {
+                    document.body.classList.add('dark');
+                } else {
+                    document.body.classList.remove('dark');
+                }
+            }
+        }
+
+        function updateStatus(theme, message, type = 'info') {
+            const statusEl = document.getElementById(`${theme}-status`);
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function initializeForm(theme) {
+            if (widgets[theme]) {
+                updateStatus(theme, 'Form already initialized for this theme', 'info');
+                return;
+            }
+
+            try {
+                updateStatus(theme, 'Initializing form widget...', 'info');
+                
+                const widget = new window.nodeDropFormWidget();
+                widget.init({
+                    formId: `demo-form-${theme}-123`,
+                    apiUrl: 'http://localhost:4000/api',
+                    container: `#${theme}-form-container`,
+                    theme: theme,
+                    onReady: () => {
+                        updateStatus(theme, `${theme.charAt(0).toUpperCase() + theme.slice(1)} theme form ready!`, 'success');
+                        document.getElementById(`${theme}-form-container`).classList.add('has-form');
+                    },
+                    onSubmit: (data) => {
+                        console.log(`${theme} form submitted:`, data);
+                        updateStatus(theme, 'Form submitted successfully!', 'success');
+                    },
+                    onError: (error) => {
+                        console.error(`${theme} form error:`, error);
+                        updateStatus(theme, `Form error: ${error}`, 'error');
+                    }
+                });
+
+                widgets[theme] = widget;
+
+            } catch (error) {
+                console.error(`${theme} widget initialization error:`, error);
+                updateStatus(theme, `Failed to initialize: ${error.message}`, 'error');
+            }
+        }
+
+        // Listen for system theme changes when auto theme is selected
+        if (window.matchMedia) {
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            mediaQuery.addEventListener('change', (e) => {
+                if (currentPageTheme === 'auto') {
+                    setPageTheme('auto');
+                }
+            });
+        }
+
+        // Check if widget script loaded
+        window.addEventListener('load', () => {
+            if (typeof window.nodeDropFormWidget === 'undefined') {
+                document.querySelectorAll('.status').forEach(status => {
+                    status.textContent = 'Form widget script failed to load!';
+                    status.className = 'status error';
+                });
+            }
+        });
+
+        // Initialize with light theme
+        setPageTheme('light');
+    </script>
+</body>
+
+</html>

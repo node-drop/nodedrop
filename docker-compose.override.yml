@@ -1,0 +1,50 @@
+# This file is automatically loaded by docker-compose for local development
+# It overrides settings in docker-compose.yml for a better dev experience
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"  # Expose postgres for local tools
+    environment:
+      POSTGRES_PASSWORD: postgres  # Simple password for dev
+
+  redis:
+    ports:
+      - "6379:6379"  # Expose redis for local tools
+
+  backend:
+    build:
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/node_drop
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - CREDENTIAL_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - CHOKIDAR_USEPOLLING=true  # Enable polling for Windows file watching
+    volumes:
+      - ./backend:/app:cached    # Use cached mount for better performance
+      - backend_node_modules:/app/node_modules
+    command: npm run dev
+    ports:
+      - "4000:4000"
+    user: "root"  # Override user for development to avoid permission issues
+
+  frontend:
+    build:
+      dockerfile: Dockerfile.dev
+    environment:
+      - VITE_API_URL=http://localhost:4000
+      - CHOKIDAR_USEPOLLING=true  # Enable polling for Windows file watching
+      - WATCHPACK_POLLING=true    # Enable polling for webpack
+    volumes:
+      - ./frontend:/app:cached    # Use cached mount for better performance
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev -- --host
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend  # Remove health check dependency for development
+
+volumes:
+  backend_node_modules:
+  frontend_node_modules:

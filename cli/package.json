@@ -1,0 +1,38 @@
+{
+  "name": "nodedrop",
+  "version": "1.0.0",
+  "description": "CLI tool for NodeDrop workflow automation platform",
+  "main": "dist/index.js",
+  "bin": {
+    "nodedrop": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "workflow",
+    "automation",
+    "cli",
+    "nodedrop"
+  ],
+  "author": "NodeDrop Team",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "axios": "^1.12.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@types/inquirer": "^8.2.10",
+    "typescript": "^5.2.2",
+    "tsx": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

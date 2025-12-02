@@ -1,0 +1,354 @@
+/* Toolbar Button Base Styles */
+.toolbar-button {
+  /* Ensure consistent sizing and positioning */
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+
+  /* Base styling matching ReactFlow toolbar */
+  background: transparent;
+  border: none;
+  color: hsl(var(--foreground));
+
+  /* No shadow */
+  box-shadow: none;
+
+  /* Smooth transitions */
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Ensure button is above other elements */
+  z-index: 10;
+}
+
+/* Dark theme base styles */
+.dark .toolbar-button {
+  background: transparent;
+  border: none;
+  color: hsl(var(--foreground));
+}
+
+/* Enhanced hover effects for better visual feedback */
+.toolbar-button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: hsl(var(--accent));
+  border: none;
+}
+
+.dark .toolbar-button:hover:not(:disabled) {
+  background: hsl(var(--accent));
+  border: none;
+  box-shadow: none;
+}
+
+/* Active state for click feedback */
+.toolbar-button:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: hsl(var(--accent));
+}
+
+/* Focus styles for accessibility */
+.toolbar-button:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  background: hsl(var(--accent));
+}
+
+.dark .toolbar-button:focus {
+  outline-color: hsl(var(--ring));
+  background: hsl(var(--accent));
+}
+
+/* Disabled state with proper contrast */
+.toolbar-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  border: none;
+  transform: none;
+}
+
+.dark .toolbar-button:disabled {
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  border: none;
+}
+
+.toolbar-button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* State-based styling for execute button */
+.toolbar-button.executing {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  cursor: not-allowed;
+}
+
+.dark .toolbar-button.executing {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.toolbar-button.executing:hover {
+  transform: none;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.toolbar-button.success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.dark .toolbar-button.success {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.toolbar-button.success:hover {
+  background: rgba(16, 185, 129, 0.15);
+  transform: scale(1.1);
+}
+
+.toolbar-button.error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.dark .toolbar-button.error {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.toolbar-button.error:hover {
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.1);
+}
+
+.toolbar-button.error-retryable {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  cursor: pointer;
+}
+
+.dark .toolbar-button.error-retryable {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.toolbar-button.error-retryable:hover {
+  background: rgba(245, 158, 11, 0.15);
+  transform: scale(1.15);
+}
+
+.toolbar-button.error-retryable:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Retry countdown styling */
+.retry-countdown {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 1px solid white;
+  box-shadow: none;
+}
+
+/* State-based styling for disable toggle button */
+.toolbar-button.disabled-node {
+  background: rgba(156, 163, 175, 0.1);
+  border-color: rgba(156, 163, 175, 0.3);
+  color: #9ca3af;
+}
+
+.dark .toolbar-button.disabled-node {
+  background: rgba(156, 163, 175, 0.2);
+  border-color: rgba(156, 163, 175, 0.4);
+  color: #9ca3af;
+}
+
+.toolbar-button.disabled-node:hover {
+  background: rgba(156, 163, 175, 0.15);
+}
+
+.toolbar-button.enabled-node {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+}
+
+.dark .toolbar-button.enabled-node {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(156, 163, 175, 0.3);
+  color: #9ca3af;
+}
+
+.toolbar-button.enabled-node:hover {
+  background: rgba(255, 255, 255, 1);
+  color: #374151;
+}
+
+.dark .toolbar-button.enabled-node:hover {
+  background: rgba(31, 41, 55, 1);
+  color: #d1d5db;
+}
+
+/* Tooltip dark theme */
+.dark .toolbar-button[title]:hover::after {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2937;
+}
+
+.dark .toolbar-button[title]:hover::before {
+  border-bottom-color: rgba(255, 255, 255, 0.9);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .toolbar-button {
+    border-width: 2px;
+    border-color: #000;
+    background: #fff;
+    color: #000;
+  }
+
+  .toolbar-button:hover:not(:disabled) {
+    background: #f0f0f0;
+    border-color: #000;
+  }
+
+  .toolbar-button:disabled {
+    border-color: #666;
+    background: #e0e0e0;
+    color: #666;
+  }
+
+  .toolbar-button.executing {
+    background: #e6f3ff;
+    border-color: #0066cc;
+    color: #0066cc;
+  }
+
+  .toolbar-button.success {
+    background: #e6ffe6;
+    border-color: #009900;
+    color: #009900;
+  }
+
+  .toolbar-button.error {
+    background: #ffe6e6;
+    border-color: #cc0000;
+    color: #cc0000;
+  }
+
+  .toolbar-button.error-retryable {
+    background: #fff4e6;
+    border-color: #cc8800;
+    color: #cc8800;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-button {
+    transition: none;
+  }
+
+  .toolbar-button:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .toolbar-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Ensure icons are properly sized and centered */
+.toolbar-button svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Tooltip positioning and styling */
+.toolbar-button[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toolbar-button[title]:hover::before {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  pointer-events: none;
+}
