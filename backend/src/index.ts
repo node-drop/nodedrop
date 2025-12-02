@@ -8,6 +8,7 @@ import helmet from "helmet";
 import { createServer } from "http";
 
 // Import routes
+import aiMemoryRoutes from "./routes/ai-memory.routes";
 import { authRoutes } from "./routes/auth";
 import credentialRoutes from "./routes/credentials";
 import { customNodeRoutes } from "./routes/custom-nodes";
@@ -22,9 +23,8 @@ import googleRoutes from "./routes/google";
 import { nodeTypeRoutes } from "./routes/node-types";
 import { nodeRoutes } from "./routes/nodes";
 import oauthGenericRoutes from "./routes/oauth-generic";
-import { publicFormsRoutes } from "./routes/public-forms";
 import { publicChatsRoutes } from "./routes/public-chats";
-import aiMemoryRoutes from "./routes/ai-memory.routes";
+import { publicFormsRoutes } from "./routes/public-forms";
 import teamRoutes from "./routes/teams";
 import triggerRoutes from "./routes/triggers";
 import userRoutes from "./routes/user.routes";
@@ -39,8 +39,8 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 // Import services
 import { PrismaClient } from "@prisma/client";
 import { CredentialService } from "./services/CredentialService";
-import { ExecutionService } from "./services/ExecutionService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
+import { ExecutionService } from "./services/ExecutionService";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
@@ -52,7 +52,7 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 5678; // Default to 5678 like n8n
 
 // Set server timeout to prevent gateway timeouts (5 minutes)
 httpServer.timeout = 300000; // 5 minutes
@@ -96,9 +96,9 @@ const executionService = new ExecutionService(
 const realtimeExecutionEngine = new RealtimeExecutionEngine(prisma, nodeService);
 
 // Import WorkflowService, TriggerService singleton, and ScheduleJobManager
-import { WorkflowService } from "./services/WorkflowService";
-import { initializeTriggerService, getTriggerService } from "./services/triggerServiceSingleton";
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
+import { WorkflowService } from "./services/WorkflowService";
+import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
 
 // Initialize WorkflowService (needed by TriggerService)
 const workflowService = new WorkflowService(prisma);
@@ -464,6 +464,42 @@ app.use("/api", webhookLogsRoutes);
 app.use("/webhook/forms", publicFormsRoutes);
 app.use("/webhook/chats", publicChatsRoutes);
 app.use("/webhook", webhookRoutes);
+
+// Serve frontend static files (for unified Docker image)
+// This allows the backend to serve the frontend in production
+import path from "path";
+const publicPath = path.join(__dirname, "..", "public");
+
+// Serve static files with proper caching
+app.use(express.static(publicPath, {
+  maxAge: "1y", // Cache static assets for 1 year
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // Don't cache index.html
+    if (filePath.endsWith("index.html")) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+  },
+}));
+
+// SPA fallback - serve index.html for all non-API routes
+// This must come AFTER all API routes but BEFORE 404 handler
+app.get("*", (req, res, next) => {
+  // Skip if this is an API route or webhook
+  if (req.path.startsWith("/api") || req.path.startsWith("/webhook") || req.path.startsWith("/health")) {
+    return next();
+  }
+  
+  // Serve index.html for all other routes (SPA routing)
+  const indexPath = path.join(publicPath, "index.html");
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      // If index.html doesn't exist, continue to 404 handler
+      next();
+    }
+  });
+});
 
 // 404 handler
 app.use(notFoundHandler);
