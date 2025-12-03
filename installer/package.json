@@ -1,0 +1,33 @@
+{
+  "name": "@nodedrop/create",
+  "version": "1.0.3",
+  "description": "Node-Drop workflow automation platform - one command installation",
+  "main": "install.js",
+  "bin": {
+    "create-nodedrop": "./install.js",
+    "nodedrop-install": "./install.js"
+  },
+  "scripts": {
+    "test": "node install.js"
+  },
+  "keywords": [
+    "nodedrop",
+    "node-drop",
+    "workflow",
+    "automation",
+    "n8n",
+    "zapier",
+    "installer",
+    "setup"
+  ],
+  "author": "nodedrop",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodedrop/node-drop.git"
+  },
+  "homepage": "https://github.com/nodedrop/node-drop#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

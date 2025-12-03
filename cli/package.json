@@ -1,5 +1,5 @@
 {
-  "name": "nodedrop",
+  "name": "@nodedrop/cli",
   "version": "1.0.0",
   "description": "CLI tool for NodeDrop workflow automation platform",
   "main": "dist/index.js",
