@@ -195,3 +195,5 @@
 .output-button-wrapper:has([data-state="open"]) {
   opacity: 1;
 }
+
+

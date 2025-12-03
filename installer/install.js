@@ -10,6 +10,19 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
+// Professional logging utilities
+const log = {
+  header: (msg) => console.log(`\n${'='.repeat(60)}\n${msg}\n${'='.repeat(60)}\n`),
+  section: (msg) => console.log(`\n${msg}`),
+  success: (msg) => console.log(`✓ ${msg}`),
+  error: (msg) => console.error(`✗ ${msg}`),
+  warning: (msg) => console.log(`⚠  ${msg}`),
+  info: (msg) => console.log(`ℹ  ${msg}`),
+  step: (num, total, msg) => console.log(`\n[${num}/${total}] ${msg}`),
+  divider: () => console.log(`${'─'.repeat(60)}`),
+  blank: () => console.log('')
+};
+
 function question(query) {
   return new Promise(resolve => rl.question(query, resolve));
 }
@@ -18,7 +31,7 @@ function exec(command, options = {}) {
   try {
     return execSync(command, { stdio: 'inherit', ...options });
   } catch (error) {
-    console.error(`Error executing: ${command}`);
+    log.error(`Failed to execute command: ${command}`);
     throw error;
   }
 }
@@ -33,26 +46,30 @@ function generateRandomString(length = 32) {
 }
 
 async function main() {
-  console.log('\n🚀 Welcome to Node-Drop Installation Wizard\n');
-  console.log('This wizard will help you set up Node-Drop in minutes.\n');
+  log.header('🚀 Node-Drop Installation Wizard');
+  log.info('This wizard will guide you through the installation process');
+  log.blank();
 
   // Check if Docker is installed
+  log.step(1, 5, 'Verifying system requirements');
   try {
     execSync('docker --version', { stdio: 'pipe' });
-    console.log('✓ Docker is installed\n');
+    log.success('Docker is installed');
   } catch (error) {
-    console.error('✗ Docker is not installed. Please install Docker first:');
-    console.error('  https://docs.docker.com/get-docker/\n');
+    log.error('Docker is not installed');
+    log.info('Please install Docker from: https://docs.docker.com/get-docker/');
+    log.blank();
     process.exit(1);
   }
 
   // Check if Docker Compose is installed
   try {
     execSync('docker-compose --version', { stdio: 'pipe' });
-    console.log('✓ Docker Compose is installed\n');
+    log.success('Docker Compose is installed');
   } catch (error) {
-    console.error('✗ Docker Compose is not installed. Please install Docker Compose first:');
-    console.error('  https://docs.docker.com/compose/install/\n');
+    log.error('Docker Compose is not installed');
+    log.info('Please install Docker Compose from: https://docs.docker.com/compose/install/');
+    log.blank();
     process.exit(1);
   }
 
@@ -60,13 +77,14 @@ async function main() {
   try {
     const existingContainers = execSync('docker ps -a --filter "name=nodedrop" --format "{{.Names}}"', { encoding: 'utf8' });
     if (existingContainers.trim()) {
-      console.log('⚠️  Found existing Node-Drop containers:\n');
+      log.blank();
+      log.warning('Found existing Node-Drop containers:');
       console.log(existingContainers);
       const cleanup = await question('Do you want to remove them and start fresh? (y/n) [y]: ') || 'y';
       if (cleanup.toLowerCase() === 'y') {
-        console.log('\n🧹 Cleaning up existing containers...\n');
+        log.section('Cleaning up existing containers...');
         execSync('docker rm -f nodedrop-postgres nodedrop-redis nodedrop 2>nul || true', { stdio: 'inherit' });
-        console.log('✓ Cleanup complete\n');
+        log.success('Cleanup complete');
       }
     }
   } catch (error) {
@@ -74,6 +92,7 @@ async function main() {
   }
 
   // Ask for installation directory (use home directory by default)
+  log.step(2, 5, 'Configuration setup');
   const os = require('os');
   const homeDir = os.homedir();
   const defaultDir = path.join(homeDir, 'nodedrop');
@@ -83,7 +102,7 @@ async function main() {
   // Create directory if it doesn't exist
   if (!fs.existsSync(installDir)) {
     fs.mkdirSync(installDir, { recursive: true });
-    console.log(`✓ Created directory: ${installDir}\n`);
+    log.success(`Created directory: ${installDir}`);
   }
 
   // Ask for port
@@ -106,7 +125,7 @@ async function main() {
   // Generate unique suffix for container names
   const uniqueSuffix = Math.random().toString(36).substring(2, 8);
 
-  console.log('\n📝 Creating configuration files...\n');
+  log.step(3, 5, 'Generating configuration files');
 
   // Create docker-compose.yml
   const dockerCompose = `services:
@@ -164,7 +183,7 @@ volumes:
 `;
 
   fs.writeFileSync(path.join(installDir, 'docker-compose.yml'), dockerCompose);
-  console.log('✓ Created docker-compose.yml');
+  log.success('Created docker-compose.yml');
 
   // Create .env file for reference
   const envFile = `# Node-Drop Configuration
@@ -186,7 +205,7 @@ ${domain ? `PUBLIC_URL=https://${domain}` : `PUBLIC_URL=http://localhost:${port}
 `;
 
   fs.writeFileSync(path.join(installDir, '.env'), envFile);
-  console.log('✓ Created .env file');
+  log.success('Created .env file');
 
   // Detect platform
   const accessUrl = domain ? `https://${domain}` : `http://localhost:${port}`;
@@ -251,44 +270,54 @@ https://github.com/your-org/node-drop
 `;
 
   fs.writeFileSync(path.join(installDir, 'README.md'), readme);
-  console.log('✓ Created README.md\n');
+  log.success('Created README.md');
 
   // Automatically pull and start
-  console.log('📦 Pulling Docker image...\n');
+  log.step(4, 5, 'Pulling Docker image');
   exec('docker pull ghcr.io/node-drop/nodedrop:latest', { cwd: installDir });
 
-  console.log('\n🚀 Starting Node-Drop...\n');
+  log.step(5, 5, 'Starting Node-Drop services');
   exec('docker-compose up -d', { cwd: installDir });
 
-  console.log('\n✅ Installation complete!\n');
-  console.log(`Node-Drop is starting up...`);
-  console.log(`\n🎉 Next step: Create your admin account`);
-  console.log(`   Visit: ${accessUrl}/register\n`);
+  log.blank();
+  log.header('✅ Installation Complete');
+  
+  log.section('📍 Access Information');
+  log.info(`URL: ${accessUrl}/register`);
+  log.info(`Installation directory: ${path.resolve(installDir)}`);
   
   if (domain) {
-    console.log(`⚠️  Note: Make sure your domain points to this server`);
-    console.log(`   and you have SSL/TLS configured (nginx, Caddy, etc.)\n`);
+    log.blank();
+    log.warning('Domain Configuration Required');
+    log.info('Ensure your domain DNS points to this server');
+    log.info('Configure SSL/TLS using nginx, Caddy, or similar');
   }
   
-  console.log(`Installation directory: ${path.resolve(installDir)}\n`);
-  console.log('Useful commands:');
-  console.log(`  Start:   cd ${installDir}`);
-  console.log(`           docker-compose up -d`);
-  console.log(``);
-  console.log(`  Stop:    cd ${installDir}`);
-  console.log(`           docker-compose down`);
-  console.log(``);
-  console.log(`  Restart: cd ${installDir}`);
-  console.log(`           docker-compose restart`);
-  console.log(``);
-  console.log(`  Logs:    cd ${installDir}`);
-  console.log(`           docker-compose logs -f\n`);
+  log.section('🎯 Next Steps');
+  console.log('  1. Visit the URL above to create your admin account');
+  console.log('  2. Configure your workflows and integrations');
+  console.log('  3. Review the README.md for additional commands');
+  
+  log.section('📚 Common Commands');
+  log.divider();
+  console.log(`  Start services:    cd ${installDir} && docker-compose up -d`);
+  console.log(`  Stop services:     cd ${installDir} && docker-compose down`);
+  console.log(`  Restart services:  cd ${installDir} && docker-compose restart`);
+  console.log(`  View logs:         cd ${installDir} && docker-compose logs -f`);
+  log.divider();
+  log.blank();
 
   rl.close();
 }
 
 main().catch(error => {
-  console.error('\n❌ Installation failed:', error.message);
+  log.blank();
+  log.header('❌ Installation Failed');
+  log.error(error.message);
+  log.blank();
+  log.info('Please check the error above and try again');
+  log.info('For support, visit: https://github.com/your-org/node-drop/issues');
+  log.blank();
   rl.close();
   process.exit(1);
 });
