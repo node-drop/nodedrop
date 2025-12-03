@@ -42,61 +42,12 @@ Then visit **http://localhost:5678/register** to create your admin account.
 
 The first user to register automatically becomes the administrator!
 
-### Option 2: Manual Docker Setup
-
-If you prefer manual setup, create a `docker-compose.yml` file:
-
-```yaml
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: node_drop
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
-  nodedrop:
-    image: ghcr.io/node-drop/nodedrop:latest
-    ports:
-      - "5678:5678"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/node_drop
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=change-this-to-a-secure-random-string
-      - PORT=5678
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
-```
-
-Then run:
-```bash
-docker-compose up -d
-```
-
-Access the application at **http://localhost:5678**
-
-### Option 3: Build from Source
+### Option 2: Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/node-drop.git
-cd node-drop
+git clone git@github.com:node-drop/nodedrop.git
+cd nodedrop
 
 # Copy environment file
 cp .env.example .env
@@ -214,6 +165,29 @@ Node-drop uses a **unified single-container architecture** for production:
 - Multi-platform support (amd64, arm64)
 
 For more details, see [DOCKER.md](./DOCKER.md)
+
+## 🔄 Updating Node-Drop
+
+To update to the latest version:
+
+```bash
+cd nodedrop  # or your installation directory
+docker-compose pull
+docker-compose up -d
+```
+
+That's it! Your data is preserved in Docker volumes.
+
+**What gets updated:**
+- ✓ Application code (frontend + backend)
+- ✓ Bug fixes and new features
+- ✓ Security patches
+
+**What stays the same:**
+- ✓ Your workflows
+- ✓ Your credentials
+- ✓ Your database
+- ✓ Your settings
 
 ## 🔧 Configuration
 
