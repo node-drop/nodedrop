@@ -32,14 +32,15 @@ Or:
 npx @nodedrop/create
 ```
 
-That's it! The wizard will:
+That's it! The installer will:
 - ✓ Check Docker installation
 - ✓ Create configuration files
-- ✓ Generate secure passwords
 - ✓ Pull the Docker image
 - ✓ Start Node-Drop
 
-Access the application at **http://localhost:5678**
+Then visit **http://localhost:5678/register** to create your admin account.
+
+The first user to register automatically becomes the administrator!
 
 ### Option 2: Manual Docker Setup
 

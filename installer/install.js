@@ -87,6 +87,9 @@ async function main() {
   const defaultPort = '5678';
   const port = await question(`Port to run Node-Drop [${defaultPort}]: `) || defaultPort;
 
+  // Ask for domain (optional)
+  const domain = await question(`Domain name (optional, e.g., nodedrop.example.com): `) || '';
+
   // Ask for database password
   const defaultDbPassword = generateRandomString(16);
   const dbPassword = await question(`PostgreSQL password [auto-generated]: `) || defaultDbPassword;
@@ -94,19 +97,25 @@ async function main() {
   // Generate JWT secret
   const jwtSecret = generateRandomString(32);
 
+  // Generate credential encryption key (64 hex characters = 32 bytes)
+  const credentialEncryptionKey = generateRandomString(32).split('').map(c => c.charCodeAt(0).toString(16)).join('').substring(0, 64);
+
+  // Generate unique suffix for container names
+  const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+
   console.log('\n📝 Creating configuration files...\n');
 
   // Create docker-compose.yml
   const dockerCompose = `services:
   postgres:
     image: postgres:15-alpine
-    container_name: nodedrop-postgres
+    container_name: nodedrop-postgres-${uniqueSuffix}
     environment:
       POSTGRES_DB: node_drop
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${dbPassword}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_${uniqueSuffix}:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -116,9 +125,9 @@ async function main() {
 
   redis:
     image: redis:7-alpine
-    container_name: nodedrop-redis
+    container_name: nodedrop-redis-${uniqueSuffix}
     volumes:
-      - redis_data:/data
+      - redis_data_${uniqueSuffix}:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -128,7 +137,7 @@ async function main() {
 
   nodedrop:
     image: ghcr.io/node-drop/nodedrop:latest
-    container_name: nodedrop
+    container_name: nodedrop-${uniqueSuffix}
     ports:
       - "${port}:5678"
     environment:
@@ -136,7 +145,9 @@ async function main() {
       - DATABASE_URL=postgresql://postgres:${dbPassword}@postgres:5432/node_drop
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${jwtSecret}
+      - CREDENTIAL_ENCRYPTION_KEY=${credentialEncryptionKey}
       - PORT=5678
+      - CORS_ORIGIN=http://localhost:${port},http://127.0.0.1:${port}${domain ? `\n      - DOMAIN=${domain}` : ''}
     depends_on:
       postgres:
         condition: service_healthy
@@ -145,8 +156,8 @@ async function main() {
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-  redis_data:
+  postgres_data_${uniqueSuffix}:
+  redis_data_${uniqueSuffix}:
 `;
 
   fs.writeFileSync(path.join(installDir, 'docker-compose.yml'), dockerCompose);
@@ -159,34 +170,23 @@ volumes:
 PORT=${port}
 POSTGRES_PASSWORD=${dbPassword}
 JWT_SECRET=${jwtSecret}
+CREDENTIAL_ENCRYPTION_KEY=${credentialEncryptionKey}${domain ? `\nDOMAIN=${domain}` : ''}
 
 # Database URL
 DATABASE_URL=postgresql://postgres:${dbPassword}@postgres:5432/node_drop
 
 # Redis URL
 REDIS_URL=redis://redis:6379
+
+# Access URL
+${domain ? `PUBLIC_URL=https://${domain}` : `PUBLIC_URL=http://localhost:${port}`}
 `;
 
   fs.writeFileSync(path.join(installDir, '.env'), envFile);
   console.log('✓ Created .env file');
 
-  // Create start/stop scripts
-  const isWindows = process.platform === 'win32';
-  
-  if (isWindows) {
-    fs.writeFileSync(path.join(installDir, 'start.bat'), 'docker-compose up -d\necho.\necho Node-Drop is starting...\necho Access it at http://localhost:' + port + '\n');
-    fs.writeFileSync(path.join(installDir, 'stop.bat'), 'docker-compose down\n');
-    fs.writeFileSync(path.join(installDir, 'logs.bat'), 'docker-compose logs -f\n');
-    console.log('✓ Created start.bat, stop.bat, logs.bat');
-  } else {
-    fs.writeFileSync(path.join(installDir, 'start.sh'), '#!/bin/bash\ndocker-compose up -d\necho ""\necho "Node-Drop is starting..."\necho "Access it at http://localhost:' + port + '"\n');
-    fs.writeFileSync(path.join(installDir, 'stop.sh'), '#!/bin/bash\ndocker-compose down\n');
-    fs.writeFileSync(path.join(installDir, 'logs.sh'), '#!/bin/bash\ndocker-compose logs -f\n');
-    fs.chmodSync(path.join(installDir, 'start.sh'), '755');
-    fs.chmodSync(path.join(installDir, 'stop.sh'), '755');
-    fs.chmodSync(path.join(installDir, 'logs.sh'), '755');
-    console.log('✓ Created start.sh, stop.sh, logs.sh');
-  }
+  // Detect platform
+  const accessUrl = domain ? `https://${domain}` : `http://localhost:${port}`;
 
   // Create README
   const readme = `# Node-Drop Installation
@@ -194,18 +194,26 @@ REDIS_URL=redis://redis:6379
 ## Quick Start
 
 ### Start Node-Drop
-${isWindows ? 'start.bat' : './start.sh'}
+\`\`\`bash
+docker-compose up -d
+\`\`\`
 
 ### Stop Node-Drop
-${isWindows ? 'stop.bat' : './stop.sh'}
+\`\`\`bash
+docker-compose down
+\`\`\`
 
 ### View Logs
-${isWindows ? 'logs.bat' : './logs.sh'}
+\`\`\`bash
+docker-compose logs -f
+\`\`\`
 
 ## Access
 
 Open your browser and go to:
-http://localhost:${port}
+${domain ? `https://${domain}` : `http://localhost:${port}`}
+
+${domain ? `Note: Ensure your domain DNS points to this server and SSL is configured.` : ''}
 
 ## Configuration
 
@@ -242,38 +250,36 @@ https://github.com/your-org/node-drop
   fs.writeFileSync(path.join(installDir, 'README.md'), readme);
   console.log('✓ Created README.md\n');
 
-  // Ask if user wants to start now
-  const startNow = await question('Do you want to pull the image and start Node-Drop now? (y/n) [y]: ') || 'y';
+  // Automatically pull and start
+  console.log('📦 Pulling Docker image...\n');
+  exec('docker pull ghcr.io/node-drop/nodedrop:latest', { cwd: installDir });
 
-  if (startNow.toLowerCase() === 'y') {
-    console.log('\n📦 Pulling Docker image...\n');
-    exec('docker pull ghcr.io/node-drop/nodedrop:latest', { cwd: installDir });
+  console.log('\n🚀 Starting Node-Drop...\n');
+  exec('docker-compose up -d', { cwd: installDir });
 
-    console.log('\n🚀 Starting Node-Drop...\n');
-    
-    // Stop existing containers if any
-    try {
-      execSync('docker-compose down', { cwd: installDir, stdio: 'pipe' });
-    } catch (error) {
-      // Ignore if no containers exist
-    }
-    
-    exec('docker-compose up -d', { cwd: installDir });
-
-    console.log('\n✅ Installation complete!\n');
-    console.log(`Node-Drop is starting up...`);
-    console.log(`Access it at: http://localhost:${port}\n`);
-    console.log(`Installation directory: ${path.resolve(installDir)}\n`);
-    console.log('Useful commands:');
-    console.log(`  Start:  cd ${installDir} && ${isWindows ? 'start.bat' : './start.sh'}`);
-    console.log(`  Stop:   cd ${installDir} && ${isWindows ? 'stop.bat' : './stop.sh'}`);
-    console.log(`  Logs:   cd ${installDir} && ${isWindows ? 'logs.bat' : './logs.sh'}\n`);
-  } else {
-    console.log('\n✅ Installation complete!\n');
-    console.log(`To start Node-Drop later:`);
-    console.log(`  cd ${installDir}`);
-    console.log(`  ${isWindows ? 'start.bat' : './start.sh'}\n`);
+  console.log('\n✅ Installation complete!\n');
+  console.log(`Node-Drop is starting up...`);
+  console.log(`\n🎉 Next step: Create your admin account`);
+  console.log(`   Visit: ${accessUrl}/register\n`);
+  
+  if (domain) {
+    console.log(`⚠️  Note: Make sure your domain points to this server`);
+    console.log(`   and you have SSL/TLS configured (nginx, Caddy, etc.)\n`);
   }
+  
+  console.log(`Installation directory: ${path.resolve(installDir)}\n`);
+  console.log('Useful commands:');
+  console.log(`  Start:   cd ${installDir}`);
+  console.log(`           docker-compose up -d`);
+  console.log(``);
+  console.log(`  Stop:    cd ${installDir}`);
+  console.log(`           docker-compose down`);
+  console.log(``);
+  console.log(`  Restart: cd ${installDir}`);
+  console.log(`           docker-compose restart`);
+  console.log(``);
+  console.log(`  Logs:    cd ${installDir}`);
+  console.log(`           docker-compose logs -f\n`);
 
   rl.close();
 }

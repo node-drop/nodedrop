@@ -28,11 +28,23 @@ router.get('/', (req: Request, res: Response) => {
         register: 'POST /api/auth/register',
         me: 'GET /api/auth/me',
         refresh: 'POST /api/auth/refresh',
-        forgotPassword: 'POST /api/auth/forgot-password'
+        forgotPassword: 'POST /api/auth/forgot-password',
+        setupStatus: 'GET /api/auth/setup-status'
       }
     }
   });
 });
+
+// GET /api/auth/setup-status - Check if setup is needed (first user)
+router.get('/setup-status', asyncHandler(async (req: Request, res: Response) => {
+  const { checkSetupStatus } = require('../utils/setup');
+  const status = await checkSetupStatus(prisma);
+  
+  res.json({
+    success: true,
+    data: status
+  });
+}));
 
 // POST /api/auth/register - Register new user
 router.post(
@@ -50,6 +62,10 @@ router.post(
       throw new AppError('User already exists with this email', 400, 'USER_EXISTS');
     }
 
+    // Check if this is the first user (make them admin)
+    const userCount = await prisma.user.count();
+    const isFirstUser = userCount === 0;
+
     // Hash password
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -60,7 +76,7 @@ router.post(
         email,
         password: hashedPassword,
         name: `${firstName} ${lastName}`,
-        role: 'USER'
+        role: isFirstUser ? 'ADMIN' : 'USER'
       },
       select: {
         id: true,
@@ -70,6 +86,15 @@ router.post(
         createdAt: true
       }
     });
+
+    // If first user, mark setup as complete
+    if (isFirstUser) {
+      const { markSetupComplete } = require('../utils/setup');
+      markSetupComplete({
+        siteName: 'Node-Drop',
+        adminEmail: email,
+      });
+    }
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET;

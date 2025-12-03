@@ -8,19 +8,8 @@ async function main() {
   logger.info("Starting database seeding...");
 
   try {
-    // Create admin user
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    const adminUser = await prisma.user.upsert({
-      where: { email: "admin@node-drop.com" },
-      update: {},
-      create: {
-        email: "admin@node-drop.com",
-        password: hashedPassword,
-        name: "Admin User",
-        role: "ADMIN",
-        active: true,
-      },
-    });
+    // Note: Admin user is created through the setup wizard
+    // This seed only creates test data and categories
 
     // Create test user
     const testUserPassword = await bcrypt.hash("test123", 10);
@@ -353,6 +342,16 @@ async function main() {
       });
     }
 
+    // Get admin user (should exist from setup wizard)
+    const adminUser = await prisma.user.findFirst({
+      where: { role: "ADMIN" }
+    });
+
+    if (!adminUser) {
+      logger.warn("⚠️  No admin user found. Please run the setup wizard first.");
+      logger.warn("   Visit: http://localhost:5678/setup");
+    }
+
     // Create sample workflow
     const sampleWorkflow = await prisma.workflow.upsert({
       where: { id: "sample-workflow-1" },
@@ -452,11 +451,19 @@ async function main() {
       },
     });
 
-    logger.info("Database seeding completed successfully");
-    logger.info(`Created users: ${adminUser.email}, ${testUser.email}`);
-    logger.info(`Created ${categories.length} categories`);
-    logger.info(`Created ${builtInNodes.length} built-in node types`);
-    logger.info(`Created sample workflow: ${sampleWorkflow.name}`);
+    logger.info("✅ Database seeding completed successfully");
+    logger.info(`   Test user: ${testUser.email} / test123`);
+    logger.info(`   Categories: ${categories.length}`);
+    logger.info(`   Node types: ${builtInNodes.length}`);
+    logger.info(`   Sample workflow: ${sampleWorkflow.name}`);
+    
+    if (adminUser) {
+      logger.info(`   Admin user: ${adminUser.email}`);
+    } else {
+      logger.info("");
+      logger.info("⚠️  No admin user found!");
+      logger.info("   Complete setup at: http://localhost:5678/setup");
+    }
   } catch (error) {
     logger.error("Error during database seeding:", error);
     throw error;
