@@ -61,9 +61,9 @@ export function NavUser({
   const handleCheckForUpdates = async () => {
     try {
       const updateInfo = await checkForUpdates()
-      if (updateInfo.updateAvailable) {
+      if (updateInfo?.updateAvailable) {
         toast.info('Update Available', {
-          description: updateInfo.message || 'A new version is available',
+          description: updateInfo?.message || 'A new version is available',
           action: {
             label: 'Update Now',
             onClick: handleInstallUpdate,
@@ -71,7 +71,7 @@ export function NavUser({
         })
       } else {
         toast.success('Up to Date', {
-          description: updateInfo.message || 'You are running the latest version',
+          description: updateInfo?.message || 'You are running the latest version',
         })
       }
     } catch (error) {

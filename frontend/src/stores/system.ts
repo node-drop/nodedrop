@@ -20,15 +20,15 @@ interface SystemState {
   systemInfo: SystemInfo | null;
   updateInfo: UpdateInfo | null;
   isCheckingUpdate: boolean;
-  isUpdating: false;
+  isUpdating: boolean;
   
   // Actions
   loadSystemInfo: () => Promise<void>;
-  checkForUpdates: () => Promise<void>;
-  installUpdate: () => Promise<void>;
+  checkForUpdates: () => Promise<UpdateInfo | undefined>;
+  installUpdate: () => Promise<any>;
 }
 
-export const useSystemStore = create<SystemState>((set, get) => ({
+export const useSystemStore = create<SystemState>((set) => ({
   systemInfo: null,
   updateInfo: null,
   isCheckingUpdate: false,
