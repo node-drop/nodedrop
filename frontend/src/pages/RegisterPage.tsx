@@ -23,7 +23,19 @@ export const RegisterPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isFirstUser, setIsFirstUser] = useState(false)
   const navigate = useNavigate()
+
+  // Check if this is the first user
+  React.useEffect(() => {
+    apiClient.get('/auth/setup-status')
+      .then((response: any) => {
+        setIsFirstUser(response.data?.needsSetup || false)
+      })
+      .catch(() => {
+        // Ignore errors, assume not first user
+      })
+  }, [])
 
   const form = useForm<RegisterFormData>({
     defaultValues: {
@@ -68,12 +80,20 @@ export const RegisterPage: React.FC = () => {
               <Workflow className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Create your account</CardTitle>
+          <CardTitle className="text-2xl text-center">
+            {isFirstUser ? 'Welcome! Create Admin Account' : 'Create your account'}
+          </CardTitle>
           <CardDescription className="text-center">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:underline">
-              Sign in
-            </Link>
+            {isFirstUser ? (
+              'You\'ll be the administrator of this Node-Drop instance'
+            ) : (
+              <>
+                Already have an account?{' '}
+                <Link to="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

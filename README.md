@@ -20,19 +20,78 @@ A powerful workflow automation platform similar to n8n, built with Node.js, Reac
 
 ## 🐳 Quick Start with Docker (Recommended)
 
-### Option 1: Using Pre-built Images
-
-The fastest way to get started:
+### Option 1: One Command Install (Easiest)
 
 ```bash
-# Pull and run the latest image
-docker pull ghcr.io/node-drop/nodedrop:latest
-docker-compose -f docker-compose.published.yml up
+npm create nodedrop
+```
+
+Or:
+
+```bash
+npx @nodedrop/create
+```
+
+That's it! The installer will:
+- ✓ Check Docker installation
+- ✓ Create configuration files
+- ✓ Pull the Docker image
+- ✓ Start Node-Drop
+
+Then visit **http://localhost:5678/register** to create your admin account.
+
+The first user to register automatically becomes the administrator!
+
+### Option 2: Manual Docker Setup
+
+If you prefer manual setup, create a `docker-compose.yml` file:
+
+```yaml
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: node_drop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  nodedrop:
+    image: ghcr.io/node-drop/nodedrop:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/node_drop
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=change-this-to-a-secure-random-string
+      - PORT=5678
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+Then run:
+```bash
+docker-compose up -d
 ```
 
 Access the application at **http://localhost:5678**
 
-### Option 2: Build from Source
+### Option 3: Build from Source
 
 ```bash
 # Clone the repository

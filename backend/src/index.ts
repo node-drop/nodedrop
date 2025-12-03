@@ -303,7 +303,7 @@ const corsOrigins = process.env.CORS_ORIGIN
 
 // Dynamic CORS origin function
 const corsOriginFunction = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-  // Allow requests with no origin (like mobile apps or curl requests)
+  // Allow requests with no origin (same-origin requests, mobile apps, curl)
   if (!origin) return callback(null, true);
 
   // Check if origin is in allowed list
@@ -311,9 +311,8 @@ const corsOriginFunction = (origin: string | undefined, callback: (err: Error | 
     return callback(null, true);
   }
 
-  // For development, allow all localhost and 127.0.0.1 origins
-  if (process.env.NODE_ENV === 'development' &&
-    (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+  // Allow localhost origins (for unified Docker image and development)
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
     return callback(null, true);
   }
 
