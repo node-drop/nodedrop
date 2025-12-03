@@ -18,7 +18,11 @@ export const env = {
   },
   
   get API_BASE_URL() {
-    // Always use full API URL (no proxy)
+    // If API_URL already includes /api, don't add it again
+    if (this.API_URL.endsWith('/api')) {
+      return this.API_URL;
+    }
+    // Otherwise add /api
     return `${this.API_URL}/api`
   }
 } as const

@@ -73,9 +73,12 @@ async function main() {
     // Ignore errors checking for containers
   }
 
-  // Ask for installation directory
-  const defaultDir = './nodedrop';
-  const installDir = await question(`Installation directory [${defaultDir}]: `) || defaultDir;
+  // Ask for installation directory (use home directory by default)
+  const os = require('os');
+  const homeDir = os.homedir();
+  const defaultDir = path.join(homeDir, 'nodedrop');
+  const installDirInput = await question(`Installation directory [${defaultDir}]: `) || defaultDir;
+  const installDir = path.resolve(installDirInput);
 
   // Create directory if it doesn't exist
   if (!fs.existsSync(installDir)) {

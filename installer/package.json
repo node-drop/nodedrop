@@ -1,6 +1,6 @@
 {
   "name": "@nodedrop/create",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Node-Drop workflow automation platform - one command installation",
   "main": "install.js",
   "bin": {
@@ -15,9 +15,6 @@
     "node-drop",
     "workflow",
     "automation",
-    "n8n",
-    "zapier",
-    "installer",
     "setup"
   ],
   "author": "nodedrop",
