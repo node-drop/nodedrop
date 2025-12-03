@@ -19,17 +19,21 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useAuthStore } from "@/stores"
+import { useAuthStore, useSystemStore } from "@/stores"
 import {
   Activity,
   BadgeCheck,
   Bell,
   ChevronsUpDown,
   Database,
+  Download,
   LogOut,
+  RefreshCw,
   Webhook,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 export function NavUser({
   user,
@@ -42,7 +46,51 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const { logout } = useAuthStore()
+  const { systemInfo, loadSystemInfo, checkForUpdates, installUpdate, isCheckingUpdate, isUpdating } = useSystemStore()
   const navigate = useNavigate()
+  const [showUpdateOption, setShowUpdateOption] = useState(false)
+
+  useEffect(() => {
+    loadSystemInfo()
+  }, [loadSystemInfo])
+
+  useEffect(() => {
+    setShowUpdateOption(systemInfo?.isDocker || false)
+  }, [systemInfo])
+
+  const handleCheckForUpdates = async () => {
+    try {
+      const updateInfo = await checkForUpdates()
+      if (updateInfo.updateAvailable) {
+        toast.info('Update Available', {
+          description: updateInfo.message || 'A new version is available',
+          action: {
+            label: 'Update Now',
+            onClick: handleInstallUpdate,
+          },
+        })
+      } else {
+        toast.success('Up to Date', {
+          description: updateInfo.message || 'You are running the latest version',
+        })
+      }
+    } catch (error) {
+      toast.error('Failed to check for updates')
+    }
+  }
+
+  const handleInstallUpdate = async () => {
+    try {
+      await installUpdate()
+      toast.success('Update Started', {
+        description: 'The application will restart in a few moments',
+      })
+    } catch (error: any) {
+      toast.error('Update Failed', {
+        description: error.message || 'Failed to install update',
+      })
+    }
+  }
   
   // Get user initials for fallback
   const getInitials = (name: string) => {
@@ -131,6 +179,24 @@ export function NavUser({
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            {showUpdateOption && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCheckForUpdates} disabled={isCheckingUpdate || isUpdating}>
+                  {isCheckingUpdate ? (
+                    <RefreshCw className="animate-spin" />
+                  ) : (
+                    <Download />
+                  )}
+                  <span>Check for Updates</span>
+                  {systemInfo?.version && (
+                    <span className="ml-auto text-xs text-muted-foreground font-mono">
+                      v{systemInfo.version}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />

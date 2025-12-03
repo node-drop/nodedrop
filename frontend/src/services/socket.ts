@@ -52,7 +52,9 @@ export class SocketService {
         return;
       }
 
-      const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      // For Socket.io, use the base URL without /api
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const serverUrl = apiUrl.replace('/api', '');
 
       this.socket = io(serverUrl, {
         auth: {

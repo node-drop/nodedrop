@@ -35,9 +35,13 @@ export class ExecutionWebSocket {
   private reconnectDelay = 1000;
 
   constructor(
-    private baseUrl: string = import.meta.env.VITE_API_URL ||
-      "http://localhost:4000"
-  ) {}
+    baseUrl: string = import.meta.env.VITE_API_URL || "http://localhost:4000"
+  ) {
+    // For Socket.io, use the base URL without /api
+    this.baseUrl = baseUrl.replace('/api', '');
+  }
+  
+  private baseUrl: string;
 
   /**
    * Connect to the WebSocket server

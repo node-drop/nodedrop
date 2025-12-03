@@ -1,6 +1,7 @@
 import { useSidebar } from '@/components/ui/sidebar'
 import { useSidebarContext } from '@/contexts'
 import { workflowService } from '@/services'
+import { useSystemStore } from '@/stores'
 import { Workflow as WorkflowType } from '@/types'
 import { ArrowRight, Clock, FileText, Loader2, Settings, Star, Workflow } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -11,11 +12,14 @@ export function WorkflowLandingPage() {
   const location = useLocation()
   const { setOpen } = useSidebar()
   const { setActiveWorkflowItem } = useSidebarContext()
+  const { systemInfo, loadSystemInfo } = useSystemStore()
   const [workflows, setWorkflows] = useState<WorkflowType[]>([])
   const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(true)
 
-  // Load recent workflows
+  // Load system info and workflows
   useEffect(() => {
+    loadSystemInfo()
+    
     const loadWorkflows = async () => {
       try {
         setIsLoadingWorkflows(true)
@@ -33,7 +37,7 @@ export function WorkflowLandingPage() {
     }
 
     loadWorkflows()
-  }, [])
+  }, [loadSystemInfo])
 
   const quickActions = [
     {
@@ -73,9 +77,16 @@ export function WorkflowLandingPage() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-6">
             <Workflow className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Welcome to NodeDrop
-          </h1>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h1 className="text-4xl font-bold text-foreground">
+              Welcome to NodeDrop
+            </h1>
+            {systemInfo?.version && (
+              <span className="px-3 py-1 text-sm font-mono font-medium text-primary rounded-full border border-primary/20">
+                v{systemInfo.version}
+              </span>
+            )}
+          </div>
           <p className="text-xl text-muted-foreground mb-8">
             Build, automate, and scale your workflows with ease
           </p>

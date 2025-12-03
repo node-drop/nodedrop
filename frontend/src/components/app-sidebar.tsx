@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch"
 import { VariablesList } from "@/components/variable/VariablesList"
 import { WorkflowsList } from "@/components/workflow/WorkflowsList"
 import { useSidebarContext, useTeam, useTheme } from "@/contexts"
-import { useAuthStore, useReactFlowUIStore, useWorkflowStore } from "@/stores"
+import { useAuthStore, useReactFlowUIStore, useSystemStore, useWorkflowStore } from "@/stores"
 import {
   Activity,
   ArrowLeft,
@@ -682,6 +682,7 @@ function CanvasViewSettings() {
 // Canvas Boundary Settings Component
 function CanvasBoundarySettings() {
   const { canvasBoundaryX, canvasBoundaryY, setCanvasBoundaryX, setCanvasBoundaryY } = useReactFlowUIStore()
+  const { systemInfo } = useSystemStore()
 
   return (
     <div>
@@ -721,6 +722,22 @@ function CanvasBoundarySettings() {
           Control how far you can pan and place nodes on the canvas
         </p>
       </div>
+
+      {/* Version Info */}
+      {systemInfo && (
+        <div className="mt-6 pt-4 border-t border-sidebar-border">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Version</span>
+            <span className="font-mono font-medium">{systemInfo.version}</span>
+          </div>
+          {systemInfo.environment && (
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-muted-foreground">Environment</span>
+              <span className="font-mono text-muted-foreground">{systemInfo.environment}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
