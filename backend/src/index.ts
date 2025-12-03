@@ -437,6 +437,10 @@ app.use("/api", debugCredentialsRoutes);
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+
+// System routes
+import systemRoutes from "./routes/system";
+app.use("/api/system", systemRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api", environmentRoutes); // Environment routes are nested under workflows
 app.use("/api/executions", executionRoutes);
