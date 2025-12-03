@@ -191,8 +191,8 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
         <TooltipProvider key="validation-error" delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="absolute -top-2 -right-2 flex items-center justify-center w-5 h-5 bg-destructive text-destructive-foreground rounded-full shadow-md cursor-help z-10">
-                <AlertTriangle className="w-3.5 h-3.5" />
+              <div className="absolute -top-2 -right-2 flex items-center justify-center w-4 h-4 bg-destructive text-destructive-foreground rounded-full shadow-md cursor-help z-10">
+                <AlertTriangle className="w-2.5 h-2.5" />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs">

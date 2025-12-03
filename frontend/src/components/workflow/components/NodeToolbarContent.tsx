@@ -3,10 +3,8 @@ import { NodeToolbar, Position, useStore } from '@xyflow/react'
 import { memo, useMemo } from 'react'
 import { ExecuteToolbarButton } from '../ExecuteToolbarButton'
 import { ConfigToolbarButton } from '../ConfigToolbarButton'
-import { OutputToolbarButton } from '../OutputToolbarButton'
 import type { NodeExecutionError } from '../types'
 import { useNodeTypes } from '@/stores'
-import { usePinnedOutputsStore } from '@/stores/pinnedOutputs'
 
 interface NodeToolbarContentProps {
   nodeId: string
@@ -49,10 +47,6 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
     return node?.selected || false
   })
 
-  // Check if this node has a pinned output
-  const { isPinned } = usePinnedOutputsStore()
-  const hasPinnedOutput = isPinned(nodeId)
-
   return (
     <NodeToolbar
       isVisible={true}
@@ -61,7 +55,7 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
       align="center"
     >
       <div 
-        className="flex items-center gap-0.5 node-toolbar-container" 
+        className="flex items-center gap-0.5 node-toolbar-container bg-background/95 backdrop-blur-sm rounded-md shadow-sm border p-1" 
         role="toolbar" 
         aria-label={`Controls for ${nodeLabel}`}
         aria-orientation="horizontal"
@@ -90,14 +84,6 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
           <ConfigToolbarButton
             nodeId={nodeId}
             nodeType={nodeTypeDefinition}
-            disabled={disabled}
-          />
-        )}
-
-        {/* Output button - visible when selected or pinned */}
-        {(isNodeSelected || hasPinnedOutput) && (
-          <OutputToolbarButton
-            nodeId={nodeId}
             disabled={disabled}
           />
         )}

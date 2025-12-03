@@ -114,19 +114,19 @@ export function ExecuteToolbarButton({
 
   const getIcon = () => {
     if (showSuccess) {
-      return <CheckCircle className="w-3 h-3" />
+      return <CheckCircle className="h-3.5 w-3.5 text-green-600" />
     }
     if (hasError) {
       // Show retry icon for retryable errors, alert for non-retryable
       if (executionError?.isRetryable && retryCountdown === 0) {
-        return <RotateCcw className="w-3 h-3" />
+        return <RotateCcw className="h-3.5 w-3.5" />
       }
-      return <AlertCircle className="w-3 h-3" />
+      return <AlertCircle className="h-3.5 w-3.5" />
     }
     if (isExecuting) {
-      return <Loader2 className="w-3 h-3 animate-spin" />
+      return <Loader2 className="h-3.5 w-3.5 animate-spin" />
     }
-    return <Play className="w-3 h-3" />
+    return <Play className="h-3.5 w-3.5 text-green-600" />
   }
 
   const getAriaLabel = () => {
@@ -199,11 +199,14 @@ export function ExecuteToolbarButton({
         size="icon"
         className={cn(
           'h-6 w-6 relative',
-          showSuccess && 'text-green-600 hover:text-green-700 hover:bg-green-100',
-          hasError && !executionError?.isRetryable && 'text-red-600 hover:text-red-700 hover:bg-red-100',
-          hasError && executionError?.isRetryable && retryCountdown === 0 && 'text-amber-600 hover:text-amber-700 hover:bg-amber-100',
-          hasError && executionError?.isRetryable && retryCountdown > 0 && 'text-red-600',
-          isExecuting && 'text-blue-600',
+          // Default state - subtle hover
+          !showSuccess && !hasError && !isExecuting && 'hover:bg-accent',
+          // Success state
+          showSuccess && 'hover:bg-accent',
+          // Error states
+          hasError && !executionError?.isRetryable && 'text-destructive hover:bg-accent',
+          hasError && executionError?.isRetryable && retryCountdown === 0 && 'text-amber-600 hover:bg-accent',
+          hasError && executionError?.isRetryable && retryCountdown > 0 && 'text-destructive opacity-50',
           className
         )}
         onClick={handleClick}
@@ -217,7 +220,7 @@ export function ExecuteToolbarButton({
         {getIcon()}
         {/* Show countdown for retryable errors */}
         {hasError && executionError?.isRetryable && retryCountdown > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3.5 h-3.5 text-[10px] flex items-center justify-center font-bold" aria-hidden="true">
+          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-3.5 h-3.5 text-[9px] flex items-center justify-center font-medium" aria-hidden="true">
             {retryCountdown}
           </span>
         )}
