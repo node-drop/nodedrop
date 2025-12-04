@@ -321,7 +321,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       )}
 
       {/* Pinned Nodes */}
-      {pinnedNodeTypes.length > 0 && (
+      {showAddNode && pinnedNodeTypes.length > 0 && (
         <>
           {pinnedNodeTypes.map((nodeType) => (
             <ContextMenu key={nodeType.identifier}>
