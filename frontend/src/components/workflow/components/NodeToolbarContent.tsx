@@ -18,6 +18,7 @@ interface NodeToolbarContentProps {
   workflowExecutionStatus: string
   onExecute: (nodeId: string, nodeType: string) => void
   onRetry: (nodeId: string, nodeType: string) => void
+  isReadOnly?: boolean
 }
 
 export const NodeToolbarContent = memo(function NodeToolbarContent({
@@ -31,7 +32,8 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
   executionError,
   workflowExecutionStatus,
   onExecute,
-  onRetry
+  onRetry,
+  isReadOnly = false
 }: NodeToolbarContentProps) {
   const { nodeTypes } = useNodeTypes()
   
@@ -47,6 +49,17 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
     return node?.selected || false
   })
 
+  // Determine if we should show any buttons
+  // Hide execute button in readonly mode (execution routes)
+  const showExecuteButton = !isReadOnly && shouldShowExecuteButton(nodeType)
+  const showConfigButton = nodeTypeDefinition && isNodeSelected
+  const hasAnyButtons = showExecuteButton || showConfigButton
+
+  // Don't render toolbar if there are no buttons to show
+  if (!hasAnyButtons) {
+    return null
+  }
+
   return (
     <NodeToolbar
       isVisible={true}
@@ -61,7 +74,7 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
         aria-orientation="horizontal"
       >
         {/* Execute button */}
-        {shouldShowExecuteButton(nodeType) && (
+        {showExecuteButton && (
           <ExecuteToolbarButton
             nodeId={nodeId}
             nodeType={nodeType}
@@ -80,7 +93,7 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
         )}
         
         {/* Config button - visible when selected */}
-        {nodeTypeDefinition && isNodeSelected && (
+        {showConfigButton && (
           <ConfigToolbarButton
             nodeId={nodeId}
             nodeType={nodeTypeDefinition}

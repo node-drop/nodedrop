@@ -517,6 +517,7 @@ export function BaseNodeWrapper({
               workflowExecutionStatus={executionState.status}
               onExecute={handleExecuteNode}
               onRetry={handleRetryNode}
+              isReadOnly={isReadOnly}
             />
 
             {/* Expanded Header */}
