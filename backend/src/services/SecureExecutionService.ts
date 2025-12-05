@@ -333,6 +333,11 @@ export class SecureExecutionService {
       let value = this.sanitizeValue(paramValue);
       value = unwrapSimpleValue(value);
       
+      // Strip the "=" prefix if present (expression mode indicator from frontend)
+      if (typeof value === "string" && value.startsWith("=")) {
+        value = value.substring(1);
+      }
+      
       // Debug: Log expression resolution for values containing $node
       if (typeof value === "string" && value.includes("$node")) {
         logger.info("[SecureExecution] Resolving $node expression", {
@@ -373,7 +378,11 @@ export class SecureExecutionService {
 
         // If itemIndex is specified and different from 0, re-resolve for that specific item
         if (itemIndex !== undefined && itemIndex !== 0 && processedItems.length > itemIndex) {
-          const originalValue = unwrapSimpleValue(this.sanitizeValue(resolvedParameters[parameterName]));
+          let originalValue = unwrapSimpleValue(this.sanitizeValue(resolvedParameters[parameterName]));
+          // Strip the "=" prefix if present (expression mode indicator from frontend)
+          if (typeof originalValue === "string" && originalValue.startsWith("=")) {
+            originalValue = originalValue.substring(1);
+          }
           return resolveExpressions(originalValue, processedItems[itemIndex], expressionContext);
         }
 

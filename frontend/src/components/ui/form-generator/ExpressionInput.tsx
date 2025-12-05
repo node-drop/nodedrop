@@ -29,6 +29,7 @@ interface ExpressionInputProps {
   type?: "text" | "textarea" | "select"
   options?: SelectOption[]
   context?: Record<string, unknown>
+  mockData?: Record<string, unknown>
   evaluator?: (expression: string, context: Record<string, unknown>) => string
   hideRing?: boolean
   onFocus?: () => void
@@ -53,6 +54,7 @@ export function ExpressionInput({
   type = "text",
   options = [],
   context = {},
+  mockData: mockDataProp,
   evaluator,
   hideRing,
   onFocus: onFocusProp,
@@ -73,7 +75,11 @@ export function ExpressionInput({
 
   // Use custom hooks for expression mode and autocomplete
   const { isExpression, displayValue, wrapWithPrefix } = useExpressionMode(value)
-  const mockData = React.useMemo(() => ({ ...defaultMockData, $json: context }), [context])
+  // If mockData prop is provided, use it directly; otherwise create from context
+  const mockData = React.useMemo(() => 
+    mockDataProp || { ...defaultMockData, $json: context }, 
+    [mockDataProp, context]
+  )
   
   const {
     showAutocomplete,
@@ -313,9 +319,10 @@ export function ExpressionInput({
         <div className="relative">
           <div
             className={cn(
-              "rounded-md border transition-all duration-200 ease-out overflow-hidden",
-              "border-input bg-background",
-              isFocused && !hideRing && "ring-2 ring-ring ring-offset-1",
+              "rounded-md transition-all duration-200 ease-out overflow-hidden",
+              "bg-background",
+              !hideRing && "border border-input",
+              isFocused && !hideRing && "ring-1 ring-ring",
               className,
             )}
           >

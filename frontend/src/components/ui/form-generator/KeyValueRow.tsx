@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
-import { ExpressionInput } from './ExpressionInput'
+import { WorkflowExpressionField } from './WorkflowExpressionField'
 
 export interface KeyValueRowValue {
   key: string
@@ -16,6 +16,7 @@ export interface KeyValueRowProps {
   nodeId?: string
   keyPlaceholder?: string
   valuePlaceholder?: string
+  showRing?: boolean
 }
 
 export function KeyValueRow({
@@ -27,6 +28,7 @@ export function KeyValueRow({
   nodeId,
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
+  showRing = true,
 }: KeyValueRowProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
@@ -67,7 +69,7 @@ export function KeyValueRow({
         >
           {/* Key Field */}
           <div className="relative" style={{ zIndex: keyIsFocused && keyIsExpression ? 200 : 2 }}>
-            <ExpressionInput
+            <WorkflowExpressionField
               value={value.key || ''}
               onChange={handleKeyChange}
               onFocus={() => handleFocus('key')}
@@ -81,7 +83,7 @@ export function KeyValueRow({
 
           {/* Value Field */}
           <div className="relative" style={{ zIndex: valueIsFocused && valueIsExpression ? 200 : 1 }}>
-            <ExpressionInput
+            <WorkflowExpressionField
               value={value.value || ''}
               onChange={handleValueChange}
               onFocus={() => handleFocus('value')}
