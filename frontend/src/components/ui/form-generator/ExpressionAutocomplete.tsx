@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { Code2, Database, Variable } from 'lucide-react'
+import { Code2, Database, Variable, Braces, Hash, Box, List, Type as TypeIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 export interface AutocompleteItem {
@@ -61,13 +61,18 @@ export function ExpressionAutocomplete({
   const getIcon = (type: string) => {
     switch (type) {
       case 'variable':
-        return <Variable className="h-4 w-4 text-blue-500" />
+        return <Variable size={14} className="text-green-600" />
+      case 'method':
       case 'function':
-        return <Code2 className="h-4 w-4 text-purple-500" />
+        return <Braces size={14} className="text-blue-600" />
       case 'property':
-        return <Database className="h-4 w-4 text-green-500" />
+        return <Hash size={14} className="text-amber-600" />
+      case 'object':
+        return <Box size={14} className="text-purple-600" />
+      case 'array':
+        return <List size={14} className="text-red-600" />
       default:
-        return <Code2 className="h-4 w-4 text-gray-500" />
+        return <TypeIcon size={14} className="text-neutral-500" />
     }
   }
 
@@ -129,17 +134,15 @@ export function ExpressionAutocomplete({
   return (
     <div
       ref={containerRef}
-      className="absolute z-50 w-full max-h-96 overflow-y-auto bg-background border rounded-md shadow-lg"
+      className="absolute z-50 w-80 bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
       style={{ top: position.top, left: position.left }}
     >
-      <div className="py-1">
+      <div className="px-3 py-2 border-b border-border bg-muted">
+        <span className="text-xs text-muted-foreground font-medium">Suggestions</span>
+      </div>
+      <div className="max-h-64 overflow-y-auto">
         {sortedCategories.map((category) => (
-          <div key={category} className="mb-2 last:mb-0">
-            {/* Category Header */}
-            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50 sticky top-0 z-10">
-              {category}
-            </div>
-            
+          <div key={category}>
             {/* Category Items */}
             {groupedItems[category].map((item) => {
               const currentIndex = flatIndex++
@@ -158,17 +161,26 @@ export function ExpressionAutocomplete({
                     }}
                     onMouseLeave={() => setHoveredItem(null)}
                     className={cn(
-                      'w-full px-3 py-2 text-left flex items-start gap-2 hover:bg-muted transition-colors',
-                      currentIndex === selectedIndex && 'bg-muted'
+                      'w-full px-3 py-2 flex items-center gap-3 text-left transition-colors',
+                      currentIndex === selectedIndex ? 'bg-accent' : 'hover:bg-muted'
                     )}
                   >
-                    <div className="mt-0.5">{item.icon || getIcon(item.type)}</div>
+                    <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                      {item.icon || getIcon(item.type)}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{item.label}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn(
+                          'font-mono text-sm truncate',
+                          currentIndex === selectedIndex ? 'text-accent-foreground' : 'text-foreground'
+                        )}>
+                          {item.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground capitalize flex-shrink-0">{item.type}</span>
+                      </div>
                       {item.description && (
-                        <div className="text-xs text-muted-foreground truncate">{item.description}</div>
+                        <span className="text-xs text-muted-foreground truncate block">{item.description}</span>
                       )}
-                      <code className="text-xs text-blue-600 dark:text-blue-400">{item.value}</code>
                     </div>
                   </button>
                   
@@ -199,6 +211,17 @@ export function ExpressionAutocomplete({
             })}
           </div>
         ))}
+      </div>
+      <div className="px-3 py-1.5 border-t border-border bg-muted flex items-center gap-4">
+        <span className="text-[10px] text-muted-foreground">
+          <kbd className="px-1 py-0.5 bg-border rounded text-[10px]">↑↓</kbd> navigate
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          <kbd className="px-1 py-0.5 bg-border rounded text-[10px]">Tab</kbd> select
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          <kbd className="px-1 py-0.5 bg-border rounded text-[10px]">Esc</kbd> close
+        </span>
       </div>
     </div>
   )

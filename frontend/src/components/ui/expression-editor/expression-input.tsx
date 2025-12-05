@@ -21,6 +21,7 @@ interface ExpressionInputProps {
   autoFocus?: boolean
   id?: string
   name?: string
+  evaluationContext?: Record<string, unknown>
 }
 
 const sizeStyles = {
@@ -56,6 +57,7 @@ export const ExpressionInput = forwardRef<HTMLTextAreaElement, ExpressionInputPr
       autoFocus,
       id,
       name,
+      evaluationContext,
     },
     ref,
   ) => {
@@ -166,11 +168,10 @@ export const ExpressionInput = forwardRef<HTMLTextAreaElement, ExpressionInputPr
           className={cn(sharedClasses, "absolute inset-0 overflow-hidden pointer-events-none")}
           aria-hidden="true"
         >
-          {renderHighlightedText(value, placeholder)}
+          {renderHighlightedText(value, placeholder, evaluationContext)}
         </div>
 
         {/* Actual textarea - rendered last to ensure it's on top */}
-       
         <textarea
           ref={ref}
           id={id}
