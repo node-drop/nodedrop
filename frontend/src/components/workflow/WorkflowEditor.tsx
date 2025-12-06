@@ -140,7 +140,7 @@ export function WorkflowEditor({
 
     // OPTIMIZATION: Enhance edges with execution-aware animation
     // Only edges in the current execution path will be animated
-    const executionAwareEdges = useExecutionAwareEdges(edges)
+    const executionAwareEdges = useExecutionAwareEdges(edges, nodes)
 
     const {
         executionState,

@@ -124,18 +124,69 @@ export function useCompletedEdges(): Set<string> {
 }
 
 /**
+ * Get the color for a node based on its execution status
+ * Checks multiple sources for the most accurate status
+ */
+function getNodeStatusColor(
+  nodeId: string,
+  workflow: any,
+  executionResults: any,
+  reactFlowNodes: any[]
+): string {
+  // First check ReactFlow node data (most up-to-date during execution)
+  const reactFlowNode = reactFlowNodes.find((n: any) => n.id === nodeId);
+  if (reactFlowNode?.data?.status) {
+    const status = reactFlowNode.data.status;
+    switch (status) {
+      case "success":
+        return "#10b981"; // Green
+      case "error":
+        return "#ef4444"; // Red
+      case "skipped":
+        return "#94a3b8"; // Gray
+    }
+  }
+
+  // Check execution results
+  const nodeResult = executionResults?.nodeResults?.[nodeId];
+  if (nodeResult) {
+    if (nodeResult.success) return "#10b981"; // Green for success
+    if (nodeResult.error) return "#ef4444"; // Red for error
+    if (nodeResult.skipped) return "#94a3b8"; // Gray for skipped
+  }
+
+  // Fallback to node status in workflow
+  const node = workflow?.nodes?.find((n: any) => n.id === nodeId);
+  if (node?.status) {
+    const status = node.status;
+    switch (status) {
+      case "success":
+        return "#10b981"; // Green
+      case "error":
+        return "#ef4444"; // Red
+      case "skipped":
+        return "#94a3b8"; // Gray
+    }
+  }
+
+  return "#6366f1"; // Default indigo for idle/unknown
+}
+
+/**
  * Hook to enhance edges with execution-aware animation and styling
  *
  * @param edges - Original edges
  * @returns Edges with animated property and style based on execution context
  */
-export function useExecutionAwareEdges(edges: Edge[]): Edge[] {
+export function useExecutionAwareEdges(edges: Edge[], reactFlowNodes: any[] = []): Edge[] {
   const edgeAnimationMap = useEdgeAnimation(edges);
   const activeEdges = useActiveEdges();
   const completedEdges = useCompletedEdges();
   const isExecuting = useWorkflowStore(
     (state) => state.executionState.status === "running"
   );
+  const workflow = useWorkflowStore((state) => state.workflow);
+  const executionResults = useWorkflowStore((state) => (state.executionState as any).result);
 
   return useMemo(() => {
     return edges.map((edge) => {
@@ -157,10 +208,11 @@ export function useExecutionAwareEdges(edges: Edge[]): Edge[] {
           };
           animated = true; // Animate active edges
         } else if (isCompleted) {
-          // Completed edge - already traversed
+          // Completed edge - use target node's status color
+          const targetColor = getNodeStatusColor(edge.target, workflow, executionResults, reactFlowNodes);
           style = {
             ...style,
-            stroke: "#6366f1", // Indigo for completed
+            stroke: targetColor,
             strokeWidth: 2,
             opacity: 0.8,
           };
@@ -178,9 +230,11 @@ export function useExecutionAwareEdges(edges: Edge[]): Edge[] {
       } else {
         // Not executing - show completed edges if any
         if (isCompleted) {
+          // Use target node's status color
+          const targetColor = getNodeStatusColor(edge.target, workflow, executionResults, reactFlowNodes);
           style = {
             ...style,
-            stroke: "#6366f1", // Indigo for completed
+            stroke: targetColor,
             strokeWidth: 2,
             opacity: 0.6,
           };
@@ -197,5 +251,5 @@ export function useExecutionAwareEdges(edges: Edge[]): Edge[] {
         style,
       };
     });
-  }, [edges, edgeAnimationMap, activeEdges, completedEdges, isExecuting]);
+  }, [edges, edgeAnimationMap, activeEdges, completedEdges, isExecuting, workflow, executionResults, reactFlowNodes]);
 }

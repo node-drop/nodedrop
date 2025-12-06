@@ -6,17 +6,21 @@ export interface NodeStyleConfig {
   status?: string;
   selected?: boolean;
   disabled?: boolean;
+  hasValidationErrors?: boolean;
 }
 
 /**
  * Get border classes based on node status
  */
 export function getNodeBorderClasses(config: NodeStyleConfig): string {
-  const { status, selected, disabled } = config;
+  const { status, selected, disabled, hasValidationErrors } = config;
 
   if (disabled) return "border-border/50 opacity-60";
   if (selected)
     return "border-blue-500 ring-2 ring-blue-500/30 dark:border-blue-400 dark:ring-blue-400/30";
+
+  // Validation errors take priority over execution status
+  if (hasValidationErrors) return "border-orange-500 dark:border-orange-400";
 
   switch (status) {
     case "running":
@@ -55,9 +59,10 @@ export function getNodeAnimationClasses(status?: string): string {
 export function getNodeStatusClasses(
   status?: string,
   selected?: boolean,
-  disabled?: boolean
+  disabled?: boolean,
+  hasValidationErrors?: boolean
 ): string {
-  const config: NodeStyleConfig = { status, selected, disabled };
+  const config: NodeStyleConfig = { status, selected, disabled, hasValidationErrors };
   const borderClasses = getNodeBorderClasses(config);
   const animationClasses = getNodeAnimationClasses(status);
 

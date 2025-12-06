@@ -131,6 +131,7 @@ export function CollapsedNodeContent({
 }: CollapsedNodeContentProps) {
   // Get validation errors for this node
   const { errors } = useNodeValidation(id)
+  const hasValidationErrors = errors.length > 0
   
   const isRunning = effectiveStatus === 'running'
   
@@ -142,7 +143,8 @@ export function CollapsedNodeContent({
           className={`relative bg-card rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md ${getNodeStatusClasses(
             effectiveStatus,
             selected,
-            data.disabled
+            data.disabled,
+            hasValidationErrors
           )} ${className}`}
           style={{
             width: effectiveCollapsedWidth,

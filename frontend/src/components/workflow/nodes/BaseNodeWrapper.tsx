@@ -11,6 +11,7 @@ import { NodeHeader } from '../components/NodeHeader'
 import { NodeToolbarContent } from '../components/NodeToolbarContent'
 import { useNodeActions } from '../hooks/useNodeActions'
 import { useNodeExecution } from '../hooks/useNodeExecution'
+import { useNodeValidation } from '@/hooks/workflow'
 import '../node-animations.css'
 import { getNodeStatusClasses } from '../utils/nodeStyleUtils'
 import { useNodeSize } from './useNodeSize'
@@ -471,6 +472,10 @@ export function BaseNodeWrapper({
   // Expanded view
   const isRunning = effectiveStatus === 'running'
   
+  // Get validation errors for expanded view
+  const { errors: validationErrors } = useNodeValidation(id)
+  const hasValidationErrors = validationErrors.length > 0
+  
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -481,7 +486,8 @@ export function BaseNodeWrapper({
               className={`relative bg-card rounded-lg ${compactMode ? 'border-2' : 'border'} shadow-lg transition-all duration-200 hover:shadow-xl ${getNodeStatusClasses(
                 effectiveStatus,
                 selected,
-                data.disabled
+                data.disabled,
+                hasValidationErrors
               )} ${className}`}
               style={{
                 width: effectiveExpandedWidth,
