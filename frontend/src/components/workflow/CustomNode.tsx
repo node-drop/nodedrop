@@ -113,25 +113,26 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
 
   // For Switch nodes, compute dynamic outputs from parameters
   const computedOutputs = useMemo(() => {
-    if (data.nodeType === 'switch' && data.parameters?.outputs) {
-      const outputs = data.parameters.outputs as any[]
-      if (Array.isArray(outputs) && outputs.length > 0) {
-        const computed = outputs.map((output: any, index: number) => {
-          // Handle RepeatingField format: { id, values: { rule: { key, expression, value } } }
-          const outputConfig = output.values || output
-          const rule = outputConfig.rule || {}
-          // Use the key field, or fallback to a numbered output
-          const key = rule.key?.trim()
-          return key || `output${index + 1}`
-        })
-        // Only return if we have valid outputs
-        if (computed.length > 0) {
-          return computed
+    if (data.nodeType === 'switch') {
+      const mode = data.parameters?.mode as string
+      
+      if (mode === 'expression') {
+        // Expression mode: use configured outputsCount
+        const outputsCount = data.parameters?.outputsCount as number
+        if (typeof outputsCount === 'number' && outputsCount >= 2 && outputsCount <= 10) {
+          return Array.from({ length: outputsCount }, (_, i) => `output${i}`)
+        }
+      } else {
+        // Rules mode: one output per rule
+        const rules = data.parameters?.rules as any[]
+        if (Array.isArray(rules)) {
+          const outputsCount = rules.length
+          return Array.from({ length: outputsCount }, (_, i) => `output${i}`)
         }
       }
     }
     return data.outputs
-  }, [data.nodeType, data.parameters?.outputs, data.outputs])
+  }, [data.nodeType, data.parameters?.mode, data.parameters?.outputsCount, data.parameters?.rules, data.outputs])
 
   // Calculate dynamic height based on number of outputs and service inputs
   // Each handle needs ~30px of space, with a minimum of 60px for the node

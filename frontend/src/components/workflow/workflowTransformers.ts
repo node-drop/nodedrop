@@ -80,12 +80,65 @@ function getNodeOutputs(
   node: WorkflowNode,
   nodeTypeDefinition: NodeType | undefined
 ): string[] {
-  if (node.type === "switch" && node.parameters?.outputs) {
-    return (node.parameters.outputs as any[]).map(
-      (output: any, index: number) => output.outputName || `Output ${index + 1}`
-    );
+  // Handle switch node with dynamic outputs
+  if (node.type === "switch") {
+    const mode = node.parameters?.mode as string;
+    
+    if (mode === "expression") {
+      // Expression mode: use configured outputsCount
+      const outputsCount = node.parameters?.outputsCount as number;
+      if (typeof outputsCount === "number" && outputsCount >= 2 && outputsCount <= 10) {
+        return Array.from({ length: outputsCount }, (_, i) => `output${i}`);
+      }
+    } else {
+      // Rules mode: one output per rule
+      const rules = node.parameters?.rules as any[];
+      if (Array.isArray(rules)) {
+        const outputsCount = rules.length;
+        return Array.from({ length: outputsCount }, (_, i) => `output${i}`);
+      }
+    }
   }
   return nodeTypeDefinition?.outputs || [];
+}
+
+/**
+ * Gets the dynamic output names (labels) for a node based on its configuration
+ */
+function getNodeOutputNames(
+  node: WorkflowNode,
+  nodeTypeDefinition: NodeType | undefined
+): string[] | undefined {
+  // Handle switch node with dynamic output names
+  if (node.type === "switch") {
+    const mode = node.parameters?.mode as string;
+    
+    if (mode === "expression") {
+      // Expression mode: use generic labels
+      const outputsCount = node.parameters?.outputsCount as number;
+      if (typeof outputsCount === "number" && outputsCount >= 2 && outputsCount <= 10) {
+        return Array.from({ length: outputsCount }, (_, i) => `${i}`);
+      }
+    } else {
+      // Rules mode: use rule values as labels
+      const rules = node.parameters?.rules as any[];
+      if (Array.isArray(rules)) {
+        return rules.map((ruleConfig: any, index: number) => {
+          const rule = ruleConfig.values || ruleConfig;
+          const condition = rule.condition;
+          
+          // If condition has a value, use it as the label
+          if (condition?.value) {
+            return String(condition.value);
+          }
+          
+          // Otherwise use default output label
+          return `${index}`;
+        });
+      }
+    }
+  }
+  return (nodeTypeDefinition as any)?.outputNames;
 }
 
 /**
@@ -206,6 +259,7 @@ export function transformWorkflowNodesToReactFlow(
         status: nodeStatus,
         inputs: getNodeInputs(node, nodeTypeDefinition),
         outputs: getNodeOutputs(node, nodeTypeDefinition),
+        outputNames: getNodeOutputNames(node, nodeTypeDefinition),
         inputsConfig: nodeTypeDefinition?.inputsConfig,
         position: node.position,
         dimensions: { width: 64, height: 64 },

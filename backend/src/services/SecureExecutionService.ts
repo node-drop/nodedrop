@@ -317,6 +317,24 @@ export class SecureExecutionService {
     };
 
     // PRE-RESOLVE ALL PARAMETERS AT ONCE
+    // Helper function to recursively strip "=" prefix from strings in nested objects/arrays
+    const stripExpressionPrefix = (value: any): any => {
+      if (typeof value === "string" && value.startsWith("=")) {
+        return value.substring(1);
+      }
+      if (Array.isArray(value)) {
+        return value.map(item => stripExpressionPrefix(item));
+      }
+      if (value && typeof value === "object") {
+        const result: any = {};
+        for (const [key, val] of Object.entries(value)) {
+          result[key] = stripExpressionPrefix(val);
+        }
+        return result;
+      }
+      return value;
+    };
+
     const preResolvedParameters: Record<string, any> = {};
     const firstItem = processedItems.length > 0 ? processedItems[0] : {};
     
@@ -333,9 +351,16 @@ export class SecureExecutionService {
       let value = this.sanitizeValue(paramValue);
       value = unwrapSimpleValue(value);
       
-      // Strip the "=" prefix if present (expression mode indicator from frontend)
-      if (typeof value === "string" && value.startsWith("=")) {
-        value = value.substring(1);
+      // Recursively strip the "=" prefix from all strings (expression mode indicator from frontend)
+      const originalValue = value;
+      value = stripExpressionPrefix(value);
+      
+      // Debug: Log if any "=" prefixes were stripped
+      if (JSON.stringify(originalValue) !== JSON.stringify(value)) {
+        logger.debug("[SecureExecution] Stripped '=' prefixes from parameter", {
+          paramName,
+          hadPrefix: true,
+        });
       }
       
       // Debug: Log expression resolution for values containing $node
@@ -379,10 +404,8 @@ export class SecureExecutionService {
         // If itemIndex is specified and different from 0, re-resolve for that specific item
         if (itemIndex !== undefined && itemIndex !== 0 && processedItems.length > itemIndex) {
           let originalValue = unwrapSimpleValue(this.sanitizeValue(resolvedParameters[parameterName]));
-          // Strip the "=" prefix if present (expression mode indicator from frontend)
-          if (typeof originalValue === "string" && originalValue.startsWith("=")) {
-            originalValue = originalValue.substring(1);
-          }
+          // Recursively strip the "=" prefix (expression mode indicator from frontend)
+          originalValue = stripExpressionPrefix(originalValue);
           return resolveExpressions(originalValue, processedItems[itemIndex], expressionContext);
         }
 

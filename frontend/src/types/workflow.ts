@@ -167,6 +167,8 @@ export interface NodeType {
   defaults: Record<string, any>;
   inputs: string[];
   outputs: string[];
+  inputNames?: string[]; // Optional names for each input
+  outputNames?: string[]; // Optional names for each output
   inputsConfig?: Record<string, {
     position?: 'left' | 'right' | 'top' | 'bottom';
     displayName?: string;

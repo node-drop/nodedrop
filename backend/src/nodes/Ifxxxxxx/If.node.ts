@@ -60,19 +60,9 @@ export const IfNode: NodeDefinition = {
   execute: async function (
     inputData: NodeInputData
   ): Promise<NodeOutputData[]> {
-    console.log(`[If Node] 🔍 Starting execution`, {
-      inputData: JSON.stringify(inputData, null, 2),
-    });
-
     // Normalize and extract input items first
     const items = this.normalizeInputItems(inputData.main || []);
     const processedItems = this.extractJsonData(items);
-
-    console.log(`[If Node] 🔍 Processed items`, {
-      itemsCount: items.length,
-      processedItemsCount: processedItems.length,
-      processedItems: JSON.stringify(processedItems, null, 2),
-    });
 
     const evaluateCondition = (
       value1: any,
@@ -139,10 +129,6 @@ export const IfNode: NodeDefinition = {
       value: string;
     };
 
-    console.log(`[If Node] 🔍 Condition parameter`, {
-      condition,
-    });
-
     // Helper function to resolve field value from item or use direct value
     const resolveValue = (item: any, fieldExpression: string): any => {
       // If it's a template expression like {{json.id}}, extract the field path
@@ -186,38 +172,19 @@ export const IfNode: NodeDefinition = {
       ? resolveValue(processedItems[0], condition.key)
       : condition.key;
 
-    console.log(`[If Node] 🔍 Resolved key value`, {
-      keyValue,
-      firstItem: processedItems[0],
-      conditionKey: condition.key,
-    });
-
     const conditionResult = evaluateCondition(
       keyValue,
       condition.expression,
       condition.value
     );
 
-    console.log(`[If Node] 🔍 Condition evaluation result`, {
-      conditionResult,
-      keyValue,
-      expression: condition.expression,
-      compareValue: condition.value,
-    });
-
     // Route all items to either true or false output based on single condition evaluation
     const wrappedItems = processedItems.map((item) => ({ json: item }));
 
-    const result = conditionResult
-      ? [{ true: wrappedItems }, { false: [] }]
-      : [{ true: [] }, { false: wrappedItems }];
-
-    console.log(`[If Node] ✅ Final output`, {
-      result: JSON.stringify(result, null, 2),
-      trueCount: result[0]?.true?.length || 0,
-      falseCount: result[1]?.false?.length || 0,
-    });
-
-    return result;
+    if (conditionResult) {
+      return [{ true: wrappedItems }, { false: [] }];
+    } else {
+      return [{ true: [] }, { false: wrappedItems }];
+    }
   },
 };

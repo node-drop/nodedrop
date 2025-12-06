@@ -576,9 +576,6 @@ export class NodeService {
         inputValidation.sanitizedData!
       );
 
-      // DEBUG: Log raw result
-      process.stdout.write(`\n========== RAW RESULT FROM ${nodeType} ==========\n${JSON.stringify(result, null, 2)}\n`);
-
       // Validate output data
       const outputValidation =
         this.secureExecutionService.validateOutputData(result);
@@ -588,18 +585,12 @@ export class NodeService {
         );
       }
 
-      // DEBUG: Log sanitized data
-      process.stdout.write(`\n========== SANITIZED DATA FROM ${nodeType} ==========\n${JSON.stringify(outputValidation.sanitizedData, null, 2)}\n`);
-
       // Standardize the output format for consistent frontend handling
       const standardizedOutput = this.standardizeNodeOutput(
         nodeType,
         outputValidation.sanitizedData as NodeOutputData[],
         nodeDefinition
       );
-
-      // DEBUG: Log standardized output
-      process.stdout.write(`\n========== STANDARDIZED OUTPUT FROM ${nodeType} ==========\n${JSON.stringify(standardizedOutput, null, 2)}\n`);
 
       // Cleanup execution resources
       await this.secureExecutionService.cleanupExecution(execId);
