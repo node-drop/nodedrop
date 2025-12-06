@@ -1,11 +1,14 @@
 import React, { ReactNode } from 'react'
-import { ChevronDown, CheckCircle2, XCircle } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { NodeHandles } from '../components/NodeHandles'
 import { NodeToolbarContent } from '../components/NodeToolbarContent'
 import { NodeIcon } from '../components/NodeIcon'
 import { NodeHeader } from '../components/NodeHeader'
 import { NodeLabel } from './NodeLabel'
 import { getNodeStatusClasses } from '../utils/nodeStyleUtils'
+import { LoadingBorder } from './LoadingBorder'
+import { NodeStatusIcons } from './NodeStatusIcons'
+import { useNodeValidation } from '@/hooks/workflow'
 
 interface CollapsedNodeContentProps {
   // Node identification
@@ -126,19 +129,26 @@ export function CollapsedNodeContent({
   canExpand,
   expandedContent
 }: CollapsedNodeContentProps) {
+  // Get validation errors for this node
+  const { errors } = useNodeValidation(id)
+  
+  const isRunning = effectiveStatus === 'running'
+  
   return (
-    <div
-      onDoubleClick={handleDoubleClick}
-      className={`relative bg-card rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md ${getNodeStatusClasses(
-        effectiveStatus,
-        selected,
-        data.disabled
-      )} ${className}`}
-      style={{
-        width: effectiveCollapsedWidth,
-        minHeight
-      }}
-    >
+    <div className="relative">
+      <LoadingBorder isLoading={isRunning}>
+        <div
+          onDoubleClick={handleDoubleClick}
+          className={`relative bg-card rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md ${getNodeStatusClasses(
+            effectiveStatus,
+            selected,
+            data.disabled
+          )} ${className}`}
+          style={{
+            width: effectiveCollapsedWidth,
+            minHeight
+          }}
+        >
       {/* Dynamic Handles */}
       <NodeHandles
         inputs={nodeInputs}
@@ -195,18 +205,6 @@ export function CollapsedNodeContent({
           </div>
           {/* Render node enhancements (badges, overlays, etc.) */}
           {nodeEnhancements}
-          
-          {/* Success/Failure Status Icons */}
-          {nodeExecutionState.hasSuccess && !nodeExecutionState.isExecuting && (
-            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-green-500 text-white rounded-full shadow-md z-10">
-              <CheckCircle2 className="w-3 h-3" />
-            </div>
-          )}
-          {nodeExecutionState.hasError && !nodeExecutionState.isExecuting && (
-            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-md z-10">
-              <XCircle className="w-3 h-3" />
-            </div>
-          )}
         </div>
       ) : (
         <>
@@ -224,31 +222,29 @@ export function CollapsedNodeContent({
 
           {/* Optional collapsed content */}
           {collapsedContent && <div>{collapsedContent}</div>}
-          
-          {/* Success/Failure Status Icons */}
-          {nodeExecutionState.hasSuccess && !nodeExecutionState.isExecuting && (
-            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-green-500 text-white rounded-full shadow-md z-10">
-              <CheckCircle2 className="w-3 h-3" />
-            </div>
-          )}
-          {nodeExecutionState.hasError && !nodeExecutionState.isExecuting && (
-            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-md z-10">
-              <XCircle className="w-3 h-3" />
-            </div>
-          )}
         </>
       )}
 
-      {/* Bottom Expand Button */}
+        </div>
+      </LoadingBorder>
+      
+      {/* Bottom Expand Button - Outside LoadingBorder to avoid clipping */}
       {canExpand && !!expandedContent && (
         <button
           onClick={handleToggleExpandClick}
           className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:shadow-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           aria-label="Expand node"
         >
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-3 h-3" />
         </button>
       )}
+      
+      {/* Status Icons - Outside LoadingBorder to avoid clipping */}
+      <NodeStatusIcons
+        errors={errors}
+        nodeExecutionState={nodeExecutionState}
+        hasNodeConfig={!!nodeConfig}
+      />
     </div>
   )
 }

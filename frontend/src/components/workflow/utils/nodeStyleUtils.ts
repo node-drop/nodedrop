@@ -20,7 +20,7 @@ export function getNodeBorderClasses(config: NodeStyleConfig): string {
 
   switch (status) {
     case "running":
-      return "border-blue-400/60 dark:border-blue-500/60 ring-2 ring-blue-400/30 dark:ring-blue-500/30";
+      return "border-transparent"; // Hide border when running - using rotating gradient instead
     case "success":
       return "border-green-500 dark:border-green-400";
     case "error":
@@ -38,7 +38,7 @@ export function getNodeBorderClasses(config: NodeStyleConfig): string {
 export function getNodeAnimationClasses(status?: string): string {
   switch (status) {
     case "running":
-      return "node-running node-glow-running";
+      return "node-running";
     case "success":
       return ""; // Removed glow animation - using icon instead
     case "error":

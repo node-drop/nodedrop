@@ -15,6 +15,7 @@ import '../node-animations.css'
 import { getNodeStatusClasses } from '../utils/nodeStyleUtils'
 import { useNodeSize } from './useNodeSize'
 import { CollapsedNodeContent } from './CollapsedNodeContent'
+import { LoadingBorder } from './LoadingBorder'
 import { NODE_SIZE_CONFIG } from './nodeSizeConfig'
 
 export interface BaseNodeWrapperProps {
@@ -468,22 +469,25 @@ export function BaseNodeWrapper({
   }
 
   // Expanded view
+  const isRunning = effectiveStatus === 'running'
+  
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div className="relative">
-          <div
-            onDoubleClick={handleDoubleClick}
-            className={`relative bg-card rounded-lg ${compactMode ? 'border-2' : 'border'} shadow-lg transition-all duration-200 hover:shadow-xl ${getNodeStatusClasses(
-              effectiveStatus,
-              selected,
-              data.disabled
-            )} ${className}`}
-            style={{
-              width: effectiveExpandedWidth,
-              minHeight: nodeConfig?.dynamicHeight
-            }}
-          >
+          <LoadingBorder isLoading={isRunning}>
+            <div
+              onDoubleClick={handleDoubleClick}
+              className={`relative bg-card rounded-lg ${compactMode ? 'border-2' : 'border'} shadow-lg transition-all duration-200 hover:shadow-xl ${getNodeStatusClasses(
+                effectiveStatus,
+                selected,
+                data.disabled
+              )} ${className}`}
+              style={{
+                width: effectiveExpandedWidth,
+                minHeight: nodeConfig?.dynamicHeight
+              }}
+            >
             {/* Dynamic Handles */}
             <NodeHandles
               inputs={nodeInputs}
@@ -534,7 +538,8 @@ export function BaseNodeWrapper({
 
             {/* Expanded Content */}
             {expandedContent}
-          </div>
+            </div>
+          </LoadingBorder>
         </div>
       </ContextMenuTrigger>
 

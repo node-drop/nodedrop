@@ -287,7 +287,13 @@ export function OutputColumn({ node }: OutputColumnProps) {
                           {Array.isArray(branchData) && branchData.length > 0 ? (
                             <ScrollArea className="h-32 w-full">
                               <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                                {JSON.stringify(branchData, null, 2)}
+                                {JSON.stringify(
+                                  branchData.length === 1 && branchData[0]?.json
+                                    ? branchData[0].json
+                                    : branchData.map(item => item?.json || item),
+                                  null,
+                                  2
+                                )}
                               </pre>
                             </ScrollArea>
                           ) : (

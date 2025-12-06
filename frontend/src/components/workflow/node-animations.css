@@ -51,8 +51,8 @@
 
 /* Node state classes */
 .node-running {
-  animation: node-pulse 2s ease-in-out infinite;
-  border-color: rgb(59, 130, 246) !important;
+  /* Removed pulse animation - using rotating border instead */
+  border-color: #eee !important;
 }
 
 .node-queued {
@@ -197,3 +197,19 @@
 }
 
 
+
+/* Neon glow effect for running nodes */
+@keyframes neon-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(30, 144, 255, 0.4))
+            drop-shadow(0 0 8px rgba(255, 99, 71, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(30, 144, 255, 0.5))
+            drop-shadow(0 0 12px rgba(249, 215, 28, 0.3));
+  }
+}
+
+.node-neon-glow {
+  animation: neon-pulse 3s ease-in-out infinite;
+}

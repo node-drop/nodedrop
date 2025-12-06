@@ -238,7 +238,15 @@ export const OutputToolbarButton = memo(function OutputToolbarButton({
                           </div>
                           <div className="p-2">
                             <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto overflow-y-auto max-h-[150px] max-w-full font-mono whitespace-pre break-words">
-                              {JSON.stringify(branchData, null, 2)}
+                              {JSON.stringify(
+                                Array.isArray(branchData) && branchData.length === 1 && branchData[0]?.json
+                                  ? branchData[0].json
+                                  : Array.isArray(branchData)
+                                  ? branchData.map(item => item?.json || item)
+                                  : branchData,
+                                null,
+                                2
+                              )}
                             </pre>
                           </div>
                         </div>
