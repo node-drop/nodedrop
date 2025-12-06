@@ -518,6 +518,29 @@ export class RealtimeExecutionEngine extends EventEmitter {
             const allConnections = context.connections.filter((conn) => conn.sourceNodeId === nodeId);
             const activeConnections: any[] = [];
 
+            logger.info(`[RealtimeExecution] 🔍 Checking active connections for node ${nodeId}`, {
+                nodeType: node.type,
+                allConnectionsCount: allConnections.length,
+                allConnections: allConnections.map(c => ({
+                    id: c.id,
+                    target: c.targetNodeId,
+                    sourceOutput: c.sourceOutput,
+                })),
+                resultData: {
+                    hasBranches: !!result.data?.branches,
+                    branchNames: result.data?.branches ? Object.keys(result.data.branches) : [],
+                    branchLengths: result.data?.branches 
+                        ? Object.fromEntries(
+                            Object.entries(result.data.branches).map(([name, data]: [string, any]) => 
+                                [name, Array.isArray(data) ? data.length : 0]
+                            )
+                        )
+                        : {},
+                    hasMain: !!result.data?.main,
+                    mainLength: Array.isArray(result.data?.main) ? result.data.main.length : 0,
+                },
+            });
+
             for (const conn of allConnections) {
                 const outputBranch = conn.sourceOutput || "main";
 
@@ -528,12 +551,26 @@ export class RealtimeExecutionEngine extends EventEmitter {
                     // Branching node - check specific branch
                     const branchData = result.data.branches[outputBranch];
                     hasData = Array.isArray(branchData) && branchData.length > 0;
+                    
+                    logger.info(`[RealtimeExecution] 🔍 Checking branch '${outputBranch}' for connection ${conn.id}`, {
+                        branchExists: branchData !== undefined,
+                        branchDataLength: Array.isArray(branchData) ? branchData.length : 0,
+                        hasData,
+                        availableBranches: Object.keys(result.data.branches),
+                    });
                 } else if (result.data?.main) {
                     // Non-branching node - check main output
                     hasData = Array.isArray(result.data.main) && result.data.main.length > 0;
+                    
+                    logger.info(`[RealtimeExecution] 🔍 Checking main output for connection ${conn.id}`, {
+                        mainDataLength: result.data.main.length,
+                        hasData,
+                    });
                 } else {
                     // No data structure, assume has data
                     hasData = true;
+                    
+                    logger.info(`[RealtimeExecution] 🔍 No data structure, assuming has data for connection ${conn.id}`);
                 }
 
                 if (hasData) {
@@ -543,10 +580,14 @@ export class RealtimeExecutionEngine extends EventEmitter {
                         targetNodeId: conn.targetNodeId,
                         sourceOutput: conn.sourceOutput,
                     });
+                    
+                    logger.info(`[RealtimeExecution] ✅ Connection ${conn.id} is ACTIVE (branch: ${outputBranch})`);
+                } else {
+                    logger.info(`[RealtimeExecution] ❌ Connection ${conn.id} is INACTIVE (branch: ${outputBranch})`);
                 }
             }
 
-            logger.info(`[RealtimeExecution] Node ${nodeId} completed - active connections:`, {
+            logger.info(`[RealtimeExecution] ✅ Node ${nodeId} completed - active connections summary:`, {
                 totalConnections: allConnections.length,
                 activeConnectionsCount: activeConnections.length,
                 activeConnections,

@@ -138,6 +138,10 @@ export const SwitchNode: NodeDefinition = {
   execute: async function (
     inputData: NodeInputData
   ): Promise<NodeOutputData[]> {
+    console.log(`[Switch Node] 🔍 Starting execution`, {
+      inputData: JSON.stringify(inputData, null, 2),
+    });
+
     const mode = this.getNodeParameter("mode") as string;
 
     // Get items to process
@@ -152,6 +156,13 @@ export const SwitchNode: NodeDefinition = {
         return item.json;
       }
       return item;
+    });
+
+    console.log(`[Switch Node] 🔍 Processed items`, {
+      mode,
+      itemsCount: items.length,
+      processedItemsCount: processedItems.length,
+      processedItems: JSON.stringify(processedItems, null, 2),
     });
 
     if (mode === "rules") {
@@ -301,10 +312,22 @@ export const SwitchNode: NodeDefinition = {
         const outputName = rule.key || `output${i}`;
         const outputItems = routedOutputs[i] || [];
 
+        console.log(`[Switch Node] 🔍 Creating output ${i}`, {
+          outputName,
+          outputItemsCount: outputItems.length,
+          rule,
+        });
+
         result.push({
           [outputName]: outputItems, // Use key field as output name
         });
       }
+
+      console.log(`[Switch Node] ✅ Final output`, {
+        result: JSON.stringify(result, null, 2),
+        outputCount: result.length,
+        outputNames: result.map(r => Object.keys(r)[0]),
+      });
 
       return result;
     } else {

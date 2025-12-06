@@ -60,9 +60,19 @@ export const IfNode: NodeDefinition = {
   execute: async function (
     inputData: NodeInputData
   ): Promise<NodeOutputData[]> {
+    console.log(`[If Node] 🔍 Starting execution`, {
+      inputData: JSON.stringify(inputData, null, 2),
+    });
+
     // Normalize and extract input items first
     const items = this.normalizeInputItems(inputData.main || []);
     const processedItems = this.extractJsonData(items);
+
+    console.log(`[If Node] 🔍 Processed items`, {
+      itemsCount: items.length,
+      processedItemsCount: processedItems.length,
+      processedItems: JSON.stringify(processedItems, null, 2),
+    });
 
     const evaluateCondition = (
       value1: any,
@@ -122,26 +132,92 @@ export const IfNode: NodeDefinition = {
       }
     };
 
-    // Get condition parameter once (evaluate condition once, not per item)
+    // Get condition parameter
     const condition = (await this.getNodeParameter("condition", 0)) as {
       key: string;
       expression: string;
       value: string;
     };
 
+    console.log(`[If Node] 🔍 Condition parameter`, {
+      condition,
+    });
+
+    // Helper function to resolve field value from item or use direct value
+    const resolveValue = (item: any, fieldExpression: string): any => {
+      // If it's a template expression like {{json.id}}, extract the field path
+      const templateMatch = fieldExpression.match(
+        /\{\{json(?:\[\d+\])?\.([\w.[\]]+)\}\}/
+      );
+      if (templateMatch) {
+        const fieldPath = templateMatch[1];
+        return resolvePath(item, fieldPath);
+      }
+
+      // Try to resolve as field path first
+      const resolved = resolvePath(item, fieldExpression);
+
+      // If resolution returns undefined and the expression doesn't look like a path,
+      // treat it as a literal value
+      if (resolved === undefined && !fieldExpression.includes('.')) {
+        return fieldExpression;
+      }
+
+      return resolved;
+    };
+
+    // Helper to resolve nested paths including array access
+    const resolvePath = (obj: any, path: string): any => {
+      if (!path) return undefined;
+
+      // Handle array notation: items[0].name -> items.0.name
+      const normalizedPath = path.replace(/\[(\d+)\]/g, ".$1");
+
+      return normalizedPath.split(".").reduce((current, key) => {
+        if (current === null || current === undefined) {
+          return undefined;
+        }
+        return current[key];
+      }, obj);
+    };
+
+    // Resolve the key value from first item or use as literal
+    const keyValue = processedItems.length > 0
+      ? resolveValue(processedItems[0], condition.key)
+      : condition.key;
+
+    console.log(`[If Node] 🔍 Resolved key value`, {
+      keyValue,
+      firstItem: processedItems[0],
+      conditionKey: condition.key,
+    });
+
     const conditionResult = evaluateCondition(
-      condition.key,
+      keyValue,
       condition.expression,
       condition.value
     );
 
+    console.log(`[If Node] 🔍 Condition evaluation result`, {
+      conditionResult,
+      keyValue,
+      expression: condition.expression,
+      compareValue: condition.value,
+    });
+
     // Route all items to either true or false output based on single condition evaluation
     const wrappedItems = processedItems.map((item) => ({ json: item }));
 
-    if (conditionResult) {
-      return [{ true: wrappedItems }, { false: [] }];
-    } else {
-      return [{ true: [] }, { false: wrappedItems }];
-    }
+    const result = conditionResult
+      ? [{ true: wrappedItems }, { false: [] }]
+      : [{ true: [] }, { false: wrappedItems }];
+
+    console.log(`[If Node] ✅ Final output`, {
+      result: JSON.stringify(result, null, 2),
+      trueCount: result[0]?.true?.length || 0,
+      falseCount: result[1]?.false?.length || 0,
+    });
+
+    return result;
   },
 };

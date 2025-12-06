@@ -329,12 +329,24 @@ export const IfElseNode: NodeDefinition = {
     execute: async function (
         inputData: NodeInputData
     ): Promise<NodeOutputData[]> {
+        console.log(`[IfElse Node] 🔍 Starting execution`, {
+            inputData: JSON.stringify(inputData, null, 2),
+        });
+
         // Normalize and extract input items
         const items = this.normalizeInputItems(inputData.main || []);
         const processedItems = this.extractJsonData(items);
 
+        console.log(`[IfElse Node] 🔍 Processed items`, {
+            itemsCount: items.length,
+            processedItemsCount: processedItems.length,
+            processedItems: JSON.stringify(processedItems, null, 2),
+        });
+
         // Get mode
         const mode = this.getNodeParameter("mode") as string;
+
+        console.log(`[IfElse Node] 🔍 Mode`, { mode });
 
         // Helper function to resolve field value from item or use direct value
         const resolveValue = (item: any, fieldExpression: string): any => {
@@ -570,12 +582,10 @@ export const IfElseNode: NodeDefinition = {
         // Route all items to either true or false output
         const wrappedItems = processedItems.map((item) => ({ json: item }));
 
+        const result = finalResult
+            ? [{ true: wrappedItems }, { false: [] }]
+            : [{ true: [] }, { false: wrappedItems }];
 
-
-        if (finalResult) {
-            return [{ true: wrappedItems }, { false: [] }];
-        } else {
-            return [{ true: [] }, { false: wrappedItems }];
-        }
+        return result;
     },
 };
