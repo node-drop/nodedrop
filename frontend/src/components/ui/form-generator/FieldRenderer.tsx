@@ -356,7 +356,6 @@ export function FieldRenderer({
           onBlur={handleBlur}
           placeholder={field.placeholder}
           disabled={disabled || field.disabled}
-          error={!!error}
           nodeId={nodeId}
         />
       )
@@ -501,7 +500,6 @@ export function FieldRenderer({
           onBlur={handleBlur}
           placeholder={field.placeholder}
           disabled={disabled || field.disabled || field.readonly}
-          error={!!error}
           nodeId={nodeId}
         />
       )

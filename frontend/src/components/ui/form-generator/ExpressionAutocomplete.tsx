@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { Code2, Database, Variable, Braces, Hash, Box, List, Type as TypeIcon } from 'lucide-react'
+import { Variable, Braces, Hash, Box, List, Type as TypeIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 export interface AutocompleteItem {

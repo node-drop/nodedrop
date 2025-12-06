@@ -313,7 +313,6 @@ export function ExpressionField({
   nodeId,
   className,
   singleLine = false,
-  hideHelperText = false,
 }: ExpressionFieldProps) {
   // ============================================================================
   // State

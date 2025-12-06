@@ -16,19 +16,17 @@ export interface KeyValueRowProps {
   nodeId?: string
   keyPlaceholder?: string
   valuePlaceholder?: string
-  showRing?: boolean
 }
 
 export function KeyValueRow({
   value = { key: '', value: '' },
   onChange,
   onBlur,
-  disabled = false,
+  disabled: _disabled = false,
   error,
   nodeId,
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
-  showRing = true,
 }: KeyValueRowProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
