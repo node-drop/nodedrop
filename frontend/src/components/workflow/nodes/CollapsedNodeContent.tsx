@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, CheckCircle2, XCircle } from 'lucide-react'
 import { NodeHandles } from '../components/NodeHandles'
 import { NodeToolbarContent } from '../components/NodeToolbarContent'
 import { NodeIcon } from '../components/NodeIcon'
@@ -195,6 +195,18 @@ export function CollapsedNodeContent({
           </div>
           {/* Render node enhancements (badges, overlays, etc.) */}
           {nodeEnhancements}
+          
+          {/* Success/Failure Status Icons */}
+          {nodeExecutionState.hasSuccess && !nodeExecutionState.isExecuting && (
+            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-green-500 text-white rounded-full shadow-md z-10">
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
+          )}
+          {nodeExecutionState.hasError && !nodeExecutionState.isExecuting && (
+            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-md z-10">
+              <XCircle className="w-3 h-3" />
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -212,6 +224,18 @@ export function CollapsedNodeContent({
 
           {/* Optional collapsed content */}
           {collapsedContent && <div>{collapsedContent}</div>}
+          
+          {/* Success/Failure Status Icons */}
+          {nodeExecutionState.hasSuccess && !nodeExecutionState.isExecuting && (
+            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-green-500 text-white rounded-full shadow-md z-10">
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
+          )}
+          {nodeExecutionState.hasError && !nodeExecutionState.isExecuting && (
+            <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-md z-10">
+              <XCircle className="w-3 h-3" />
+            </div>
+          )}
         </>
       )}
 

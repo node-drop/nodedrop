@@ -1268,9 +1268,22 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             const affectedNodes = getAffectedNodes(nodeId, workflow);
             const { executionManager } = get();
 
+            // CRITICAL: Start new execution FIRST before clearing old ones
+            // This ensures getNodeStatus returns IDLE for nodes not in current execution
+            executionManager.startExecution(
+              tempExecutionId,
+              nodeId,
+              affectedNodes
+            );
+            executionManager.setCurrentExecution(tempExecutionId);
+
             // CRITICAL: Clear old completed executions to prevent cross-trigger contamination
+            // Do this AFTER setting current execution so getNodeStatus works correctly
             const allExecutions: string[] = Array.from((executionManager as any).executions.keys());
             allExecutions.forEach((execId) => {
+              // Skip the current execution we just created
+              if (execId === tempExecutionId) return;
+              
               const exec = (executionManager as any).executions.get(execId);
               // Clear completed/failed/cancelled executions from ExecutionContextManager
               if (exec && (exec.status === 'completed' || exec.status === 'failed' || exec.status === 'cancelled')) {
@@ -1294,13 +1307,6 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
                 get().progressTracker.updateNodeStatus(tempExecutionId, node.id, NodeExecutionStatus.IDLE, {});
               });
             }
-
-            executionManager.startExecution(
-              tempExecutionId,
-              nodeId,
-              affectedNodes
-            );
-            executionManager.setCurrentExecution(tempExecutionId);
 
             // Force state update to trigger re-render with cleared states
             set({ executionManager, executionStateVersion: get().executionStateVersion + 1 });

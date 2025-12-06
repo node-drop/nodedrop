@@ -22,9 +22,9 @@ export function getNodeBorderClasses(config: NodeStyleConfig): string {
     case "running":
       return "border-blue-400/60 dark:border-blue-500/60 ring-2 ring-blue-400/30 dark:ring-blue-500/30";
     case "success":
-      return "border-green-500 dark:border-green-400 ring-2 ring-green-500/30 dark:ring-green-400/30";
+      return "border-green-500 dark:border-green-400";
     case "error":
-      return "border-red-500 dark:border-red-400 ring-2 ring-red-500/30 dark:ring-red-400/30";
+      return "border-red-500 dark:border-red-400";
     case "skipped":
       return "border-border/50";
     default:
@@ -40,9 +40,9 @@ export function getNodeAnimationClasses(status?: string): string {
     case "running":
       return "node-running node-glow-running";
     case "success":
-      return "node-success node-glow-success";
+      return ""; // Removed glow animation - using icon instead
     case "error":
-      return "node-error node-glow-error";
+      return ""; // Removed glow animation - using icon instead
     default:
       return "";
   }
