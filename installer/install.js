@@ -173,6 +173,7 @@ async function main() {
       - CORS_ORIGIN=http://localhost:${port},http://127.0.0.1:${port}${domain ? `\n      - DOMAIN=${domain}` : ''}
       - CONTAINER_NAME=nodedrop-${uniqueSuffix}
       - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
+      - INSTALL_DIR=${installDir}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:

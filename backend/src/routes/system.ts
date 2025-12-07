@@ -140,14 +140,31 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
     const imageName = process.env.IMAGE_NAME || 'ghcr.io/node-drop/nodedrop:latest';
 
     try {
-      // Try to pull new image and restart container using Docker API
+      // Get installation directory from environment
+      const installDir = process.env.INSTALL_DIR;
+      
+      // Pull new image and recreate container using docker-compose
       // This requires Docker socket to be mounted
-      const updateScript = `
-        echo "Pulling latest image..." && \
-        docker pull ${imageName} && \
-        echo "Restarting container..." && \
-        docker restart ${containerName}
-      `;
+      const updateScript = installDir 
+        ? `
+          echo "Pulling latest image..." && \
+          docker pull ${imageName} && \
+          echo "Updating via docker-compose..." && \
+          cd ${installDir} && \
+          docker-compose pull nodedrop && \
+          docker-compose up -d --force-recreate nodedrop
+        `
+        : `
+          echo "Pulling latest image..." && \
+          docker pull ${imageName} && \
+          echo "Stopping container..." && \
+          docker stop ${containerName} && \
+          echo "Removing old container..." && \
+          docker rm ${containerName} && \
+          echo "Starting new container (this will fail - manual restart required)..." && \
+          echo "Please run: docker-compose up -d" && \
+          exit 1
+        `;
 
       // Execute update in background
       exec(updateScript, (error, stdout, stderr) => {
