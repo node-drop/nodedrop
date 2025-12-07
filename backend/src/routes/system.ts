@@ -4,6 +4,37 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
 
+// Helper function to compare semantic versions (including alpha/beta)
+function compareVersions(v1: string, v2: string): number {
+  // Parse version strings like "1.0.1-alpha" or "1.0.2-alpha"
+  const parseVersion = (v: string) => {
+    const match = v.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+    if (!match) return { major: 0, minor: 0, patch: 0, prerelease: '' };
+    return {
+      major: parseInt(match[1], 10),
+      minor: parseInt(match[2], 10),
+      patch: parseInt(match[3], 10),
+      prerelease: match[4] || '',
+    };
+  };
+
+  const ver1 = parseVersion(v1);
+  const ver2 = parseVersion(v2);
+
+  // Compare major.minor.patch
+  if (ver1.major !== ver2.major) return ver1.major - ver2.major;
+  if (ver1.minor !== ver2.minor) return ver1.minor - ver2.minor;
+  if (ver1.patch !== ver2.patch) return ver1.patch - ver2.patch;
+
+  // If versions are equal, compare prerelease
+  // No prerelease (stable) > prerelease (alpha/beta)
+  if (!ver1.prerelease && ver2.prerelease) return 1;
+  if (ver1.prerelease && !ver2.prerelease) return -1;
+  
+  // Both have prerelease, compare alphabetically
+  return ver1.prerelease.localeCompare(ver2.prerelease);
+}
+
 // Check for updates
 router.get('/updates/check', authenticateToken, async (_req, res) => {
   try {
@@ -47,8 +78,8 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
       const release = await response.json() as { tag_name?: string; name?: string };
       const latestVersion = release.tag_name?.replace(/^v/, '') || currentVersion;
       
-      // Simple version comparison (works for semver)
-      const updateAvailable = latestVersion !== currentVersion && !currentVersion.includes('alpha') && !currentVersion.includes('beta');
+      // Compare versions (including alpha/beta)
+      const updateAvailable = latestVersion !== currentVersion && compareVersions(currentVersion, latestVersion) < 0;
       
       res.json({
         updateAvailable,
