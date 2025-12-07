@@ -95,7 +95,9 @@ RUN mkdir -p /app/custom-nodes /app/temp/uploads /app/temp/extract /app/logs
 # Change ownership
 RUN chown -R nodejs:nodejs /app
 
-USER nodejs
+# Note: USER directive removed to allow docker-compose to set user
+# For auto-updates, container needs root access to Docker socket
+# If you don't need auto-updates, add "user: 1001:1001" in docker-compose.yml
 
 # Expose single port (like n8n)
 EXPOSE 5678
