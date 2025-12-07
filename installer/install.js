@@ -164,12 +164,17 @@ async function main() {
       - "${port}:5678"
     environment:
       - NODE_ENV=production
+      - DOCKER_ENV=true
       - DATABASE_URL=postgresql://postgres:${dbPassword}@postgres:5432/node_drop
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${jwtSecret}
       - CREDENTIAL_ENCRYPTION_KEY=${credentialEncryptionKey}
       - PORT=5678
       - CORS_ORIGIN=http://localhost:${port},http://127.0.0.1:${port}${domain ? `\n      - DOMAIN=${domain}` : ''}
+      - CONTAINER_NAME=nodedrop-${uniqueSuffix}
+      - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -257,7 +262,14 @@ docker run --rm -v nodedrop_postgres_data:/data -v $(pwd):/backup alpine tar czf
 
 ## Update
 
-To update to the latest version:
+### In-App Updates (Recommended)
+1. Log into Node-Drop
+2. Click your user menu (bottom left)
+3. Click "Check for Updates"
+4. If available, click "Update Now"
+5. The app will automatically update and restart
+
+### Manual Update
 \`\`\`
 docker-compose pull
 docker-compose up -d

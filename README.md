@@ -311,6 +311,7 @@ We welcome contributions! Please follow these steps:
 
 - [Docker Setup Guide](./DOCKER.md)
 - [Updating Guide](./docs/UPDATING.md) - How to update to the latest version
+- [Enable Auto-Update](./docs/ENABLE-AUTO-UPDATE.md) - Enable in-app updates (if not working)
 - [Backend API Documentation](./backend/README.md)
 - [Frontend Documentation](./frontend/README.md)
 - [Database Schema](./backend/DATABASE.md)

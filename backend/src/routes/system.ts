@@ -59,6 +59,8 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
       
       // Check GitHub API for latest release
       const githubApiUrl = 'https://api.github.com/repos/node-drop/nodedrop/releases/latest';
+      console.log('[Update Check] Fetching from:', githubApiUrl);
+      
       const response = await fetch(githubApiUrl, {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
@@ -66,9 +68,12 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
         }
       });
       
+      console.log('[Update Check] GitHub API status:', response.status);
+      
       if (!response.ok) {
         // No releases published yet
         if (response.status === 404) {
+          console.log('[Update Check] No releases found (404)');
           return res.json({
             updateAvailable: false,
             currentVersion,
@@ -161,8 +166,15 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
     } catch (error) {
       console.error('Update failed:', error);
       res.status(500).json({ 
-        error: 'Failed to start update',
-        message: 'Docker socket may not be available. Please update manually or mount Docker socket.',
+        error: 'Docker socket not available',
+        message: 'In-app updates require Docker socket access. Please see documentation: /docs/ENABLE-AUTO-UPDATE.md',
+        instructions: [
+          'Add to docker-compose.yml:',
+          'volumes:',
+          '  - /var/run/docker.sock:/var/run/docker.sock:ro',
+          '',
+          'Then restart: docker-compose down && docker-compose up -d'
+        ]
       });
     }
   } catch (error: any) {
