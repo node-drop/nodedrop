@@ -11,10 +11,12 @@ import { NodeHeader } from '../components/NodeHeader'
 import { NodeToolbarContent } from '../components/NodeToolbarContent'
 import { useNodeActions } from '../hooks/useNodeActions'
 import { useNodeExecution } from '../hooks/useNodeExecution'
+import { useNodeValidation } from '@/hooks/workflow'
 import '../node-animations.css'
 import { getNodeStatusClasses } from '../utils/nodeStyleUtils'
 import { useNodeSize } from './useNodeSize'
 import { CollapsedNodeContent } from './CollapsedNodeContent'
+import { LoadingBorder } from './LoadingBorder'
 import { NODE_SIZE_CONFIG } from './nodeSizeConfig'
 
 export interface BaseNodeWrapperProps {
@@ -299,7 +301,7 @@ export function BaseNodeWrapper({
         nodeVisualState.status === NodeExecutionStatus.FAILED ? 'error' :
           nodeVisualState.status === NodeExecutionStatus.SKIPPED ? 'skipped' :
             nodeVisualState.status === NodeExecutionStatus.QUEUED ? 'running' :
-              data.status)
+              'idle') // Use 'idle' instead of data.status fallback to ensure borders reset
     : data.status
 
   // Handle double-click to open properties dialog
@@ -468,22 +470,30 @@ export function BaseNodeWrapper({
   }
 
   // Expanded view
+  const isRunning = effectiveStatus === 'running'
+  
+  // Get validation errors for expanded view
+  const { errors: validationErrors } = useNodeValidation(id)
+  const hasValidationErrors = validationErrors.length > 0
+  
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div className="relative">
-          <div
-            onDoubleClick={handleDoubleClick}
-            className={`relative bg-card rounded-lg ${compactMode ? 'border-2' : 'border'} shadow-lg transition-all duration-200 hover:shadow-xl ${getNodeStatusClasses(
-              effectiveStatus,
-              selected,
-              data.disabled
-            )} ${className}`}
-            style={{
-              width: effectiveExpandedWidth,
-              minHeight: nodeConfig?.dynamicHeight
-            }}
-          >
+          <LoadingBorder isLoading={isRunning}>
+            <div
+              onDoubleClick={handleDoubleClick}
+              className={`relative bg-card rounded-lg ${compactMode ? 'border-2' : 'border'} shadow-lg transition-all duration-200 hover:shadow-xl ${getNodeStatusClasses(
+                effectiveStatus,
+                selected,
+                data.disabled,
+                hasValidationErrors
+              )} ${className}`}
+              style={{
+                width: effectiveExpandedWidth,
+                minHeight: nodeConfig?.dynamicHeight
+              }}
+            >
             {/* Dynamic Handles */}
             <NodeHandles
               inputs={nodeInputs}
@@ -534,7 +544,8 @@ export function BaseNodeWrapper({
 
             {/* Expanded Content */}
             {expandedContent}
-          </div>
+            </div>
+          </LoadingBorder>
         </div>
       </ContextMenuTrigger>
 

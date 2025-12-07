@@ -70,11 +70,15 @@ export class NodeService {
     outputs: NodeOutputData[],
     nodeDefinition?: NodeDefinition
   ): StandardizedNodeOutput {
-    // Check if this is a multi-output node (like Loop with multiple outputs)
+    // Check if this is a multi-output node with positional outputs (like Loop)
+    // These nodes return [{ main: [...] }, { main: [...] }] where position maps to output name
     const hasMultipleOutputs = nodeDefinition && nodeDefinition.outputs.length > 1;
-
-    if (hasMultipleOutputs && nodeDefinition) {
-      // Multi-output node: map array outputs to named branches
+    const allOutputsUseMain = outputs.every(output => 
+      Object.keys(output).length === 1 && 'main' in output
+    );
+    
+    if (hasMultipleOutputs && allOutputsUseMain && nodeDefinition) {
+      // Positional outputs: map array index to output name
       const branches: Record<string, any[]> = {};
       let mainOutput: any[] = [];
 
@@ -104,7 +108,7 @@ export class NodeService {
       return keys.some((key) => key !== "main");
     });
 
-    // Handle branching nodes (IF, Switch, or any future branch-type nodes)
+    // Handle branching nodes (IF, IfElse, Switch, Loop, or any future branch-type nodes)
     if (hasMultipleBranches) {
       const branches: Record<string, any[]> = {};
       let mainOutput: any[] = [];
@@ -112,11 +116,16 @@ export class NodeService {
       // Extract branch data from node format: [{branchName1: [...]}, {branchName2: [...]}]
       outputs.forEach((output) => {
         Object.keys(output).forEach((branchName) => {
-          if (branchName !== "main") {
-            branches[branchName] = output[branchName] || [];
-            // Also add to main output for backward compatibility
-            mainOutput = mainOutput.concat(output[branchName] || []);
+          // Initialize branch if it doesn't exist
+          if (!branches[branchName]) {
+            branches[branchName] = [];
           }
+          // Concatenate data (don't overwrite!)
+          const branchData = output[branchName] || [];
+          branches[branchName] = branches[branchName].concat(branchData);
+          
+          // Also add to main output for backward compatibility
+          mainOutput = mainOutput.concat(branchData);
         });
       });
 

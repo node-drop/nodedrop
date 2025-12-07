@@ -68,24 +68,27 @@ export function ConditionRow({
   // Check if value field should be hidden (for isEmpty/isNotEmpty operations)
   const shouldHideValue = value.expression === 'isEmpty' || value.expression === 'isNotEmpty'
 
+  const keyIsExpression = value.key?.startsWith('=')
+  const valueIsExpression = value.value?.startsWith('=')
+
   return (
     <div className="space-y-2">
       <div className={cn(
-        'flex flex-col border rounded-md bg-background  focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 isolate',
+        'flex flex-col border rounded-md bg-background overflow-hidden divide-y divide-input transition-shadow',
         error && 'border-destructive'
       )}>
         {/* Key Field */}
-        <div className="relative [&_textarea]:border-0 [&_textarea]:focus-visible:ring-0 [&_textarea]:focus-visible:ring-offset-0 [&_textarea]:rounded-none [&>div]:space-y-0 [&>div]:overflow-visible [&>div>div[class*='absolute']]:z-[100] [&>div>div]:border-0 [&>div>div]:rounded-none">
+        <div className="relative">
           <WorkflowExpressionField
             value={value.key || ''}
             onChange={handleKeyChange}
             onBlur={onBlur}
             placeholder={keyPlaceholder}
             nodeId={nodeId}
+            className="text-sm rounded-none border-0"
+            hideRing={!keyIsExpression}
           />
         </div>
-
-        <div className="h-px bg-border" />
 
         {/* Expression/Operation Dropdown */}
         <Select
@@ -107,18 +110,17 @@ export function ConditionRow({
 
         {/* Value Field - Hidden for isEmpty/isNotEmpty */}
         {!shouldHideValue && (
-          <>
-            <div className="h-px bg-border" />
-            <div className="relative [&_textarea]:border-0 [&_textarea]:focus-visible:ring-0 [&_textarea]:focus-visible:ring-offset-0 [&_textarea]:rounded-none [&>div]:space-y-0 [&>div]:overflow-visible [&>div>div[class*='absolute']]:z-[100] [&>div>div]:border-0 [&>div>div]:rounded-none">
-              <WorkflowExpressionField
-                value={value.value || ''}
-                onChange={handleValueChange}
-                onBlur={onBlur}
-                placeholder={valuePlaceholder}
-                nodeId={nodeId}
-              />
-            </div>
-          </>
+          <div className="relative">
+            <WorkflowExpressionField
+              value={value.value || ''}
+              onChange={handleValueChange}
+              onBlur={onBlur}
+              placeholder={valuePlaceholder}
+              nodeId={nodeId}
+              className="text-sm rounded-none border-0"
+              hideRing={!valueIsExpression}
+            />
+          </div>
         )}
       </div>
       {error && (

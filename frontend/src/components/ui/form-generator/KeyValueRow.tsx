@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
-import { ExpressionInput } from './ExpressionInput'
+import { useState } from 'react'
+import { WorkflowExpressionField } from './WorkflowExpressionField'
 
 export interface KeyValueRowValue {
   key: string
@@ -21,12 +22,14 @@ export function KeyValueRow({
   value = { key: '', value: '' },
   onChange,
   onBlur,
-  disabled = false,
+  disabled: _disabled = false,
   error,
   nodeId,
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
 }: KeyValueRowProps) {
+  const [focusedField, setFocusedField] = useState<string | null>(null)
+
   const handleKeyChange = (newKey: string) => {
     onChange({ ...value, key: newKey })
   }
@@ -35,42 +38,58 @@ export function KeyValueRow({
     onChange({ ...value, value: newValue })
   }
 
+  const handleFocus = (field: 'key' | 'value') => {
+    setFocusedField(field)
+  }
+
+  const handleBlur = () => {
+    setFocusedField(null)
+    if (onBlur) {
+      onBlur()
+    }
+  }
+
+  const keyIsExpression = value.key?.startsWith('=')
+  const valueIsExpression = value.value?.startsWith('=')
+  const keyIsFocused = focusedField === 'key'
+  const valueIsFocused = focusedField === 'value'
+  const showPairRing = (keyIsFocused && !keyIsExpression) || (valueIsFocused && !valueIsExpression)
+
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 items-start">
-        <div className={cn(
-          'flex-1 flex items-center border rounded-md bg-background overflow-visible focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-          error && 'border-destructive'
-        )}>
+      <div className="relative">
+        <div
+          className={cn(
+            'flex flex-col rounded-md border border-input divide-y divide-input transition-shadow overflow-hidden',
+            showPairRing && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
+            error && 'ring-destructive'
+          )}
+        >
           {/* Key Field */}
-          <div className="flex-1 relative [&_textarea]:border-0 [&_textarea]:focus-visible:ring-0 [&_textarea]:focus-visible:ring-offset-0 [&_textarea]:rounded-none [&>div]:space-y-0 [&>div]:overflow-visible">
-            <ExpressionInput
+          <div className="relative" style={{ zIndex: keyIsFocused && keyIsExpression ? 200 : 2 }}>
+            <WorkflowExpressionField
               value={value.key || ''}
               onChange={handleKeyChange}
-              onBlur={onBlur}
+              onFocus={() => handleFocus('key')}
+              onBlur={handleBlur}
               placeholder={keyPlaceholder}
-              disabled={disabled}
-              error={false}
               nodeId={nodeId}
-              singleLine={true}
-              hideHelperText={true}
+              className="text-sm rounded-none border-0"
+              hideRing={!keyIsExpression}
             />
           </div>
 
-          <div className="h-6 w-px bg-border shrink-0" />
-
           {/* Value Field */}
-          <div className="flex-1 relative [&_textarea]:border-0 [&_textarea]:focus-visible:ring-0 [&_textarea]:focus-visible:ring-offset-0 [&_textarea]:rounded-none [&>div]:space-y-0 [&>div]:overflow-visible">
-            <ExpressionInput
+          <div className="relative" style={{ zIndex: valueIsFocused && valueIsExpression ? 200 : 1 }}>
+            <WorkflowExpressionField
               value={value.value || ''}
               onChange={handleValueChange}
-              onBlur={onBlur}
+              onFocus={() => handleFocus('value')}
+              onBlur={handleBlur}
               placeholder={valuePlaceholder}
-              disabled={disabled}
-              error={false}
               nodeId={nodeId}
-              singleLine={true}
-              hideHelperText={true}
+              className="text-sm rounded-none border-0"
+              hideRing={!valueIsExpression}
             />
           </div>
         </div>

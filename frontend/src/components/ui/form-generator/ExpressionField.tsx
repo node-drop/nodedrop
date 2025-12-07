@@ -313,7 +313,6 @@ export function ExpressionField({
   nodeId,
   className,
   singleLine = false,
-  hideHelperText = false,
 }: ExpressionFieldProps) {
   // ============================================================================
   // State
@@ -980,13 +979,7 @@ export function ExpressionField({
         </div>
       )}
 
-      {/* Helper Text */}
-      {!hideHelperText && mode === 'expression' && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Use <code className="px-1 py-0.5 rounded bg-muted">{'{{ }}'}</code> for expressions.
-          Press <code className="px-1 py-0.5 rounded bg-muted">Ctrl+Space</code> for suggestions.
-        </p>
-      )}
+
     </div>
   )
 }

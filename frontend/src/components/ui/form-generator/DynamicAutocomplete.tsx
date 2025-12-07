@@ -427,7 +427,6 @@ export function DynamicAutocomplete({
                           : placeholder || `Enter value for ${option.label}...`
                       }
                       disabled={disabled}
-                      error={false}
                       nodeId={nodeId}
                     />
                   </div>

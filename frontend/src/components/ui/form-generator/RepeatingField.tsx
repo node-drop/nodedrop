@@ -254,7 +254,7 @@ export function RepeatingField({
         {canAdd && (
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={handleAdd}
             disabled={disabled}
@@ -278,33 +278,31 @@ export function RepeatingField({
             const itemErrors = errors[item.id] || {}
 
             return (
-              <div key={item.id} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <FormGenerator
-                    fields={fields}
-                    values={item.values}
-                    errors={itemErrors}
-                    onChange={(fieldName, fieldValue) =>
-                      handleFieldChange(item.id, fieldName, fieldValue)
-                    }
-                    disabled={disabled}
-                    disableAutoValidation={true}
-                    showRequiredIndicator={true}
-                    nodeId={nodeId}
-                    nodeType={nodeType}
-                  />
-                </div>
-                <div className="flex items-start gap-1 pt-2">
+              <div key={item.id} className="relative group">
+                <FormGenerator
+                  fields={fields}
+                  values={item.values}
+                  errors={itemErrors}
+                  onChange={(fieldName, fieldValue) =>
+                    handleFieldChange(item.id, fieldName, fieldValue)
+                  }
+                  disabled={disabled}
+                  disableAutoValidation={true}
+                  showRequiredIndicator={true}
+                  nodeId={nodeId}
+                  nodeType={nodeType}
+                />
+                <div className="absolute -top-2 right-0 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity border border-input bg-background rounded-md shadow-sm p-0.5">
                   {/* Duplicate */}
                   {allowDuplicate && !disabled && canAdd && (
                     <button
                       type="button"
                       onClick={() => handleDuplicate(item)}
-                      className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                      className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
                       title="Duplicate"
                       aria-label="Duplicate item"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-3 h-3" />
                     </button>
                   )}
                   {/* Delete */}
@@ -312,11 +310,11 @@ export function RepeatingField({
                     <button
                       type="button"
                       onClick={() => handleDelete(item.id)}
-                      className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                      className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                       title="Delete"
                       aria-label="Delete item"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
@@ -334,7 +332,7 @@ export function RepeatingField({
             return (
               <div
                 key={item.id}
-                className={`relative bg-white border rounded ${
+                className={`group relative bg-white border rounded ${
                   draggedItem === item.id ? 'opacity-50' : ''
                 } ${
                   hasErrors ? 'border-red-300' : 'border-gray-200'
@@ -345,7 +343,7 @@ export function RepeatingField({
                 onDragEnd={handleDragEnd}
               >
                 {/* Header Row */}
-                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
+                <div className="relative flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
                   {/* Item Label */}
                   <div
                     className="flex-1 cursor-pointer select-none"
@@ -374,15 +372,15 @@ export function RepeatingField({
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-0.5">
+                  <div className="absolute -top-2 right-1 z-10 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity border border-input bg-background rounded-md shadow-sm p-0.5">
                     {/* Collapse/Expand */}
                     <button
                       type="button"
                       onClick={() => toggleCollapse(item.id)}
-                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                      className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
                       aria-label={isCollapsed ? 'Expand' : 'Collapse'}
                     >
-                      <span className="text-xs">{isCollapsed ? '▼' : '▲'}</span>
+                      <span className="text-[10px]">{isCollapsed ? '▼' : '▲'}</span>
                     </button>
 
                     {/* Duplicate */}
@@ -390,11 +388,11 @@ export function RepeatingField({
                       <button
                         type="button"
                         onClick={() => handleDuplicate(item)}
-                        className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
                         title="Duplicate"
                         aria-label="Duplicate item"
                       >
-                        <Copy className="w-3.5 h-3.5" />
+                        <Copy className="w-3 h-3" />
                       </button>
                     )}
 
@@ -403,11 +401,11 @@ export function RepeatingField({
                       <button
                         type="button"
                         onClick={() => handleDelete(item.id)}
-                        className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                         title="Delete"
                         aria-label="Delete item"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3 h-3" />
                       </button>
                     )}
                   </div>

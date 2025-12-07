@@ -6,6 +6,9 @@ import { NodeIcon } from '../components/NodeIcon'
 import { NodeHeader } from '../components/NodeHeader'
 import { NodeLabel } from './NodeLabel'
 import { getNodeStatusClasses } from '../utils/nodeStyleUtils'
+import { LoadingBorder } from './LoadingBorder'
+import { NodeStatusIcons } from './NodeStatusIcons'
+import { useNodeValidation } from '@/hooks/workflow'
 
 interface CollapsedNodeContentProps {
   // Node identification
@@ -126,19 +129,28 @@ export function CollapsedNodeContent({
   canExpand,
   expandedContent
 }: CollapsedNodeContentProps) {
+  // Get validation errors for this node
+  const { errors } = useNodeValidation(id)
+  const hasValidationErrors = errors.length > 0
+  
+  const isRunning = effectiveStatus === 'running'
+  
   return (
-    <div
-      onDoubleClick={handleDoubleClick}
-      className={`relative bg-card rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md ${getNodeStatusClasses(
-        effectiveStatus,
-        selected,
-        data.disabled
-      )} ${className}`}
-      style={{
-        width: effectiveCollapsedWidth,
-        minHeight
-      }}
-    >
+    <div className="relative">
+      <LoadingBorder isLoading={isRunning}>
+        <div
+          onDoubleClick={handleDoubleClick}
+          className={`relative bg-card rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md ${getNodeStatusClasses(
+            effectiveStatus,
+            selected,
+            data.disabled,
+            hasValidationErrors
+          )} ${className}`}
+          style={{
+            width: effectiveCollapsedWidth,
+            minHeight
+          }}
+        >
       {/* Dynamic Handles */}
       <NodeHandles
         inputs={nodeInputs}
@@ -215,16 +227,26 @@ export function CollapsedNodeContent({
         </>
       )}
 
-      {/* Bottom Expand Button */}
+        </div>
+      </LoadingBorder>
+      
+      {/* Bottom Expand Button - Outside LoadingBorder to avoid clipping */}
       {canExpand && !!expandedContent && (
         <button
           onClick={handleToggleExpandClick}
           className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:shadow-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           aria-label="Expand node"
         >
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-3 h-3" />
         </button>
       )}
+      
+      {/* Status Icons - Outside LoadingBorder to avoid clipping */}
+      <NodeStatusIcons
+        errors={errors}
+        nodeExecutionState={nodeExecutionState}
+        hasNodeConfig={!!nodeConfig}
+      />
     </div>
   )
 }

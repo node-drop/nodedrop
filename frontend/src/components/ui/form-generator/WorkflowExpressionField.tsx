@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useWorkflowStore } from '@/stores'
-import { MiniExpressionEditor } from '@/components/ui/expression-editor'
+import { ExpressionInput } from '@/components/ui/form-generator/ExpressionInput'
 import type { VariableCategory } from '@/components/ui/expression-editor'
 import { defaultVariableCategories } from '@/components/ui/expression-editor/default-categories'
 import { buildMockDataFromWorkflow } from '@/utils/workflowDataUtils'
@@ -11,24 +11,30 @@ interface WorkflowExpressionFieldProps {
   value: string
   onChange: (value: string) => void
   onBlur?: () => void
+  onFocus?: () => void
   placeholder?: string
   error?: string
   nodeId?: string
   customVariableCategories?: VariableCategory[]
+  className?: string
+  hideRing?: boolean
 }
 
 /**
- * WorkflowExpressionField - A wrapper around MiniExpressionEditor that handles workflow-specific logic
+ * WorkflowExpressionField - A wrapper around ExpressionInput that handles workflow-specific logic
  * Automatically builds mock data and variable categories from connected workflow nodes
  */
 export function WorkflowExpressionField({
   value,
   onChange,
   onBlur,
+  onFocus,
   placeholder,
   error,
   nodeId,
   customVariableCategories,
+  className,
+  hideRing,
 }: WorkflowExpressionFieldProps) {
   const [variables, setVariables] = useState<Variable[]>([])
   const [mockData, setMockData] = useState<Record<string, unknown>>({
@@ -233,7 +239,10 @@ export function WorkflowExpressionField({
   const variableCategories = useMemo(() => {
     const categories: VariableCategory[] = []
 
-    // Add workflow info category
+    // Add workflow info category with actual values
+    const workflowData = mockData.$workflow as Record<string, unknown> | undefined
+    const executionData = mockData.$execution as Record<string, unknown> | undefined
+
     categories.push({
       name: 'Workflow Info',
       icon: 'workflow',
@@ -241,31 +250,31 @@ export function WorkflowExpressionField({
         {
           label: '$workflow.id',
           type: 'property',
-          description: 'Workflow ID',
+          description: workflowData?.id ? String(workflowData.id) : 'Workflow ID',
           insertText: '$workflow.id',
         },
         {
           label: '$workflow.name',
           type: 'property',
-          description: 'Workflow name',
+          description: workflowData?.name ? String(workflowData.name) : 'Workflow name',
           insertText: '$workflow.name',
         },
         {
           label: '$workflow.active',
           type: 'property',
-          description: 'Is active',
+          description: workflowData?.active !== undefined ? String(workflowData.active) : 'Is active',
           insertText: '$workflow.active',
         },
         {
           label: '$execution.id',
           type: 'property',
-          description: 'Execution ID',
+          description: executionData?.id ? String(executionData.id) : 'Execution ID',
           insertText: '$execution.id',
         },
         {
           label: '$execution.mode',
           type: 'property',
-          description: 'Execution mode',
+          description: executionData?.mode ? String(executionData.mode) : 'Execution mode',
           insertText: '$execution.mode',
         },
       ],
@@ -295,14 +304,22 @@ export function WorkflowExpressionField({
   }, [variableItems, connectedNodeCategories, customVariableCategories])
 
   return (
-    <MiniExpressionEditor
-      value={value}
-      onChange={onChange}
-      onBlur={onBlur}
-      placeholder={placeholder}
-      error={error}
-      mockData={mockData}
-      variableCategories={variableCategories}
-    />
+    <>
+      <ExpressionInput
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        onFocus={onFocus}
+        placeholder={placeholder}
+        mockData={mockData}
+        variableCategories={variableCategories}
+        nodeId={nodeId}
+        className={className}
+        hideRing={hideRing}
+      />
+      {error && (
+        <p className="text-sm text-destructive mt-1.5">{error}</p>
+      )}
+    </>
   )
 }

@@ -6,25 +6,29 @@ export interface NodeStyleConfig {
   status?: string;
   selected?: boolean;
   disabled?: boolean;
+  hasValidationErrors?: boolean;
 }
 
 /**
  * Get border classes based on node status
  */
 export function getNodeBorderClasses(config: NodeStyleConfig): string {
-  const { status, selected, disabled } = config;
+  const { status, selected, disabled, hasValidationErrors } = config;
 
   if (disabled) return "border-border/50 opacity-60";
   if (selected)
     return "border-blue-500 ring-2 ring-blue-500/30 dark:border-blue-400 dark:ring-blue-400/30";
 
+  // Validation errors take priority over execution status
+  if (hasValidationErrors) return "border-orange-500 dark:border-orange-400";
+
   switch (status) {
     case "running":
-      return "border-blue-400/60 dark:border-blue-500/60 ring-2 ring-blue-400/30 dark:ring-blue-500/30";
+      return "border-transparent"; // Hide border when running - using rotating gradient instead
     case "success":
-      return "border-green-500 dark:border-green-400 ring-2 ring-green-500/30 dark:ring-green-400/30";
+      return "border-green-500 dark:border-green-400";
     case "error":
-      return "border-red-500 dark:border-red-400 ring-2 ring-red-500/30 dark:ring-red-400/30";
+      return "border-red-500 dark:border-red-400";
     case "skipped":
       return "border-border/50";
     default:
@@ -38,11 +42,11 @@ export function getNodeBorderClasses(config: NodeStyleConfig): string {
 export function getNodeAnimationClasses(status?: string): string {
   switch (status) {
     case "running":
-      return "node-running node-glow-running";
+      return "node-running";
     case "success":
-      return "node-success node-glow-success";
+      return ""; // Removed glow animation - using icon instead
     case "error":
-      return "node-error node-glow-error";
+      return ""; // Removed glow animation - using icon instead
     default:
       return "";
   }
@@ -55,9 +59,10 @@ export function getNodeAnimationClasses(status?: string): string {
 export function getNodeStatusClasses(
   status?: string,
   selected?: boolean,
-  disabled?: boolean
+  disabled?: boolean,
+  hasValidationErrors?: boolean
 ): string {
-  const config: NodeStyleConfig = { status, selected, disabled };
+  const config: NodeStyleConfig = { status, selected, disabled, hasValidationErrors };
   const borderClasses = getNodeBorderClasses(config);
   const animationClasses = getNodeAnimationClasses(status);
 

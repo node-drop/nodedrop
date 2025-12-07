@@ -92,7 +92,7 @@ export const OpenAINode: NodeDefinition = {
     {
       displayName: "User Message",
       name: "userMessage",
-      type: "string",
+      type: "expression",
       required: true,
       default: "",
       description:

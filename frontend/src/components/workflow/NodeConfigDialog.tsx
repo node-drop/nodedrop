@@ -138,9 +138,20 @@ export function NodeConfigDialog({ node, nodeType, isOpen, onClose, readOnly = f
     }
   }
 
+  // Prevent keyboard events from propagating to the canvas behind the dialog
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Stop propagation for Delete, Backspace, and other potentially destructive keys
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.stopPropagation()
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] p-0 gap-0">
+      <DialogContent 
+        className="max-w-[95vw] w-[95vw] h-[85vh] p-0 gap-0"
+        onKeyDown={handleKeyDown}
+      >
         <VisuallyHidden>
           <DialogTitle>{nodeName || node.type} Configuration</DialogTitle>
           <DialogDescription>

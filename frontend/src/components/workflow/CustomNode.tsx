@@ -6,10 +6,7 @@ import { memo, useMemo } from 'react'
 import { NodeMetadata } from './components/NodeMetadata'
 import { nodeEnhancementRegistry } from './enhancements'
 import { useNodeExecution } from './hooks/useNodeExecution'
-import { useNodeValidation } from '@/hooks/workflow'
 import { BaseNodeWrapper } from './nodes/BaseNodeWrapper'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { AlertTriangle } from 'lucide-react'
 
 interface CustomNodeData extends Record<string, unknown> {
   label: string
@@ -73,9 +70,6 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
     });
   }
 
-  // Get validation errors for this node
-  const { hasErrors, errors } = useNodeValidation(id)
-
   // Check if this is a trigger node (memoize to prevent recalculation)
   const isTrigger = useMemo(() =>
     data.executionCapability === 'trigger',
@@ -113,25 +107,26 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
 
   // For Switch nodes, compute dynamic outputs from parameters
   const computedOutputs = useMemo(() => {
-    if (data.nodeType === 'switch' && data.parameters?.outputs) {
-      const outputs = data.parameters.outputs as any[]
-      if (Array.isArray(outputs) && outputs.length > 0) {
-        const computed = outputs.map((output: any, index: number) => {
-          // Handle RepeatingField format: { id, values: { rule: { key, expression, value } } }
-          const outputConfig = output.values || output
-          const rule = outputConfig.rule || {}
-          // Use the key field, or fallback to a numbered output
-          const key = rule.key?.trim()
-          return key || `output${index + 1}`
-        })
-        // Only return if we have valid outputs
-        if (computed.length > 0) {
-          return computed
+    if (data.nodeType === 'switch') {
+      const mode = data.parameters?.mode as string
+      
+      if (mode === 'expression') {
+        // Expression mode: use configured outputsCount
+        const outputsCount = data.parameters?.outputsCount as number
+        if (typeof outputsCount === 'number' && outputsCount >= 2 && outputsCount <= 10) {
+          return Array.from({ length: outputsCount }, (_, i) => `output${i}`)
+        }
+      } else {
+        // Rules mode: one output per rule
+        const rules = data.parameters?.rules as any[]
+        if (Array.isArray(rules)) {
+          const outputsCount = rules.length
+          return Array.from({ length: outputsCount }, (_, i) => `output${i}`)
         }
       }
     }
     return data.outputs
-  }, [data.nodeType, data.parameters?.outputs, data.outputs])
+  }, [data.nodeType, data.parameters?.mode, data.parameters?.outputsCount, data.parameters?.rules, data.outputs])
 
   // Calculate dynamic height based on number of outputs and service inputs
   // Each handle needs ~30px of space, with a minimum of 60px for the node
@@ -185,31 +180,8 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
       executionResult: data.executionResult,
     })
 
-    // Add validation error badge if there are errors
-    if (hasErrors) {
-      enhancements.push(
-        <TooltipProvider key="validation-error" delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="absolute -top-2 -right-2 flex items-center justify-center w-4 h-4 bg-destructive text-destructive-foreground rounded-full shadow-md cursor-help z-10">
-                <AlertTriangle className="w-2.5 h-2.5" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs">
-              <div className="space-y-1">
-                <p className="font-semibold text-xs">Validation Errors:</p>
-                {errors.map((error, index) => (
-                  <p key={index} className="text-xs">• {error}</p>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )
-    }
-
     return enhancements
-  }, [id, data.nodeType, data.parameters, nodeExecutionState.isExecuting, data.executionResult, hasErrors, errors])
+  }, [id, data.nodeType, data.parameters, nodeExecutionState.isExecuting, data.executionResult])
 
   // Memoize toolbar config
   const toolbarConfig = useMemo(() => ({

@@ -48,27 +48,34 @@ export function ResultPreview({
   const formattedValue = formatResultValue(result.value)
 
   if (isCompact) {
+    const isUndefined = result.success && (formattedValue === "undefined" || result.type === "undefined")
+    const hasError = !result.success || isUndefined
+    
     return (
       <div
         className={cn(
           "flex items-start gap-2 px-2 py-1.5 rounded border transition-colors",
-          result.success
-            ? "bg-green-50/50 dark:bg-green-950/20 border-green-200/50 dark:border-green-800/50 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-300 dark:hover:border-green-700"
-            : "bg-red-50/50 dark:bg-red-950/20 border-red-200/50 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700",
+          hasError
+            ? "bg-red-50/50 dark:bg-red-950/20 border-red-200/50 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
+            : "bg-green-50/50 dark:bg-green-950/20 border-green-200/50 dark:border-green-800/50 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-300 dark:hover:border-green-700",
           onClickExpand && "cursor-pointer",
           className,
         )}
         onClick={onClickExpand}
         role={onClickExpand ? "button" : undefined}
       >
-        {result.success ? (
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-        ) : (
+        {hasError ? (
           <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
         )}
         <div className="flex-1 min-w-0">
           <pre className="font-mono text-xs whitespace-pre-wrap break-words line-clamp-3 text-foreground">
-            {result.success ? formattedValue.slice(0, 250) : result.error}
+            {isUndefined 
+              ? "⚠ Undefined - field does not exist" 
+              : result.success 
+                ? formattedValue.slice(0, 250) 
+                : result.error}
           </pre>
         </div>
       </div>
@@ -112,9 +119,21 @@ export function ResultPreview({
       {isExpanded && (
         <div className="px-4 pb-4">
           {result.success ? (
-            <div className="bg-background rounded-lg p-3 border border-border max-h-32 overflow-auto">
-              <pre className="font-mono text-sm text-green-600 dark:text-green-400 whitespace-pre-wrap break-all">{formattedValue}</pre>
-            </div>
+            formattedValue === "undefined" || result.type === "undefined" ? (
+              <div className="bg-destructive/10 rounded-lg p-3 border border-destructive/20">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={14} className="text-destructive mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-destructive">Validation Error</p>
+                    <p className="text-xs text-destructive/80 mt-1">Expression evaluates to undefined - the referenced field does not exist</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-background rounded-lg p-3 border border-border max-h-32 overflow-auto">
+                <pre className="font-mono text-sm text-green-600 dark:text-green-400 whitespace-pre-wrap break-all">{formattedValue}</pre>
+              </div>
+            )
           ) : (
             <div className="bg-destructive/10 rounded-lg p-3 border border-destructive/20">
               <div className="flex items-start gap-2">
