@@ -61,6 +61,9 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_API_URL=/api
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || '1.0.1-alpha' }}
           provenance: false
 
       - name: Image digest

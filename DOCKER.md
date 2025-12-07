@@ -41,34 +41,42 @@ Images are automatically published to GitHub Container Registry (GHCR) on every 
 
 ### Image Tags
 
-- `latest` - Latest stable version from main branch
-- `v1.0.0` - Specific version tags
-- `sha-abc123` - Git commit SHA for traceability
+- `latest` - Latest version from main branch (recommended for users)
+- `1.0.0`, `1.0`, `1` - Semantic version tags (recommended for production)
+- `sha-abc123` - Git commit SHA (for CI/CD and development only)
+
+**For production use, always pin to a specific version tag, not `latest` or SHA tags.**
 
 ### Pulling Specific Versions
 
 ```bash
-# Latest version
+# Latest version (auto-updates on pull)
 docker pull ghcr.io/node-drop/nodedrop:latest
 
-# Specific version
-docker pull ghcr.io/node-drop/nodedrop:v1.0.0
+# Specific version (recommended for production)
+docker pull ghcr.io/node-drop/nodedrop:1.0.0
 
-# Specific commit
-docker pull ghcr.io/node-drop/nodedrop:sha-abc123
+# Major version (gets latest minor/patch)
+docker pull ghcr.io/node-drop/nodedrop:1
 ```
 
-### Version Pinning
+### Version Pinning (Recommended)
 
-Set the `NODEDROP_VERSION` environment variable:
+Set the `NODEDROP_VERSION` environment variable to pin to a specific version:
 
 ```bash
 # In .env file
-NODEDROP_VERSION=v1.0.0
+NODEDROP_VERSION=1.0.0
 
 # Or inline
-NODEDROP_VERSION=v1.0.0 docker-compose -f docker-compose.published.yml up
+NODEDROP_VERSION=1.0.0 docker-compose -f docker-compose.published.yml up
 ```
+
+**Why pin versions?**
+- Prevents unexpected breaking changes
+- Ensures reproducible deployments
+- Allows controlled updates
+- SHA tags are for development/CI only, not for production use
 
 ## File Structure
 

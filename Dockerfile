@@ -55,6 +55,16 @@ RUN npm install --omit=dev && npm cache clean --force
 # Stage 4: Final production image
 FROM node:22-alpine AS production
 
+# Build arguments for version tracking
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ARG VERSION=1.0.1-alpha
+
+# Set as environment variables
+ENV GIT_SHA=$GIT_SHA \
+    BUILD_DATE=$BUILD_DATE \
+    APP_VERSION=$VERSION
+
 WORKDIR /app
 
 # Install runtime dependencies
