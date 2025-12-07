@@ -397,8 +397,8 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// Basic route
-app.get("/", (req, res) => {
+// API info route (moved to /api to avoid conflicting with frontend)
+app.get("/api", (req, res) => {
   res.json({
     message: "node drop Backend API",
     version: "1.0.0",
