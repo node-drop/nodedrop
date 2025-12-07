@@ -141,6 +141,7 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
 
     try {
       // Get installation directory from environment
+      // INSTALL_DIR should be the path inside the container where docker-compose.yml is mounted
       const installDir = process.env.INSTALL_DIR;
       
       // Pull new image and recreate container using docker-compose
@@ -150,9 +151,8 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
           echo "Pulling latest image..." && \
           docker pull ${imageName} && \
           echo "Updating via docker-compose..." && \
-          cd ${installDir} && \
-          docker-compose pull nodedrop && \
-          docker-compose up -d --force-recreate nodedrop
+          docker compose -f ${installDir}/docker-compose.yml pull nodedrop && \
+          docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate nodedrop
         `
         : `
           echo "Pulling latest image..." && \
@@ -162,7 +162,7 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
           echo "Removing old container..." && \
           docker rm ${containerName} && \
           echo "Starting new container (this will fail - manual restart required)..." && \
-          echo "Please run: docker-compose up -d" && \
+          echo "Please run: docker compose up -d" && \
           exit 1
         `;
 
