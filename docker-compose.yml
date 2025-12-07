@@ -33,7 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VERSION: "1.0.8-alpha"
+        VERSION: "${VERSION:-1.0.9-alpha}"
         GIT_SHA: "${GIT_SHA:-unknown}"
         BUILD_DATE: "${BUILD_DATE:-unknown}"
     container_name: node-drop
