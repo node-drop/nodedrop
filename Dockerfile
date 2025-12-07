@@ -67,8 +67,8 @@ ENV GIT_SHA=$GIT_SHA \
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apk add --no-cache curl openssl openssl-dev
+# Install runtime dependencies including Docker CLI for updates
+RUN apk add --no-cache curl openssl openssl-dev docker-cli
 
 # Copy backend built files
 COPY --from=backend-builder /app/backend/dist ./dist

@@ -53,6 +53,10 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
       // Get current version from environment (set during Docker build)
       const currentVersion = process.env.APP_VERSION || process.env.npm_package_version || '1.0.0-alpha';
       
+      console.log('[Update Check] Current version:', currentVersion);
+      console.log('[Update Check] APP_VERSION:', process.env.APP_VERSION);
+      console.log('[Update Check] npm_package_version:', process.env.npm_package_version);
+      
       // Check GitHub API for latest release
       const githubApiUrl = 'https://api.github.com/repos/node-drop/nodedrop/releases/latest';
       const response = await fetch(githubApiUrl, {
@@ -77,6 +81,9 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
       
       const release = await response.json() as { tag_name?: string; name?: string };
       const latestVersion = release.tag_name?.replace(/^v/, '') || currentVersion;
+      
+      console.log('[Update Check] Latest version from GitHub:', latestVersion);
+      console.log('[Update Check] Comparison result:', compareVersions(currentVersion, latestVersion));
       
       // Compare versions (including alpha/beta)
       const updateAvailable = latestVersion !== currentVersion && compareVersions(currentVersion, latestVersion) < 0;
@@ -123,24 +130,41 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
       });
     }
 
-    // Trigger update script
-    // This will pull new image and restart the container
-    const updateScript = `
-      docker-compose pull nodedrop && \
-      docker-compose up -d nodedrop
-    `;
+    // Get container name and image
+    const containerName = process.env.CONTAINER_NAME || 'node-drop';
+    const imageName = process.env.IMAGE_NAME || 'ghcr.io/node-drop/nodedrop:latest';
 
-    // Execute in background
-    exec(updateScript, { cwd: '/app' }, (error, _stdout, _stderr) => {
-      if (error) {
-        console.error('Update error:', error);
-      }
-    });
+    try {
+      // Try to pull new image and restart container using Docker API
+      // This requires Docker socket to be mounted
+      const updateScript = `
+        echo "Pulling latest image..." && \
+        docker pull ${imageName} && \
+        echo "Restarting container..." && \
+        docker restart ${containerName}
+      `;
 
-    res.json({
-      success: true,
-      message: 'Update started. The application will restart in a few moments.',
-    });
+      // Execute update in background
+      exec(updateScript, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Update error:', error);
+          console.error('stderr:', stderr);
+        } else {
+          console.log('Update output:', stdout);
+        }
+      });
+
+      res.json({
+        success: true,
+        message: 'Update started. The application will restart in a few moments.',
+      });
+    } catch (error) {
+      console.error('Update failed:', error);
+      res.status(500).json({ 
+        error: 'Failed to start update',
+        message: 'Docker socket may not be available. Please update manually or mount Docker socket.',
+      });
+    }
   } catch (error: any) {
     console.error('Error installing update:', error);
     res.status(500).json({ error: 'Failed to install update' });

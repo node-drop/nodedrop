@@ -34,16 +34,20 @@ services:
       - "5678:5678"
     environment:
       - NODE_ENV=production
+      - DOCKER_ENV=true
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/node_drop
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - CREDENTIAL_ENCRYPTION_KEY=${CREDENTIAL_ENCRYPTION_KEY}
       - PORT=5678
       - NODE_OPTIONS=--max-old-space-size=2048
+      - CONTAINER_NAME=node-drop
+      - IMAGE_NAME=ghcr.io/node-drop/nodedrop:${NODEDROP_VERSION:-latest}
     volumes:
       - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp
       - logs_data:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,7 +60,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    user: "1001:1001"
+    # Note: Running as root to access Docker socket for updates
+    # If you don't need in-app updates, you can use: user: "1001:1001"
+    # and remove the Docker socket mount
     deploy:
       resources:
         limits:

@@ -310,6 +310,7 @@ We welcome contributions! Please follow these steps:
 ## 📚 Documentation
 
 - [Docker Setup Guide](./DOCKER.md)
+- [Updating Guide](./docs/UPDATING.md) - How to update to the latest version
 - [Backend API Documentation](./backend/README.md)
 - [Frontend Documentation](./frontend/README.md)
 - [Database Schema](./backend/DATABASE.md)

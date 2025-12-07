@@ -30,7 +30,8 @@
     "db:seed": "docker-compose exec backend npm run db:seed",
     "cli:build": "npm run build --workspace=cli",
     "cli:dev": "node scripts/nodedrop.js",
-    "nodedrop": "node scripts/nodedrop.js"
+    "nodedrop": "node scripts/nodedrop.js",
+    "check-version": "node scripts/check-version.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
