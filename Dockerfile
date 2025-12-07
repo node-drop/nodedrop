@@ -58,7 +58,7 @@ FROM node:22-alpine AS production
 # Build arguments for version tracking
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown
-ARG VERSION=1.0.1-alpha
+ARG VERSION=unknown
 
 # Set as environment variables
 ENV GIT_SHA=$GIT_SHA \
