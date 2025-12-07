@@ -1,5 +1,5 @@
 import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useAddNodeDialogStore, useNodeTypes, usePinnedNodesStore, useWorkflowStore } from '@/stores'
@@ -7,7 +7,7 @@ import { NodeType, WorkflowNode } from '@/types'
 import { createWorkflowNode } from '@/utils/nodeCreation'
 import { canExecuteWorkflow } from '@/utils/workflowExecutionGuards'
 import { useReactFlow, useStore } from '@xyflow/react'
-import { Box, Maximize2, MessageSquare, PinOff, Plus, Redo, Undo, ZoomIn, ZoomOut } from 'lucide-react'
+import { Box, ChevronLeft, ChevronRight, Maximize2, MessageSquare, PinOff, Plus, Redo, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { ReactNode, useCallback, useMemo, useState } from 'react'
 import { WorkflowExecuteButton } from './WorkflowExecuteButton'
 
@@ -23,7 +23,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
   const { openDialog } = useAddNodeDialogStore()
   const { workflow, undo, redo, canUndo, canRedo, updateWorkflow, saveToHistory, setDirty, addNode } = useWorkflowStore()
   const [isSaving] = useState(false)
-  const { pinnedNodeIds, unpinNode } = usePinnedNodesStore()
+  const { pinnedNodeIds, unpinNode, reorderPinnedNodes } = usePinnedNodesStore()
   const { getNodeTypeById } = useNodeTypes()
 
   // Get pinned node types
@@ -90,6 +90,87 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       )
     }, 50)
   }, [screenToFlowPosition, saveToHistory, setNodes, addNode, setDirty])
+
+  // Handler to move a pinned node left (decrease index)
+  const handleMovePinnedNodeLeft = useCallback((nodeTypeId: string) => {
+    const currentIndex = pinnedNodeIds.indexOf(nodeTypeId)
+    if (currentIndex <= 0) return // Already at the start
+    
+    const newOrder = [...pinnedNodeIds]
+    // Swap with the previous element
+    ;[newOrder[currentIndex - 1], newOrder[currentIndex]] = [newOrder[currentIndex], newOrder[currentIndex - 1]]
+    reorderPinnedNodes(newOrder)
+  }, [pinnedNodeIds, reorderPinnedNodes])
+
+  // Handler to move a pinned node right (increase index)
+  const handleMovePinnedNodeRight = useCallback((nodeTypeId: string) => {
+    const currentIndex = pinnedNodeIds.indexOf(nodeTypeId)
+    if (currentIndex < 0 || currentIndex >= pinnedNodeIds.length - 1) return // Already at the end
+    
+    const newOrder = [...pinnedNodeIds]
+    // Swap with the next element
+    ;[newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]]
+    reorderPinnedNodes(newOrder)
+  }, [pinnedNodeIds, reorderPinnedNodes])
+
+  // Drag and drop state for pinned nodes
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
+  const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
+
+  // Drag handlers for pinned nodes
+  const handleDragStart = useCallback((e: React.DragEvent, nodeTypeId: string) => {
+    setDraggedNodeId(nodeTypeId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', nodeTypeId)
+    // Add a slight delay to show the dragging state
+    setTimeout(() => {
+      const target = e.target as HTMLElement
+      target.style.opacity = '0.5'
+    }, 0)
+  }, [])
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    setDraggedNodeId(null)
+    setDragOverNodeId(null)
+    const target = e.target as HTMLElement
+    target.style.opacity = '1'
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, nodeTypeId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (draggedNodeId && draggedNodeId !== nodeTypeId) {
+      setDragOverNodeId(nodeTypeId)
+    }
+  }, [draggedNodeId])
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverNodeId(null)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent, targetNodeId: string) => {
+    e.preventDefault()
+    
+    if (!draggedNodeId || draggedNodeId === targetNodeId) {
+      setDraggedNodeId(null)
+      setDragOverNodeId(null)
+      return
+    }
+
+    const draggedIndex = pinnedNodeIds.indexOf(draggedNodeId)
+    const targetIndex = pinnedNodeIds.indexOf(targetNodeId)
+    
+    if (draggedIndex === -1 || targetIndex === -1) return
+
+    // Create new order by removing dragged item and inserting at target position
+    const newOrder = [...pinnedNodeIds]
+    newOrder.splice(draggedIndex, 1)
+    newOrder.splice(targetIndex, 0, draggedNodeId)
+    
+    reorderPinnedNodes(newOrder)
+    setDraggedNodeId(null)
+    setDragOverNodeId(null)
+  }, [draggedNodeId, pinnedNodeIds, reorderPinnedNodes])
 
   const handleAddGroup = () => {
     // Take snapshot for undo/redo
@@ -326,7 +407,19 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
           {pinnedNodeTypes.map((nodeType) => (
             <ContextMenu key={nodeType.identifier}>
               <ContextMenuTrigger asChild>
-                <div>
+                <div
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, nodeType.identifier)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, nodeType.identifier)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, nodeType.identifier)}
+                  className={cn(
+                    "relative cursor-grab transition-all duration-150",
+                    dragOverNodeId === nodeType.identifier && "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-6 before:bg-primary before:rounded-full",
+                    draggedNodeId === nodeType.identifier && "opacity-50"
+                  )}
+                >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -346,11 +439,27 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       <p>Add {nodeType.displayName}</p>
+                      <p className="text-xs text-muted-foreground">Drag to reorder</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent className="w-24">
+              <ContextMenuContent className="w-32">
+                <ContextMenuItem 
+                  onClick={() => handleMovePinnedNodeLeft(nodeType.identifier)}
+                  disabled={pinnedNodeIds.indexOf(nodeType.identifier) === 0}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  Move Left
+                </ContextMenuItem>
+                <ContextMenuItem 
+                  onClick={() => handleMovePinnedNodeRight(nodeType.identifier)}
+                  disabled={pinnedNodeIds.indexOf(nodeType.identifier) === pinnedNodeIds.length - 1}
+                >
+                  <ChevronRight className="h-4 w-4 mr-2" />
+                  Move Right
+                </ContextMenuItem>
+                <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => unpinNode(nodeType.identifier)}>
                   <PinOff className="h-4 w-4 mr-2" />
                   Unpin 

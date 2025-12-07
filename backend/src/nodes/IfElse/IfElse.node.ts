@@ -16,12 +16,12 @@ import {
  */
 export const IfElseNode: NodeDefinition = {
     identifier: "ifElse",
-    displayName: "If/Else",
+    displayName: "IF",
     name: "ifElse",
     group: ["transform"],
     version: 1,
     description: "Route data based on conditions. Simple, Combine, or Grouped modes.",
-    icon: "fa:code-branch",
+    icon: "lucide:milestone",
     color: "#FF6B6B",
     defaults: {
         mode: "simple",

@@ -49,6 +49,7 @@ import {
   Wand2,
   Webhook,
   Zap,
+  Milestone,
 } from "lucide-react";
 import { env } from "../config/env";
 
@@ -129,6 +130,9 @@ const LUCIDE_ICON_REGISTRY: Record<string, LucideIcon> = {
   // AI/Agent icons
   bot: Bot,
   robot: Bot,
+  
+  // Milestone/Progress icons
+  milestone: Milestone,
 };
 
 /**
