@@ -245,16 +245,46 @@ export class SecureExecutionService {
     // Build $node context from nodeOutputs map (once)
     // Supports both $node["nodeId"] and $node["Node Name"] syntax
     // Data is stored directly (not wrapped in .json) for cleaner expressions like $node["Name"].field
+    // 
+    // TODO: Consider moving this merge logic to a shared @node-drop/utils package.
+    // This same logic exists in frontend/src/utils/nodeDataUtils.ts (mergeNodeOutputItems, extractNodeOutputData)
+    // Keeping them in sync manually is error-prone. A shared package would ensure consistency.
+    // Related frontend files that use the shared utility:
+    // - frontend/src/utils/nodeDataUtils.ts (shared utility)
+    // - frontend/src/utils/workflowDataUtils.ts
+    // - frontend/src/stores/workflow.ts (gatherInputDataFromConnectedNodes)
+    // - frontend/src/components/ui/form-generator/WorkflowExpressionField.tsx
     const nodeContext: Record<string, any> = {};
     if (nodeOutputs) {
       for (const [nId, outputData] of nodeOutputs.entries()) {
         let jsonData = outputData;
         if (outputData?.main && Array.isArray(outputData.main)) {
           const mainData = outputData.main;
+          
           if (mainData.length > 0) {
-            jsonData = mainData[0]?.json || mainData[0] || mainData;
+            // For multiple items (e.g., merge node output), merge all unique properties
+            // This allows expressions like $node["Merge"].x and $node["Merge"].y to both work
+            // when merge node output is [{json: {x: 10}}, {json: {y: 9}}]
+            if (mainData.length > 1) {
+              const mergedData: Record<string, any> = {};
+              for (const item of mainData) {
+                const itemJson = item?.json || item;
+                if (itemJson && typeof itemJson === 'object' && !Array.isArray(itemJson)) {
+                  // Merge each item's properties, keeping first non-null value for each key
+                  for (const [key, value] of Object.entries(itemJson)) {
+                    if (!(key in mergedData) || mergedData[key] === null || mergedData[key] === undefined) {
+                      mergedData[key] = value;
+                    }
+                  }
+                }
+              }
+              jsonData = Object.keys(mergedData).length > 0 ? mergedData : (mainData[0]?.json || mainData[0] || mainData);
+            } else {
+              jsonData = mainData[0]?.json || mainData[0] || mainData;
+            }
           }
         }
+        
         // Add by node ID (stable reference) - store data directly
         nodeContext[nId] = jsonData;
 

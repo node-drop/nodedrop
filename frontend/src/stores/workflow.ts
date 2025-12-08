@@ -25,6 +25,11 @@ import {
   validateTitle as validateTitleUtil,
 } from "@/utils/errorHandling";
 import { getAffectedNodes } from "@/utils/executionPathAnalyzer";
+import { extractNodeOutputData } from "@/utils/nodeDataUtils";
+import {
+  ensureUniqueNodeName,
+  updateNodeNameReferences,
+} from "@/utils/nodeReferenceUtils";
 import {
   handleWorkflowError,
   validateWorkflow,
@@ -34,10 +39,6 @@ import {
   updateWorkflowTitle,
   validateMetadata,
 } from "@/utils/workflowMetadata";
-import {
-  ensureUniqueNodeName,
-  updateNodeNameReferences,
-} from "@/utils/nodeReferenceUtils";
 import { devtools } from "zustand/middleware";
 import { createWithEqualityFn } from "zustand/traditional";
 
@@ -3515,15 +3516,11 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             // Store node output for $node expression resolution
             // Extract the actual data from the source node result
             if (sourceData && Array.isArray(sourceData) && sourceData.length > 0) {
-              // Extract json data from items
-              const extractedData = sourceData.map((item: any) => {
-                if (item && item.json !== undefined) {
-                  return item.json;
-                }
-                return item;
-              });
+              // Use shared utility to extract/merge node output data
+              const nodeOutputData = extractNodeOutputData(sourceData);
+              
               // Store by node ID
-              nodeOutputs[sourceNodeId] = extractedData.length === 1 ? extractedData[0] : extractedData;
+              nodeOutputs[sourceNodeId] = nodeOutputData;
               // Also store by node name for $node["Name"] syntax
               if (sourceNode?.name) {
                 nodeOutputs[sourceNode.name] = nodeOutputs[sourceNodeId];

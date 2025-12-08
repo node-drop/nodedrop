@@ -268,11 +268,11 @@ export function resolveValue(value: string | any, item: any, context?: Expressio
       // If evaluation returned the original expression, fall through to simple resolution
     }
     
-    // Handle $node["Node Name"].field or $node["Node Name"].json.field format
-    // Supports both with and without .json, and both node ID (stable) and node name (user-friendly)
-    // Examples: $node["HTTP Request"].posts, $node["HTTP Request"].json.posts
+    // Handle $node["Node Name"].field or $node['Node Name'].field or $node["Node Name"].json.field format
+    // Supports both single and double quotes, with and without .json, and both node ID (stable) and node name (user-friendly)
+    // Examples: $node["HTTP Request"].posts, $node['HTTP Request'].posts, $node["HTTP Request"].json.posts
     // Note: $node data is stored directly (not wrapped in .json), so .json is just ignored for compatibility
-    const nodeRefMatch = trimmedPath.match(/^\$node\["([^"]+)"\](?:\.json)?(?:\.(.+))?$/);
+    const nodeRefMatch = trimmedPath.match(/^\$node\[["']([^"']+)["']\](?:\.json)?(?:\.(.+))?$/);
     if (nodeRefMatch) {
       const nodeIdOrName = nodeRefMatch[1];
       const fieldPath = nodeRefMatch[2];

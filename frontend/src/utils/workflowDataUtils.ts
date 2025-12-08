@@ -1,4 +1,5 @@
-import type { Workflow, NodeExecutionResult } from '@/types'
+import type { NodeExecutionResult, Workflow } from '@/types'
+import { extractNodeOutputData } from './nodeDataUtils'
 
 /**
  * Build mock data from connected workflow nodes for expression evaluation
@@ -77,8 +78,8 @@ export async function buildMockDataFromWorkflow(
 
         if (sourceData.length === 0) return
 
-        // Get the data - could be array or object
-        let itemData = sourceData[0]?.json || sourceData[0]
+        // Use shared utility to extract/merge node output data
+        const itemData = extractNodeOutputData(sourceData)
         if (!itemData) return
 
         // Add to $node by both ID and name for flexible reference

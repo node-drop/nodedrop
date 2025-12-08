@@ -1,11 +1,12 @@
-import { useEffect, useState, useMemo } from 'react'
-import { useWorkflowStore } from '@/stores'
-import { ExpressionInput } from '@/components/ui/form-generator/ExpressionInput'
 import type { VariableCategory } from '@/components/ui/expression-editor'
 import { defaultVariableCategories } from '@/components/ui/expression-editor/default-categories'
-import { buildMockDataFromWorkflow } from '@/utils/workflowDataUtils'
+import { ExpressionInput } from '@/components/ui/form-generator/ExpressionInput'
 import { variableService } from '@/services/variable.service'
+import { useWorkflowStore } from '@/stores'
 import type { Variable } from '@/types/variable'
+import { mergeNodeOutputItems } from '@/utils/nodeDataUtils'
+import { buildMockDataFromWorkflow } from '@/utils/workflowDataUtils'
+import { useEffect, useMemo, useState } from 'react'
 
 interface WorkflowExpressionFieldProps {
   value: string
@@ -150,8 +151,11 @@ export function WorkflowExpressionField({
           return
         }
 
-        let firstItem = sourceData[0]?.json || sourceData[0]
-        if (!firstItem || typeof firstItem !== 'object') {
+        // Use shared utility to merge all items from sourceData
+        // This handles merge nodes that output multiple items with different properties
+        const mergedItem = mergeNodeOutputItems(sourceData)
+        
+        if (Object.keys(mergedItem).length === 0) {
           categories.push({
             name: categoryName,
             icon: 'input',
@@ -167,32 +171,10 @@ export function WorkflowExpressionField({
           return
         }
 
-        // Handle array data - use [0] to access first item
-        let isArrayData = false
-        if (Array.isArray(firstItem) && firstItem.length > 0) {
-          isArrayData = true
-          firstItem = firstItem[0]
-          if (!firstItem || typeof firstItem !== 'object') {
-            categories.push({
-              name: categoryName,
-              icon: 'input',
-              items: [
-                {
-                  label: `${nodeBasePath}[0]`,
-                  type: 'variable' as const,
-                  description: 'Array data available',
-                  insertText: `${nodeBasePath}[0]`,
-                },
-              ],
-            })
-            return
-          }
-        }
-
         // Build the base path for properties
-        const basePath = isArrayData ? `${nodeBasePath}[0]` : nodeBasePath
+        const basePath = nodeBasePath
 
-        const items = Object.entries(firstItem).map(([key, val]) => {
+        const items = Object.entries(mergedItem).map(([key, val]) => {
           let valuePreview = ''
 
           if (val === null) {

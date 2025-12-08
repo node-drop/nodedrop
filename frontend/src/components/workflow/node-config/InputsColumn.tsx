@@ -1,3 +1,4 @@
+import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,7 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useWorkflowStore } from '@/stores'
+import { useNodeTypes, useWorkflowStore } from '@/stores'
 import { WorkflowNode } from '@/types'
 import { getNodeExecutionCapability } from '@/utils/nodeTypeClassification'
 import { isNodeExecutable } from '@/utils/nodeTypeUtils'
@@ -39,8 +40,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { WebhookTriggerInput } from './WebhookTriggerInput'
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
-import { useNodeTypes } from '@/stores'
 
 /**
  * Main props for the InputsColumn component
@@ -255,30 +254,47 @@ function UnifiedTreeNode({
                 const basePath = `$node["${inputNode.name}"]`
                 
                 if (Array.isArray(nodeData)) {
-                  // For arrays, show first item
-                  return (
-                    <>
-                      {nodeData.length > 0 && (
-                        <SchemaViewer
-                          key={0}
-                          data={nodeData[0]}
-                          level={level + 1}
-                          keyName={`[0]`}
-                          parentPath={basePath}
-                          expandedState={expandedState}
-                          onExpandedChange={onExpandedChange}
-                        />
-                      )}
-                      {nodeData.length > 1 && (
-                        <div 
-                          className="text-[10px] text-muted-foreground/50 italic py-1 px-2"
-                          style={{ paddingLeft: `${(level + 1) * 16}px` }}
-                        >
-                          +{nodeData.length - 1} more item{nodeData.length - 1 !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </>
-                  )
+                  // For arrays, merge all unique properties from all items
+                  // This is important for merge nodes that output items with different properties
+                  const mergedSchema: Record<string, any> = {}
+                  nodeData.forEach((item) => {
+                    if (item && typeof item === 'object' && !Array.isArray(item)) {
+                      Object.entries(item).forEach(([key, value]) => {
+                        // Keep the first non-null value for each unique key
+                        if (!(key in mergedSchema) || mergedSchema[key] === null || mergedSchema[key] === undefined) {
+                          mergedSchema[key] = value
+                        }
+                      })
+                    }
+                  })
+                  
+                  // If we successfully merged object properties, show them
+                  if (Object.keys(mergedSchema).length > 0) {
+                    return Object.entries(mergedSchema).map(([key, value]) => (
+                      <SchemaViewer
+                        key={key}
+                        data={value}
+                        level={level + 1}
+                        keyName={key}
+                        parentPath={`${basePath}[0]`}
+                        expandedState={expandedState}
+                        onExpandedChange={onExpandedChange}
+                      />
+                    ))
+                  }
+                  
+                  // Fallback: show first item if items aren't objects
+                  return nodeData.length > 0 ? (
+                    <SchemaViewer
+                      key={0}
+                      data={nodeData[0]}
+                      level={level + 1}
+                      keyName={`[0]`}
+                      parentPath={basePath}
+                      expandedState={expandedState}
+                      onExpandedChange={onExpandedChange}
+                    />
+                  ) : null
                 } else {
                   // For objects, show properties directly
                   return Object.entries(nodeData).map(([key, value]) => (
@@ -487,9 +503,37 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
         {/* Sidebar menu sub style - border-l for guide line */}
         <div className="ml-3.5 border-l border-sidebar-border pl-2.5 py-0.5 flex flex-col gap-0.5">
           {isArray ? (
-            // Array handling - show only first item as schema representation
-            <>
-              {data.length > 0 && (
+            // Array handling - merge all unique properties from all items
+            // Important for merge nodes that output items with different properties
+            (() => {
+              const mergedSchema: Record<string, any> = {}
+              data.forEach((item: any) => {
+                if (item && typeof item === 'object' && !Array.isArray(item)) {
+                  Object.entries(item).forEach(([key, value]) => {
+                    if (!(key in mergedSchema) || mergedSchema[key] === null || mergedSchema[key] === undefined) {
+                      mergedSchema[key] = value
+                    }
+                  })
+                }
+              })
+              
+              // If we successfully merged object properties, show them
+              if (Object.keys(mergedSchema).length > 0) {
+                return Object.entries(mergedSchema).map(([key, value]) => (
+                  <SchemaViewer
+                    key={key}
+                    data={value}
+                    level={level + 1}
+                    keyName={key}
+                    parentPath={`${currentPath}[0]`}
+                    expandedState={expandedState}
+                    onExpandedChange={onExpandedChange}
+                  />
+                ))
+              }
+              
+              // Fallback: show first item if items aren't objects
+              return data.length > 0 ? (
                 <SchemaViewer
                   key={0}
                   data={data[0]}
@@ -499,13 +543,8 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
                   expandedState={expandedState}
                   onExpandedChange={onExpandedChange}
                 />
-              )}
-              {data.length > 1 && (
-                <div className="text-[10px] text-muted-foreground/50 italic py-1 px-2">
-                  +{data.length - 1} more item{data.length - 1 !== 1 ? 's' : ''}
-                </div>
-              )}
-            </>
+              ) : null
+            })()
           ) : (
             // Object handling
             Object.entries(data).map(([key, value]) => (
@@ -549,13 +588,21 @@ function getRelevantData(executionData: any): any {
   // Extract the most relevant data from execution result
   // Usually the actual data is nested within execution metadata
 
-  // If it's an array, get the first item (common in nodeDrop)
+  // If it's an array with items (common in nodeDrop)
   if (Array.isArray(executionData) && executionData.length > 0) {
     const firstItem = executionData[0]
 
-    // If the first item has a 'json' property, use that (common nodeDrop pattern)
+    // Check if array items have 'json' property (common nodeDrop pattern)
+    // Extract ALL json objects, not just the first one (important for merge nodes)
     if (firstItem && typeof firstItem === 'object' && firstItem.json) {
-      return firstItem.json
+      // Extract json from all items in the array
+      const allJsonData = executionData
+        .filter(item => item && typeof item === 'object' && item.json)
+        .map(item => item.json)
+      
+      // If we have multiple items, return as array to show all data
+      // If single item, return it directly for cleaner display
+      return allJsonData.length === 1 ? allJsonData[0] : allJsonData
     }
 
     // If the first item has a 'main' property with data
@@ -563,7 +610,7 @@ function getRelevantData(executionData: any): any {
       return getRelevantData(firstItem.main)
     }
 
-    return firstItem
+    return executionData.length === 1 ? firstItem : executionData
   }
 
   // If it's an object with 'json' property
