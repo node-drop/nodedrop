@@ -62,6 +62,17 @@ async function main() {
     process.exit(1);
   }
 
+  // Check if Docker is running
+  try {
+    execSync('docker info', { stdio: 'pipe' });
+    log.success('Docker is running');
+  } catch (error) {
+    log.error('Docker is not running');
+    log.info('Please start Docker Desktop or the Docker daemon');
+    log.blank();
+    process.exit(1);
+  }
+
   // Check if Docker Compose is installed
   try {
     execSync('docker-compose --version', { stdio: 'pipe' });
@@ -175,7 +186,7 @@ async function main() {
       - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
       - INSTALL_DIR=/host-compose
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       - ${installDir}:/host-compose:ro
     depends_on:
       postgres:

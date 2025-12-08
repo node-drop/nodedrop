@@ -18,115 +18,48 @@ A powerful workflow automation platform similar to n8n, built with Node.js, Reac
 - **PostgreSQL** 14+ (if running without Docker)
 - **Redis** 6+ (if running without Docker)
 
-## 🐳 Quick Start with Docker (Recommended)
+## � Installation
 
-### Option 1: One Command Install (Easiest)
+### Quick Start (Recommended)
 
 ```bash
 npm create nodedrop
-```
-
-Or:
-
-```bash
+# or
 npx @nodedrop/create
 ```
 
-That's it! The installer will:
-- ✓ Check Docker installation
-- ✓ Create configuration files
-- ✓ Pull the Docker image
-- ✓ Start Node-Drop
+That's it! Visit **http://localhost:5678/register** to create your admin account.
 
-Then visit **http://localhost:5678/register** to create your admin account.
-
-The first user to register automatically becomes the administrator!
-
-### Option 2: Build from Source
+### From Source
 
 ```bash
-# Clone the repository
 git clone git@github.com:node-drop/nodedrop.git
 cd nodedrop
-
-# Copy environment file
 cp .env.example .env
-
-# Start with Docker Compose
 docker-compose up --build
 ```
 
-Access the application at **http://localhost:5678**
+Access at **http://localhost:5678**
 
-## 💻 Local Development Setup
-
-### 1. Install Dependencies
+## 💻 Development
 
 ```bash
+# Install dependencies
 npm install
-```
 
-### 2. Configure Environment
-
-```bash
-# Copy environment template
+# Configure environment
 cp .env.example .env
 
-# Edit .env with your settings
-```
-
-Key environment variables:
-- `POSTGRES_PASSWORD` - Database password
-- `JWT_SECRET` - Authentication secret (generate a secure random string)
-- `REDIS_PASSWORD` - Redis password
-- `NODE_ENV` - Set to `development` for local dev
-
-### 3. Start Development Environment
-
-#### With Docker (Recommended)
-```bash
-# Start all services with hot reload
+# Start with Docker (recommended)
 npm run docker:setup
-```
 
-#### Without Docker
-```bash
-# Make sure PostgreSQL and Redis are running locally
-
-# Run database migrations
-cd backend
-npm run db:migrate
-
-# Start backend (in one terminal)
-npm run dev:backend
-
-# Start frontend (in another terminal)
-npm run dev:frontend
+# Or start manually (requires PostgreSQL and Redis)
+npm run dev:backend    # Terminal 1
+npm run dev:frontend   # Terminal 2
 ```
 
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:4000
-
-## 📦 Project Structure
-
-```
-node-drop/
-├── frontend/           # React + Vite frontend
-│   ├── src/
-│   ├── public/
-│   └── package.json
-├── backend/            # Node.js + Express backend
-│   ├── src/
-│   ├── prisma/        # Database schema and migrations
-│   └── package.json
-├── cli/                # CLI tool for node-drop
-├── scripts/            # Development and deployment scripts
-├── docker-compose.yml  # Production Docker setup
-├── docker-compose.published.yml  # Pre-built image setup
-├── docker-compose.override.yml   # Development overrides
-├── Dockerfile          # Unified production image
-└── .env.example        # Environment template
-```
+- Backend: http://localhost:4000
 
 ## 🔧 Available Scripts
 

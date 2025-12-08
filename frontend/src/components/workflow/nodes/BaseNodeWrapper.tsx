@@ -438,7 +438,7 @@ export function BaseNodeWrapper({
                 </ContextMenuTrigger>
                 {contextMenu}
               </ContextMenu>
-              {/* Show label below node in compact mode (like n8n) */}
+              {/* Show label below node in compact mode */}
               <div className={`mt-2 text-center max-w-[120px] ${small ? 'text-[7px]' : 'text-[9px]'}`}>
                 <span className="font-medium text-muted-foreground truncate block">
                   {data.label}

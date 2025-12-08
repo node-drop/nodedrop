@@ -866,4 +866,4 @@ The webhook returns appropriate HTTP status codes:
 - ✅ Simplified binary data structure
 - ✅ Fixed memory issues with large files
 - ✅ Improved middleware order and processing
-- ✅ Added comprehensive webhook options (n8n-style)
+- ✅ Added comprehensive webhook options

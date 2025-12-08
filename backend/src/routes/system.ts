@@ -144,55 +144,74 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
       // INSTALL_DIR should be the path inside the container where docker-compose.yml is mounted
       const installDir = process.env.INSTALL_DIR;
       
-      // Pull new image and recreate container using docker-compose
-      // This requires Docker socket to be mounted
-      const updateScript = installDir 
-        ? `
-          echo "Pulling latest image..." && \
-          docker pull ${imageName} && \
-          echo "Updating via docker-compose..." && \
-          docker compose -f ${installDir}/docker-compose.yml pull nodedrop && \
-          docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate nodedrop
-        `
-        : `
-          echo "Pulling latest image..." && \
-          docker pull ${imageName} && \
-          echo "Stopping container..." && \
-          docker stop ${containerName} && \
-          echo "Removing old container..." && \
-          docker rm ${containerName} && \
-          echo "Starting new container (this will fail - manual restart required)..." && \
-          echo "Please run: docker compose up -d" && \
-          exit 1
-        `;
+      if (!installDir) {
+        return res.status(400).json({
+          error: 'Update not configured',
+          message: 'INSTALL_DIR environment variable not set. Please use manual update method.',
+          manualCommand: `docker pull ${imageName} && docker stop ${containerName} && docker rm ${containerName} && docker run ...`
+        });
+      }
 
-      // Execute update in background
-      exec(updateScript, (error, stdout, stderr) => {
-        if (error) {
-          console.error('Update error:', error);
-          console.error('stderr:', stderr);
-        } else {
-          console.log('Update output:', stdout);
-        }
-      });
+      console.log('[Update] Starting update process...');
+      console.log('[Update] Install Dir:', installDir);
+      console.log('[Update] Container Name:', containerName);
+      console.log('[Update] Image Name:', imageName);
 
+      // CRITICAL: Send response BEFORE starting update
+      // This ensures the user gets feedback before container is killed
       res.json({
         success: true,
         message: 'Update started. The application will restart in a few moments.',
+        note: 'Please refresh your browser after 30-60 seconds',
+        estimatedTime: '30-60 seconds'
       });
+
+      // Wait for response to be fully sent, then trigger update
+      // This solves the "self-update paradox":
+      // 1. Response is sent to user
+      // 2. After delay, we spawn a detached process
+      // 3. The detached process runs on the HOST (via Docker socket)
+      // 4. Even when this container dies, the HOST process continues
+      // 5. Docker Compose recreates the container with new image
+      setTimeout(() => {
+        console.log('[Update] Executing update command...');
+        
+        // Use spawn with detached mode for better reliability
+        // This ensures the process continues even if parent (this container) dies
+        const { spawn } = require('child_process');
+        
+        const updateProcess = spawn('sh', ['-c', 
+          `docker pull ${imageName} && docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate`
+        ], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        
+        // Unref so this process doesn't keep the container alive
+        updateProcess.unref();
+        
+        console.log('[Update] Update process spawned (PID:', updateProcess.pid, ')');
+        console.log('[Update] Container will restart shortly...');
+      }, 3000); // 3 second delay to ensure response is fully sent
+
     } catch (error) {
       console.error('Update failed:', error);
-      res.status(500).json({ 
-        error: 'Docker socket not available',
-        message: 'In-app updates require Docker socket access. Please see documentation: /docs/ENABLE-AUTO-UPDATE.md',
-        instructions: [
-          'Add to docker-compose.yml:',
-          'volumes:',
-          '  - /var/run/docker.sock:/var/run/docker.sock:ro',
-          '',
-          'Then restart: docker-compose down && docker-compose up -d'
-        ]
-      });
+      
+      // Only send response if not already sent
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Failed to start update',
+          message: 'In-app updates require Docker socket access with write permissions.',
+          instructions: [
+            'Ensure docker-compose.yml has:',
+            'volumes:',
+            '  - /var/run/docker.sock:/var/run/docker.sock',
+            '',
+            'And container is NOT running with user restrictions',
+            'Then restart: docker-compose down && docker-compose up -d'
+          ]
+        });
+      }
     }
   } catch (error: any) {
     console.error('Error installing update:', error);
@@ -217,6 +236,21 @@ router.get('/info', authenticateToken, async (_req, res) => {
     res.json(info);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get system info' });
+  }
+});
+
+// Health check endpoint (public, no auth required)
+// Used by frontend to detect when update is complete
+router.get('/health', async (_req, res) => {
+  try {
+    res.json({
+      status: 'ok',
+      version: process.env.APP_VERSION || process.env.npm_package_version || '1.0.0-alpha',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error' });
   }
 });
 

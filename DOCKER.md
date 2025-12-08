@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Node-drop uses a **unified single-container architecture** (like n8n), where the backend serves the frontend static files. This simplifies deployment - just one image to pull and run!
+Node-drop uses a **unified single-container architecture**, where the backend serves the frontend static files. This simplifies deployment - just one image to pull and run!
 
 - **Single container** running on port **5678**
 - Backend serves frontend via Express

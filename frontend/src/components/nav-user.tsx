@@ -81,10 +81,61 @@ export function NavUser({
 
   const handleInstallUpdate = async () => {
     try {
-      await installUpdate()
+      const currentVersion = systemInfo?.version;
+      const result = await installUpdate();
+      
       toast.success('Update Started', {
-        description: 'The application will restart in a few moments',
-      })
+        description: result.message || 'The application will restart in a few moments',
+        duration: 60000, // Show for 60 seconds
+      });
+
+      // Poll for update completion
+      let pollCount = 0;
+      const maxPolls = 60; // Poll for up to 60 seconds
+      
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+        
+        try {
+          // Try to reach the health endpoint
+          const response = await fetch('/api/system/health');
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Check if version changed (update completed)
+            if (data.version !== currentVersion) {
+              clearInterval(pollInterval);
+              
+              toast.success('Update Complete!', {
+                description: `Updated to version ${data.version}. Reloading...`,
+                duration: 3000,
+              });
+              
+              // Reload the page after 2 seconds
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            }
+          }
+        } catch (error) {
+          // Server is down (expected during update)
+          console.log('[Update] Server unreachable, waiting...');
+        }
+        
+        // Stop polling after max attempts
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          toast.info('Update Taking Longer Than Expected', {
+            description: 'Please refresh the page manually in a moment',
+            action: {
+              label: 'Refresh Now',
+              onClick: () => window.location.reload(),
+            },
+          });
+        }
+      }, 2000); // Poll every 2 seconds
+      
     } catch (error: any) {
       toast.error('Update Failed', {
         description: error.message || 'Failed to install update',

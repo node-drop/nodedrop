@@ -139,7 +139,7 @@ function createSafeEvaluator(context: SafeContext) {
     decodeURIComponent,
     encodeURI,
     decodeURI,
-    // DateTime helper (n8n style)
+
     DateTime: {
       now: () => new Date().toISOString(),
       fromISO: (str: string) => (str ? new Date(str).toISOString() : new Date().toISOString()),

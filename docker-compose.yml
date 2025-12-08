@@ -47,10 +47,15 @@ services:
       - CREDENTIAL_ENCRYPTION_KEY=${CREDENTIAL_ENCRYPTION_KEY}
       - PORT=5678
       - NODE_OPTIONS=--max-old-space-size=2048
+      - CONTAINER_NAME=node-drop
+      - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
+      - INSTALL_DIR=/host-compose
     volumes:
       - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp
       - logs_data:/app/logs
+      - .:/host-compose:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,7 +68,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    user: "1001:1001"
+    # Note: Running as root to enable in-app updates via Docker socket
+    # If you don't need in-app updates, uncomment the line below for better security:
+    # user: "1001:1001"
     deploy:
       resources:
         limits:

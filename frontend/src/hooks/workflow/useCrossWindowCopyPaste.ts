@@ -4,7 +4,7 @@ import { ensureUniqueNodeName } from "@/utils/nodeReferenceUtils";
 import { useReactFlow } from "@xyflow/react";
 import { useCallback, useState } from "react";
 
-// Custom MIME type for workflow nodes (similar to n8n's approach)
+// Custom MIME type for workflow nodes
 const WORKFLOW_MIME_TYPE = "application/vnd.workflow.nodes+json";
 
 interface SharedNodesData {
@@ -16,7 +16,7 @@ interface SharedNodesData {
 
 /**
  * Hook for cross-window/cross-site node sharing
- * Uses Clipboard API with custom MIME type (similar to n8n)
+ * Uses Clipboard API with custom MIME type
  * Works across different browser windows/tabs and even different websites
  */
 export function useCrossWindowCopyPaste() {

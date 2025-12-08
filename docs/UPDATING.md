@@ -111,14 +111,18 @@ docker pull ghcr.io/node-drop/nodedrop:1.0.4-alpha
 docker-compose -f docker-compose.published.yml up -d
 ```
 
-## Automatic Updates (Future Feature)
+## Security Note for In-App Updates
 
-The in-app "Install Update" button is currently disabled because:
-- It requires the container to have access to Docker socket
-- This poses security risks
-- Manual updates are safer and more reliable
+The in-app update feature requires:
+- Docker socket mounted with write access: `/var/run/docker.sock:/var/run/docker.sock`
+- Container running without user restrictions (or user in docker group)
 
-For now, use the manual update methods above.
+
+**Security Considerations:**
+- Only administrators can trigger updates
+- The container can control Docker on the host
+- For maximum security, disable in-app updates and use manual updates instead
+- To disable: remove Docker socket mount and add `user: "1001:1001"` to docker-compose.yml
 
 ## Version Pinning Best Practices
 
