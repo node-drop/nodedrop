@@ -150,7 +150,7 @@ export const DataPreviewNode = memo(function DataPreviewNode({ data, selected, i
   }, [previewData])
 
   // Get format icon
-  const getFormatIcon = useCallback(() => {
+  const FormatIcon = (() => {
     switch (format) {
       case 'json':
       case 'json-compact':
@@ -162,9 +162,7 @@ export const DataPreviewNode = memo(function DataPreviewNode({ data, selected, i
       default:
         return Terminal
     }
-  }, [format])
-
-  const FormatIcon = getFormatIcon()
+  })()
 
   // Prepare header info text
   const headerInfo = useMemo(() => {

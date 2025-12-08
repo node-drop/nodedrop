@@ -270,6 +270,10 @@ export function BaseNodeWrapper({
     handleRetryNode
   } = useNodeExecution(id, data.nodeType)
 
+  // Get validation errors (must be called before any conditional returns)
+  const { errors: validationErrors } = useNodeValidation(id)
+  const hasValidationErrors = validationErrors.length > 0
+
   // Debug logging for service nodes (disabled by default for performance)
   // Uncomment if needed for debugging:
   // React.useEffect(() => {
@@ -471,10 +475,6 @@ export function BaseNodeWrapper({
 
   // Expanded view
   const isRunning = effectiveStatus === 'running'
-  
-  // Get validation errors for expanded view
-  const { errors: validationErrors } = useNodeValidation(id)
-  const hasValidationErrors = validationErrors.length > 0
   
   return (
     <ContextMenu>
