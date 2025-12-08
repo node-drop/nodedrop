@@ -67,8 +67,8 @@ ENV GIT_SHA=$GIT_SHA \
 
 WORKDIR /app
 
-# Install runtime dependencies including Docker CLI for updates
-RUN apk add --no-cache curl openssl openssl-dev docker-cli
+# Install runtime dependencies including Docker CLI and Compose for updates
+RUN apk add --no-cache curl openssl openssl-dev docker-cli docker-cli-compose
 
 # Copy backend built files
 COPY --from=backend-builder /app/backend/dist ./dist
@@ -99,7 +99,7 @@ RUN chown -R nodejs:nodejs /app
 # For auto-updates, container needs root access to Docker socket
 # If you don't need auto-updates, add "user: 1001:1001" in docker-compose.yml
 
-# Expose single port (like n8n)
+# Expose single port
 EXPOSE 5678
 
 # Health check

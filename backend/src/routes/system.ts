@@ -1,5 +1,5 @@
 import express from 'express';
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
@@ -176,16 +176,24 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
       setTimeout(() => {
         console.log('[Update] Executing update command...');
         
+        // Try docker-compose first (v1), fall back to docker compose (v2)
+        // Build the update command - use docker-compose for better compatibility
+        const updateCommand = `docker pull ${imageName} && (docker-compose -f ${installDir}/docker-compose.yml up -d --force-recreate || docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate)`;
+        console.log('[Update] Command:', updateCommand);
+        
         // Use spawn with detached mode for better reliability
         // This ensures the process continues even if parent (this container) dies
-        const { spawn } = require('child_process');
-        
-        const updateProcess = spawn('sh', ['-c', 
-          `docker pull ${imageName} && docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate`
-        ], {
+        const updateProcess = spawn('/bin/sh', ['-c', updateCommand], {
           detached: true,
-          stdio: 'ignore'
+          stdio: ['ignore', 'ignore', 'pipe'] // Capture stderr for logging
         });
+        
+        // Log any errors
+        if (updateProcess.stderr) {
+          updateProcess.stderr.on('data', (data) => {
+            console.error('[Update] stderr:', data.toString());
+          });
+        }
         
         // Unref so this process doesn't keep the container alive
         updateProcess.unref();
