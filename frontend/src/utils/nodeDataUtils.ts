@@ -68,3 +68,140 @@ export function extractNodeOutputData(sourceData: any[]): any {
   
   return merged;
 }
+
+/**
+ * Format a value into a human-readable preview string.
+ * Used for displaying field values in autocomplete dropdowns and tooltips.
+ * 
+ * @param val - Any value to format
+ * @returns A human-readable string representation
+ */
+export function formatValuePreview(val: unknown): string {
+  if (val === null) {
+    return 'null';
+  }
+  if (Array.isArray(val)) {
+    return `array[${val.length}]`;
+  }
+  if (typeof val === 'object') {
+    const objKeys = Object.keys(val as object).slice(0, 3).join(', ');
+    const keyCount = Object.keys(val as object).length;
+    return `{ ${objKeys}${keyCount > 3 ? ', ...' : ''} }`;
+  }
+  if (typeof val === 'string') {
+    return `"${val.substring(0, 40)}${val.length > 40 ? '...' : ''}"`;
+  }
+  if (typeof val === 'number' || typeof val === 'boolean') {
+    return String(val);
+  }
+  return String(val).substring(0, 40);
+}
+
+/**
+ * Default mock data structure used by expression inputs.
+ * Provides the base context for expression evaluation.
+ */
+export const DEFAULT_MOCK_DATA: Record<string, unknown> = {
+  $json: {},
+  $workflow: { id: 'workflow-id', name: 'Workflow Name', active: true },
+  $execution: { id: 'execution-id', mode: 'manual' },
+  $vars: {},
+  $now: new Date().toISOString(),
+  $today: new Date().toISOString().split('T')[0],
+};
+
+/**
+ * Variable category item type for autocomplete
+ */
+export interface VariableCategoryItem {
+  label: string;
+  type: 'variable' | 'property';
+  description: string;
+  insertText: string;
+}
+
+/**
+ * Variable category type for autocomplete grouping
+ */
+export interface VariableCategory {
+  name: string;
+  icon: string;
+  items: VariableCategoryItem[];
+}
+
+/**
+ * Create a fallback variable category for nodes with no/empty data.
+ * Used when a connected node hasn't been executed or has no output.
+ * 
+ * @param categoryName - Display name for the category (typically node name)
+ * @param basePath - Base expression path (e.g., $node["NodeName"])
+ * @param message - Description message explaining the fallback state
+ * @returns A VariableCategory with a single fallback item
+ */
+export function createFallbackCategory(
+  categoryName: string,
+  basePath: string,
+  message: string
+): VariableCategory {
+  return {
+    name: categoryName,
+    icon: 'input',
+    items: [
+      {
+        label: basePath,
+        type: 'variable' as const,
+        description: message,
+        insertText: basePath,
+      },
+    ],
+  };
+}
+
+/**
+ * Build the "Workflow Info" variable category with workflow and execution metadata.
+ * 
+ * @param workflowData - Workflow metadata (id, name, active)
+ * @param executionData - Execution metadata (id, mode)
+ * @returns A VariableCategory containing workflow and execution variables
+ */
+export function buildWorkflowInfoCategory(
+  workflowData?: Record<string, unknown>,
+  executionData?: Record<string, unknown>
+): VariableCategory {
+  return {
+    name: 'Workflow Info',
+    icon: 'workflow',
+    items: [
+      {
+        label: '$workflow.id',
+        type: 'property',
+        description: workflowData?.id ? String(workflowData.id) : 'Workflow ID',
+        insertText: '$workflow.id',
+      },
+      {
+        label: '$workflow.name',
+        type: 'property',
+        description: workflowData?.name ? String(workflowData.name) : 'Workflow name',
+        insertText: '$workflow.name',
+      },
+      {
+        label: '$workflow.active',
+        type: 'property',
+        description: workflowData?.active !== undefined ? String(workflowData.active) : 'Is active',
+        insertText: '$workflow.active',
+      },
+      {
+        label: '$execution.id',
+        type: 'property',
+        description: executionData?.id ? String(executionData.id) : 'Execution ID',
+        insertText: '$execution.id',
+      },
+      {
+        label: '$execution.mode',
+        type: 'property',
+        description: executionData?.mode ? String(executionData.mode) : 'Execution mode',
+        insertText: '$execution.mode',
+      },
+    ],
+  };
+}

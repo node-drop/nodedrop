@@ -1,18 +1,17 @@
-"use client"
-
+import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from "@/components/ui/dialog"
+import { ExpressionEditor } from "@/components/ui/expression-editor"
+import { AutocompleteDropdown } from "@/components/ui/expression-editor/autocomplete-dropdown"
+import { defaultVariableCategories } from "@/components/ui/expression-editor/default-categories"
+import { useExpressionAutocomplete, useExpressionMode } from "@/components/ui/expression-editor/expression-editor-hooks"
+import { getCollapsedResultDisplay } from "@/components/ui/expression-editor/expression-editor-shared"
+import { evaluateExpression } from "@/components/ui/expression-editor/expression-evaluator"
+import type { VariableCategory } from "@/components/ui/expression-editor/types"
+import { renderHighlightedText } from "@/components/ui/expression-editor/utils"
+import { cn } from "@/lib/utils"
+import { DEFAULT_MOCK_DATA } from "@/utils/nodeDataUtils"
+import { Variable } from "lucide-react"
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { cn } from "@/lib/utils"
-import { evaluateExpression } from "@/components/ui/expression-editor/expression-evaluator"
-import { ExpressionEditor } from "@/components/ui/expression-editor"
-import { Dialog, DialogContent, DialogTitle, VisuallyHidden } from "@/components/ui/dialog"
-import { AutocompleteDropdown } from "@/components/ui/expression-editor/autocomplete-dropdown"
-import { renderHighlightedText } from "@/components/ui/expression-editor/utils"
-import { useExpressionMode, useExpressionAutocomplete } from "@/components/ui/expression-editor/expression-editor-hooks"
-import { defaultVariableCategories } from "@/components/ui/expression-editor/default-categories"
-import { getCollapsedResultDisplay } from "@/components/ui/expression-editor/expression-editor-shared"
-import { Variable } from "lucide-react"
-import type { VariableCategory } from "@/components/ui/expression-editor/types"
 
 interface SelectOption {
   label: string
@@ -36,12 +35,6 @@ interface ExpressionInputProps {
   onBlur?: () => void
   variableCategories?: VariableCategory[]
   nodeId?: string
-}
-
-const defaultMockData = {
-  $json: {},
-  $now: new Date().toISOString(),
-  $today: new Date().toISOString().split("T")[0],
 }
 
 export function ExpressionInput({
@@ -77,7 +70,7 @@ export function ExpressionInput({
   const { isExpression, displayValue, wrapWithPrefix } = useExpressionMode(value)
   // If mockData prop is provided, use it directly; otherwise create from context
   const mockData = React.useMemo(() => 
-    mockDataProp || { ...defaultMockData, $json: context }, 
+    mockDataProp || { ...DEFAULT_MOCK_DATA, $json: context }, 
     [mockDataProp, context]
   )
   

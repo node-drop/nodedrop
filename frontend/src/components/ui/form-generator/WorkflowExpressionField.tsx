@@ -4,7 +4,13 @@ import { ExpressionInput } from '@/components/ui/form-generator/ExpressionInput'
 import { variableService } from '@/services/variable.service'
 import { useWorkflowStore } from '@/stores'
 import type { Variable } from '@/types/variable'
-import { mergeNodeOutputItems } from '@/utils/nodeDataUtils'
+import {
+  DEFAULT_MOCK_DATA,
+  buildWorkflowInfoCategory,
+  createFallbackCategory,
+  formatValuePreview,
+  mergeNodeOutputItems,
+} from '@/utils/nodeDataUtils'
 import { buildMockDataFromWorkflow } from '@/utils/workflowDataUtils'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -38,12 +44,7 @@ export function WorkflowExpressionField({
   hideRing,
 }: WorkflowExpressionFieldProps) {
   const [variables, setVariables] = useState<Variable[]>([])
-  const [mockData, setMockData] = useState<Record<string, unknown>>({
-    $json: {},
-    $workflow: { id: 'workflow-id', name: 'Workflow Name', active: true },
-    $execution: { id: 'execution-id', mode: 'manual' },
-    $vars: {},
-  })
+  const [mockData, setMockData] = useState<Record<string, unknown>>(DEFAULT_MOCK_DATA)
 
   // Call hooks at top level
   const workflowStore = useWorkflowStore()
@@ -115,18 +116,11 @@ export function WorkflowExpressionField({
         const sourceNodeResult = workflowStore.getNodeExecutionResult(sourceNodeId)
 
         if (!sourceNodeResult?.data) {
-          categories.push({
-            name: categoryName,
-            icon: 'input',
-            items: [
-              {
-                label: nodeBasePath,
-                type: 'variable' as const,
-                description: 'Node not executed yet - run the workflow to see available fields',
-                insertText: nodeBasePath,
-              },
-            ],
-          })
+          categories.push(createFallbackCategory(
+            categoryName,
+            nodeBasePath,
+            'Node not executed yet - run the workflow to see available fields'
+          ))
           return
         }
 
@@ -136,18 +130,11 @@ export function WorkflowExpressionField({
         }
 
         if (sourceData.length === 0) {
-          categories.push({
-            name: categoryName,
-            icon: 'input',
-            items: [
-              {
-                label: nodeBasePath,
-                type: 'variable' as const,
-                description: 'No data available - check node execution',
-                insertText: nodeBasePath,
-              },
-            ],
-          })
+          categories.push(createFallbackCategory(
+            categoryName,
+            nodeBasePath,
+            'No data available - check node execution'
+          ))
           return
         }
 
@@ -156,48 +143,21 @@ export function WorkflowExpressionField({
         const mergedItem = mergeNodeOutputItems(sourceData)
         
         if (Object.keys(mergedItem).length === 0) {
-          categories.push({
-            name: categoryName,
-            icon: 'input',
-            items: [
-              {
-                label: nodeBasePath,
-                type: 'variable' as const,
-                description: 'Data structure not available',
-                insertText: nodeBasePath,
-              },
-            ],
-          })
+          categories.push(createFallbackCategory(
+            categoryName,
+            nodeBasePath,
+            'Data structure not available'
+          ))
           return
         }
 
-        // Build the base path for properties
-        const basePath = nodeBasePath
-
         const items = Object.entries(mergedItem).map(([key, val]) => {
-          let valuePreview = ''
-
-          if (val === null) {
-            valuePreview = 'null'
-          } else if (Array.isArray(val)) {
-            valuePreview = `array[${val.length}]`
-          } else if (typeof val === 'object') {
-            const objKeys = Object.keys(val).slice(0, 3).join(', ')
-            valuePreview = `{ ${objKeys}${Object.keys(val).length > 3 ? ', ...' : ''} }`
-          } else if (typeof val === 'string') {
-            valuePreview = `"${val.substring(0, 40)}${val.length > 40 ? '...' : ''}"`
-          } else if (typeof val === 'number' || typeof val === 'boolean') {
-            valuePreview = String(val)
-          } else {
-            valuePreview = String(val).substring(0, 40)
-          }
-
-          const fullPath = `${basePath}.${key}`
+          const fullPath = `${nodeBasePath}.${key}`
 
           return {
             label: key,
             type: 'property' as const,
-            description: valuePreview,
+            description: formatValuePreview(val),
             insertText: fullPath,
           }
         })
@@ -225,42 +185,8 @@ export function WorkflowExpressionField({
     const workflowData = mockData.$workflow as Record<string, unknown> | undefined
     const executionData = mockData.$execution as Record<string, unknown> | undefined
 
-    categories.push({
-      name: 'Workflow Info',
-      icon: 'workflow',
-      items: [
-        {
-          label: '$workflow.id',
-          type: 'property',
-          description: workflowData?.id ? String(workflowData.id) : 'Workflow ID',
-          insertText: '$workflow.id',
-        },
-        {
-          label: '$workflow.name',
-          type: 'property',
-          description: workflowData?.name ? String(workflowData.name) : 'Workflow name',
-          insertText: '$workflow.name',
-        },
-        {
-          label: '$workflow.active',
-          type: 'property',
-          description: workflowData?.active !== undefined ? String(workflowData.active) : 'Is active',
-          insertText: '$workflow.active',
-        },
-        {
-          label: '$execution.id',
-          type: 'property',
-          description: executionData?.id ? String(executionData.id) : 'Execution ID',
-          insertText: '$execution.id',
-        },
-        {
-          label: '$execution.mode',
-          type: 'property',
-          description: executionData?.mode ? String(executionData.mode) : 'Execution mode',
-          insertText: '$execution.mode',
-        },
-      ],
-    })
+    // Use shared utility to build workflow info category
+    categories.push(buildWorkflowInfoCategory(workflowData, executionData))
 
     // Add variables category
     if (variableItems.length > 0) {
@@ -283,7 +209,7 @@ export function WorkflowExpressionField({
     categories.push(...defaultVariableCategories)
 
     return categories
-  }, [variableItems, connectedNodeCategories, customVariableCategories])
+  }, [mockData, variableItems, connectedNodeCategories, customVariableCategories])
 
   return (
     <>
