@@ -3484,7 +3484,8 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
           return { main: [[]], nodeOutputs: {} };
         }
 
-        const inputData: any = { main: [] };
+        // Accumulate items from all connections
+        const accumulatedItems: any[] = [];
         // Also collect nodeOutputs for $node expression resolution
         const nodeOutputs: Record<string, any> = {};
 
@@ -3526,24 +3527,24 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
                 nodeOutputs[sourceNode.name] = nodeOutputs[sourceNodeId];
               }
             }
-            // Also add to inputData.main for the node's input
+            // Also add to accumulatedItems for the node's input
             if (sourceData && Array.isArray(sourceData) && sourceData.length > 0) {
               for (const item of sourceData) {
                 if (item && item.json !== undefined) {
                   if (Array.isArray(item.json)) {
                     for (const arrayItem of item.json) {
-                      inputData.main.push({ json: arrayItem });
+                      accumulatedItems.push({ json: arrayItem });
                     }
                   } else if (item.json.data !== undefined) {
                     if (Array.isArray(item.json.data)) {
                       for (const arrayItem of item.json.data) {
-                        inputData.main.push({ json: arrayItem });
+                        accumulatedItems.push({ json: arrayItem });
                       }
                     } else {
-                      inputData.main.push({ json: item.json.data });
+                      accumulatedItems.push({ json: item.json.data });
                     }
                   } else {
-                    inputData.main.push({ json: item.json });
+                    accumulatedItems.push({ json: item.json });
                   }
                 }
               }
@@ -3555,23 +3556,21 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             if (sourceNode.name) {
               nodeOutputs[sourceNode.name] = sourceNode.mockData;
             }
-            // Also add mock data to inputData.main
+            // Also add mock data to accumulatedItems
             if (Array.isArray(sourceNode.mockData)) {
               for (const item of sourceNode.mockData) {
-                inputData.main.push({ json: item });
+                accumulatedItems.push({ json: item });
               }
             } else {
-              inputData.main.push({ json: sourceNode.mockData });
+              accumulatedItems.push({ json: sourceNode.mockData });
             }
           }
         }
 
-        if (inputData.main.length === 0) {
-          inputData.main.push([]);
-        }
-
-        // Include nodeOutputs in the return value
-        inputData.nodeOutputs = nodeOutputs;
+        const inputData: any = {
+          main: [accumulatedItems], // Wrap in array to match NodeInputData structure (any[][])
+          nodeOutputs
+        };
 
         return inputData;
       },

@@ -148,19 +148,40 @@ function UnifiedTreeNode({
               ) : (
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               )}
-              <NodeIconRenderer
-                icon={inputNode.icon || nodeTypeDefinition?.icon}
-                nodeType={inputNode.type}
-                nodeGroup={nodeTypeDefinition?.group}
-                displayName={inputNode.name}
-                backgroundColor={inputNode.color || nodeTypeDefinition?.color || '#6b7280'}
-                isTrigger={isTrigger}
-                size="sm"
-                className="flex-shrink-0"
-              />
-              <span className="text-sm font-medium truncate">
-                {inputNode.name}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="flex items-center gap-2 cursor-grab active:cursor-grabbing select-none hover:opacity-80 transition-opacity"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', `{{$node["${inputNode.name}"]}}`)
+                        e.dataTransfer.effectAllowed = 'copy'
+                        e.stopPropagation()
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <NodeIconRenderer
+                        icon={inputNode.icon || nodeTypeDefinition?.icon}
+                        nodeType={inputNode.type}
+                        nodeGroup={nodeTypeDefinition?.group}
+                        displayName={inputNode.name}
+                        backgroundColor={inputNode.color || nodeTypeDefinition?.color || '#6b7280'}
+                        isTrigger={isTrigger}
+                        size="sm"
+                        className="flex-shrink-0"
+                      />
+                      <span className="text-sm font-medium truncate">
+                        {inputNode.name}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs font-mono">{`{{$node["${inputNode.name}"]}}`}</p>
+                    <p className="text-xs text-muted-foreground">Drag to insert full node output</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {!connection.id && (
                 <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-600 border-blue-200">
                   Indirect
@@ -276,7 +297,7 @@ function UnifiedTreeNode({
                         data={value}
                         level={level + 1}
                         keyName={key}
-                        parentPath={`${basePath}[0]`}
+                        parentPath={basePath}
                         expandedState={expandedState}
                         onExpandedChange={onExpandedChange}
                       />
@@ -380,13 +401,13 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
   if (!isComplexType(data)) {
     // Simple value - both key and value are draggable with expression path
     return (
-      <div className="flex items-center gap-2 py-1 px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-colors group">
+      <div className="flex items-center gap-2 py-1 px-2 rounded-md group">
         {keyName && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span 
-                  className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/50 cursor-grab active:cursor-grabbing select-none hover:bg-muted/80 hover:border-border transition-colors"
+                  className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/50 cursor-grab active:cursor-grabbing select-none"
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', `{{${currentPath}}}`)
@@ -406,7 +427,7 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
           <Tooltip>
             <TooltipTrigger asChild>
               <span 
-                className="text-xs text-muted-foreground truncate max-w-[180px] cursor-grab active:cursor-grabbing select-none hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground truncate max-w-[180px] cursor-grab active:cursor-grabbing select-none"
                 draggable
                 onDragStart={(e) => {
                   // Copy actual value, not expression
@@ -440,12 +461,12 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
       onOpenChange={(open) => onExpandedChange?.(itemKey, open)}
     >
       <CollapsibleTrigger asChild>
-        <div className="flex items-center gap-2 py-1 px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-colors cursor-pointer group">
+        <div className="flex items-center gap-2 py-1 px-2 rounded-md cursor-pointer group">
           <div className="flex items-center justify-center w-4 h-4">
             {isExpanded ? (
-              <ChevronDown className="h-3 w-3 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+              <ChevronDown className="h-3 w-3 text-muted-foreground/60" />
             ) : (
-              <ChevronRight className="h-3 w-3 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
             )}
           </div>
           {keyName && (
@@ -453,7 +474,7 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span 
-                    className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/50 cursor-grab active:cursor-grabbing select-none hover:bg-muted/80 hover:border-border transition-colors"
+                    className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/50 cursor-grab active:cursor-grabbing select-none"
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', `{{${currentPath}}}`)
@@ -475,7 +496,7 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
             <Tooltip>
               <TooltipTrigger asChild>
                 <span 
-                  className="text-xs text-muted-foreground cursor-grab active:cursor-grabbing select-none hover:text-foreground transition-colors"
+                  className="text-xs text-muted-foreground cursor-grab active:cursor-grabbing select-none"
                   draggable
                   onDragStart={(e) => {
                     // Copy actual value (JSON stringified for objects/arrays)
@@ -518,6 +539,7 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
               })
               
               // If we successfully merged object properties, show them
+              // Use currentPath directly (without [0]) since data is merged from all items
               if (Object.keys(mergedSchema).length > 0) {
                 return Object.entries(mergedSchema).map(([key, value]) => (
                   <SchemaViewer
@@ -525,7 +547,7 @@ function SchemaViewer({ data, level, keyName, parentPath = '$json', expandedStat
                     data={value}
                     level={level + 1}
                     keyName={key}
-                    parentPath={`${currentPath}[0]`}
+                    parentPath={currentPath}
                     expandedState={expandedState}
                     onExpandedChange={onExpandedChange}
                   />

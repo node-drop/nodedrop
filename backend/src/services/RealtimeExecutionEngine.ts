@@ -393,7 +393,23 @@ export class RealtimeExecutionEngine extends EventEmitter {
         
         if (incomingConnections.length > 0) {
             const upstreamNodeIds = [...new Set(incomingConnections.map(conn => conn.sourceNodeId))];
-            const missingUpstreamNodes = upstreamNodeIds.filter(
+            
+            // Filter out service nodes from upstream dependencies
+            // Service nodes (model, memory, tools) don't execute independently and shouldn't be waited for
+            const nonServiceUpstreamNodeIds: string[] = [];
+            for (const upstreamId of upstreamNodeIds) {
+                const upstreamNode = nodeMap.get(upstreamId);
+                if (upstreamNode) {
+                    const isService = await this.isServiceNode(upstreamNode.type);
+                    if (!isService) {
+                        nonServiceUpstreamNodeIds.push(upstreamId);
+                    } else {
+                        logger.debug(`[RealtimeExecution] Skipping service node ${upstreamId} (${upstreamNode.type}) from upstream dependencies`);
+                    }
+                }
+            }
+            
+            const missingUpstreamNodes = nonServiceUpstreamNodeIds.filter(
                 upstreamId => !context.nodeOutputs.has(upstreamId)
             );
             
@@ -401,10 +417,10 @@ export class RealtimeExecutionEngine extends EventEmitter {
                 logger.info(`[RealtimeExecution] Node ${nodeId} waiting for upstream nodes to complete`, {
                     nodeId,
                     nodeName: node.name,
-                    totalUpstream: upstreamNodeIds.length,
+                    totalUpstream: nonServiceUpstreamNodeIds.length,
                     missingUpstream: missingUpstreamNodes.length,
                     missingNodeIds: missingUpstreamNodes,
-                    completedNodeIds: upstreamNodeIds.filter(id => context.nodeOutputs.has(id)),
+                    completedNodeIds: nonServiceUpstreamNodeIds.filter(id => context.nodeOutputs.has(id)),
                 });
                 
                 // Don't execute yet - upstream nodes will trigger this node when they complete
@@ -414,8 +430,8 @@ export class RealtimeExecutionEngine extends EventEmitter {
             logger.info(`[RealtimeExecution] All upstream nodes completed for ${nodeId}`, {
                 nodeId,
                 nodeName: node.name,
-                upstreamCount: upstreamNodeIds.length,
-                upstreamNodeIds,
+                upstreamCount: nonServiceUpstreamNodeIds.length,
+                upstreamNodeIds: nonServiceUpstreamNodeIds,
             });
         }
 
