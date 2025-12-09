@@ -1,6 +1,6 @@
 {
   "name": "node-drop",
-  "version": "1.0.13-alpha",
+  "version": "1.0.14-alpha",
   "description": "A workflow automation platform",
   "private": true,
   "workspaces": [
