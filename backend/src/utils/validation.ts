@@ -2,21 +2,23 @@ import { z } from "zod";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
-  UserRole,
 } from "../types/database";
+
+// User role validation (string-based, managed by better-auth)
+const userRoleSchema = z.enum(["user", "admin"]);
 
 // User validation schemas
 export const userCreateSchema = z.object({
   email: z.string().email("Invalid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().optional(),
-  role: z.nativeEnum(UserRole).optional(),
+  role: userRoleSchema.optional(),
 });
 
 export const userUpdateSchema = z.object({
   email: z.string().email("Invalid email format").optional(),
   name: z.string().optional(),
-  role: z.nativeEnum(UserRole).optional(),
+  role: userRoleSchema.optional(),
   active: z.boolean().optional(),
 });
 

@@ -1,6 +1,9 @@
 // Core database types matching Prisma schema
-import { ExecutionStatus, NodeExecutionStatus, UserRole } from "@prisma/client";
+import { ExecutionStatus, NodeExecutionStatus } from "@prisma/client";
 import { NodeProperty } from "./node.types";
+
+// UserRole is now a string field managed by better-auth admin plugin
+export type UserRole = "user" | "admin";
 
 export interface User {
   id: string;
@@ -126,7 +129,7 @@ export interface NodeType {
 }
 
 // Re-export Prisma enums for consistency
-export { ExecutionStatus, NodeExecutionStatus, UserRole };
+export { ExecutionStatus, NodeExecutionStatus };
 
 // Error types
 export interface ExecutionError {

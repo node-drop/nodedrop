@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
+import { WorkspaceRequest } from "../middleware/workspace";
 import { asyncHandler } from "../middleware/errorHandler";
 import { TeamService } from "../services/TeamService";
 import { ApiResponse } from "../types/api";
@@ -10,12 +11,13 @@ import { AppError } from "../utils/errors";
  * Get all teams for current user
  */
 export const getUserTeams = asyncHandler(
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: WorkspaceRequest, res: Response) => {
     if (!req.user) {
       throw new AppError("User not authenticated", 401);
     }
+    const workspaceId = req.workspace?.workspaceId;
 
-    const teams = await TeamService.getUserTeams(req.user.id);
+    const teams = await TeamService.getUserTeams(req.user.id, { workspaceId });
 
     const response: ApiResponse = {
       success: true,
@@ -31,10 +33,11 @@ export const getUserTeams = asyncHandler(
  * Create a new team
  */
 export const createTeam = asyncHandler(
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: WorkspaceRequest, res: Response) => {
     if (!req.user) {
       throw new AppError("User not authenticated", 401);
     }
+    const workspaceId = req.workspace?.workspaceId;
 
     const { name, slug, description, color } = req.body;
 
@@ -48,6 +51,7 @@ export const createTeam = asyncHandler(
       description,
       color,
       ownerId: req.user.id,
+      workspaceId,
     });
 
     const response: ApiResponse = {

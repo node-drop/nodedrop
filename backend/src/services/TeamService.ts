@@ -4,12 +4,20 @@ import { logger } from "../utils/logger";
 
 const prisma = new PrismaClient();
 
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
+
 export interface CreateTeamData {
   name: string;
   slug?: string;
   description?: string;
   color?: string;
   ownerId: string;
+  workspaceId?: string;
 }
 
 export interface UpdateTeamData {
@@ -34,9 +42,14 @@ export class TeamService {
       // Generate slug from name if not provided
       const slug = data.slug || this.generateSlug(data.name);
 
-      // Check if slug already exists
-      const existingTeam = await prisma.team.findUnique({
-        where: { slug },
+      // Check if slug already exists (within workspace if provided)
+      const existingTeamWhere: any = { slug };
+      if (data.workspaceId) {
+        existingTeamWhere.workspaceId = data.workspaceId;
+      }
+      
+      const existingTeam = await prisma.team.findFirst({
+        where: existingTeamWhere,
       });
 
       if (existingTeam) {
@@ -51,6 +64,7 @@ export class TeamService {
           description: data.description,
           color: data.color || "#3b82f6",
           ownerId: data.ownerId,
+          workspaceId: data.workspaceId, // Add workspace context
         },
         include: {
           owner: {
@@ -83,15 +97,22 @@ export class TeamService {
   /**
    * Get user's teams (owned + member of)
    */
-  static async getUserTeams(userId: string) {
+  static async getUserTeams(userId: string, options?: WorkspaceQueryOptions) {
     try {
+      const whereClause: any = {
+        OR: [
+          { ownerId: userId }, // Teams user owns
+          { members: { some: { userId } } }, // Teams user is member of
+        ],
+      };
+
+      // Filter by workspace if provided
+      if (options?.workspaceId) {
+        whereClause.workspaceId = options.workspaceId;
+      }
+
       const teams = await prisma.team.findMany({
-        where: {
-          OR: [
-            { ownerId: userId }, // Teams user owns
-            { members: { some: { userId } } }, // Teams user is member of
-          ],
-        },
+        where: whereClause,
         include: {
           owner: {
             select: { id: true, name: true, email: true },

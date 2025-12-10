@@ -7,6 +7,11 @@ import {
   validateParams,
   validateQuery,
 } from "../middleware/validation";
+import {
+  WorkspaceRequest,
+  requireWorkspace,
+  checkWorkspaceLimit,
+} from "../middleware/workspace";
 import { WorkflowService } from "../services/WorkflowService";
 import { CategoryService } from "../services/CategoryService";
 import { validateWorkflow } from "../utils/workflowValidator";
@@ -27,10 +32,16 @@ const categoryService = new CategoryService(prisma);
 router.get(
   "/for-trigger",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
+    
     // Get workflows with triggers field included
     const workflows = await prisma.workflow.findMany({
-      where: { userId: req.user!.id },
+      where: { 
+        userId: req.user!.id,
+        ...(workspaceId && { workspaceId }),
+      },
       orderBy: { updatedAt: "desc" },
       take: 100,
       select: {
@@ -77,11 +88,14 @@ router.get(
 router.get(
   "/:id/triggers",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.getWorkflow(
       req.params.id,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
 
     const triggers = ((workflow.triggers as any[]) || [])
@@ -107,11 +121,14 @@ router.get(
 router.get(
   "/:id/upcoming-executions",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.getWorkflow(
       req.params.id,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
 
     const limit = parseInt(req.query.limit as string) || 10;
@@ -133,7 +150,8 @@ router.get(
 router.get(
   "/categories",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const categories = await categoryService.getAvailableCategories(
       req.user!.id
     );
@@ -151,7 +169,8 @@ router.get(
 router.post(
   "/categories",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const category = await categoryService.createCategory(
       req.user!.id,
       req.body
@@ -170,7 +189,8 @@ router.post(
 router.delete(
   "/categories/:name",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const result = await categoryService.deleteCategory(
       req.user!.id,
       req.params.name
@@ -189,11 +209,14 @@ router.delete(
 router.get(
   "/",
   requireAuth,
+  requireWorkspace,
   validateQuery(WorkflowQuerySchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const result = await workflowService.listWorkflows(
       req.user!.id,
-      req.query as any
+      req.query as any,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -210,11 +233,15 @@ router.get(
 router.post(
   "/",
   requireAuth,
+  requireWorkspace,
+  checkWorkspaceLimit("workflow"),
   validateBody(CreateWorkflowSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.createWorkflow(
       req.user!.id,
-      req.body
+      req.body,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -230,11 +257,14 @@ router.post(
 router.get(
   "/:id",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.getWorkflow(
       req.params.id,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -250,13 +280,16 @@ router.get(
 router.put(
   "/:id",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
   validateBody(UpdateWorkflowSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.updateWorkflow(
       req.params.id,
       req.user!.id,
-      req.body
+      req.body,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -272,9 +305,11 @@ router.put(
 router.delete(
   "/:id",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    await workflowService.deleteWorkflow(req.params.id, req.user!.id);
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
+    await workflowService.deleteWorkflow(req.params.id, req.user!.id, { workspaceId });
 
     const response: ApiResponse = {
       success: true,
@@ -289,13 +324,17 @@ router.delete(
 router.post(
   "/:id/duplicate",
   requireAuth,
+  requireWorkspace,
+  checkWorkspaceLimit("workflow"),
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const { name } = req.body;
     const workflow = await workflowService.duplicateWorkflow(
       req.params.id,
       req.user!.id,
-      name
+      name,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -311,11 +350,14 @@ router.post(
 router.post(
   "/:id/validate",
   requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.getWorkflow(
       req.params.id,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
     const validation = validateWorkflow(workflow);
 

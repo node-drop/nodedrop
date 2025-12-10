@@ -3,3 +3,4 @@ export * from "./api";
 export * from "./database";
 export * from "./execution.types";
 export * from "./node.types";
+export * from "./workspace.types";

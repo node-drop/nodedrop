@@ -32,6 +32,7 @@ import variableRoutes from "./routes/variables";
 import webhookRoutes from "./routes/webhook";
 import webhookLogsRoutes from "./routes/webhook-logs";
 import { workflowRoutes } from "./routes/workflows";
+import workspaceRoutes from "./routes/workspaces";
 
 // Import middleware
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -449,6 +450,7 @@ app.use("/api/node-types", nodeTypeRoutes);
 app.use("/api/credentials", credentialRoutes);
 app.use("/api/variables", variableRoutes);
 app.use("/api/teams", teamRoutes);
+app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/triggers", triggerRoutes);
 app.use("/api/custom-nodes", customNodeRoutes);
 app.use("/api/flow-execution", flowExecutionRoutes);

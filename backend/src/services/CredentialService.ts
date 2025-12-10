@@ -3,6 +3,13 @@ import * as crypto from "crypto";
 import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
+
 export interface CredentialData {
   [key: string]: any;
 }
@@ -174,7 +181,8 @@ export class CredentialService {
     name: string,
     type: string,
     data: CredentialData,
-    expiresAt?: Date
+    expiresAt?: Date,
+    options?: WorkspaceQueryOptions
   ): Promise<CredentialWithData> {
     // Validate credential type
     const credentialType = this.getCredentialType(type);
@@ -185,12 +193,17 @@ export class CredentialService {
     // Validate credential data
     this.validateCredentialData(credentialType, data);
 
-    // Check if credential name already exists for this user
+    // Check if credential name already exists for this user (within workspace if provided)
+    const existingWhere: any = {
+      name,
+      userId,
+    };
+    if (options?.workspaceId) {
+      existingWhere.workspaceId = options.workspaceId;
+    }
+
     const existingCredential = await this.prisma.credential.findFirst({
-      where: {
-        name,
-        userId,
-      },
+      where: existingWhere,
     });
 
     if (existingCredential) {
@@ -205,6 +218,7 @@ export class CredentialService {
         name,
         type,
         userId,
+        workspaceId: options?.workspaceId, // Add workspace context
         data: encryptedData,
         expiresAt,
       },
@@ -304,17 +318,19 @@ export class CredentialService {
    * Get credentials for a user (without decrypted data)
    * Includes: owned credentials, user-shared credentials, and team-shared credentials
    */
-  async getCredentials(userId: string, type?: string) {
+  async getCredentials(userId: string, type?: string, options?: WorkspaceQueryOptions) {
     const typeFilter = type ? { type } : {};
+    const workspaceFilter = options?.workspaceId ? { workspaceId: options.workspaceId } : {};
 
     // Get user's own credentials
     const ownCredentials = await this.prisma.credential.findMany({
-      where: { userId, ...typeFilter },
+      where: { userId, ...typeFilter, ...workspaceFilter },
       select: {
         id: true,
         name: true,
         type: true,
         userId: true,
+        workspaceId: true,
         expiresAt: true,
         createdAt: true,
         updatedAt: true,

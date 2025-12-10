@@ -5,6 +5,11 @@ import {
   requireAuth, 
   validateCredentialSharing 
 } from "../middleware/auth";
+import {
+  WorkspaceRequest,
+  requireWorkspace,
+  checkWorkspaceLimit,
+} from "../middleware/workspace";
 import { AppError } from "../utils/errors";
 import {
   credentialCreateSchema,
@@ -25,13 +30,16 @@ const getCredentialService = () => {
 router.get(
   "/",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { type } = req.query;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Get owned credentials
     const ownedCredentials = await getCredentialService().getCredentials(
       req.user!.id,
-      type as string
+      type as string,
+      { workspaceId }
     );
 
     // For each owned credential, get share information
@@ -78,7 +86,8 @@ router.get(
 router.get(
   "/types",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const credentialTypes = getCredentialService().getCredentialTypes();
 
     // Serialize credential types to evaluate getter functions
@@ -110,7 +119,8 @@ router.get(
 router.get(
   "/types/:typeName/defaults",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { typeName } = req.params;
     const { nodeType } = req.query;
 
@@ -191,7 +201,8 @@ router.get(
 router.get(
   "/expiring/:days?",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const warningDays = parseInt(req.params.days || "7");
 
     if (isNaN(warningDays) || warningDays < 1) {
@@ -215,7 +226,8 @@ router.get(
 router.get(
   "/:id",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
 
     const credential = await getCredentialService().getCredential(
@@ -241,7 +253,8 @@ router.get(
 router.get(
   "/:id/execution",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
 
     const credentialData =
@@ -258,15 +271,19 @@ router.get(
 router.post(
   "/",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  checkWorkspaceLimit("credential"),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const validatedData = credentialCreateSchema.parse(req.body);
+    const workspaceId = req.workspace?.workspaceId;
 
     const credential = await getCredentialService().createCredential(
       req.user!.id,
       validatedData.name,
       validatedData.type,
       validatedData.data,
-      validatedData.expiresAt
+      validatedData.expiresAt,
+      { workspaceId }
     );
 
     // Don't return decrypted data
@@ -283,7 +300,8 @@ router.post(
 router.put(
   "/:id",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
     const validatedData = credentialUpdateSchema.parse(req.body);
 
@@ -311,7 +329,8 @@ router.put(
 router.delete(
   "/:id",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
 
     await getCredentialService().deleteCredential(id, req.user!.id);
@@ -327,7 +346,8 @@ router.delete(
 router.post(
   "/test",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { type, data } = req.body;
 
     if (!type || !data) {
@@ -347,7 +367,8 @@ router.post(
 router.post(
   "/test-saved",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { credentialId } = req.body;
 
     if (!credentialId) {
@@ -381,7 +402,8 @@ router.post(
 router.post(
   "/:id/rotate",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
     const { data } = req.body;
 
@@ -415,7 +437,8 @@ router.post(
 router.get(
   "/shared-with-me",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const sharedCredentials = await getCredentialService().getSharedCredentials(
       req.user!.id
     );
@@ -431,7 +454,8 @@ router.get(
 router.get(
   "/:id/shares",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
 
     const shares = await getCredentialService().getCredentialShares(
@@ -451,8 +475,9 @@ router.get(
 router.post(
   "/:id/share",
   requireAuth,
+  requireWorkspace,
   validateCredentialSharing, // Validates target user has active session (Requirements: 13.3)
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
     const { userId, permission = "USE" } = req.body;
 
@@ -484,7 +509,8 @@ router.post(
 router.put(
   "/:id/share/:userId",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id, userId } = req.params;
     const { permission } = req.body;
 
@@ -511,7 +537,8 @@ router.put(
 router.delete(
   "/:id/share/:userId",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id, userId } = req.params;
 
     await getCredentialService().unshareCredential(
@@ -535,7 +562,8 @@ router.delete(
 router.get(
   "/:id/teams",
   requireAuth,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
 
     // Import TeamService

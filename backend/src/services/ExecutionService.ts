@@ -25,6 +25,13 @@ import {
 } from "./FlowExecutionEngine";
 import { NodeService } from "./NodeService";
 
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
+
 export class ExecutionService {
   private prisma: PrismaClient;
   private executionEngine: ExecutionEngine;
@@ -451,15 +458,20 @@ export class ExecutionService {
    */
   async getExecution(
     executionId: string,
-    userId: string
+    userId: string,
+    options?: WorkspaceQueryOptions
   ): Promise<Execution | null> {
     try {
-
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
 
       const execution = await this.prisma.execution.findFirst({
         where: {
           id: executionId,
-          workflow: { userId },
+          workflow: workflowWhere,
+          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
         },
         include: {
           workflow: {
@@ -506,7 +518,8 @@ export class ExecutionService {
    */
   async listExecutions(
     userId: string,
-    filters: ExecutionFilters = {}
+    filters: ExecutionFilters = {},
+    options?: WorkspaceQueryOptions
   ): Promise<{
     executions: Execution[];
     total: number;
@@ -524,9 +537,19 @@ export class ExecutionService {
         offset = 0,
       } = filters;
 
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
+
       const where: any = {
-        workflow: { userId },
+        workflow: workflowWhere,
       };
+
+      // Also filter by denormalized workspaceId on execution for performance
+      if (options?.workspaceId) {
+        where.workspaceId = options.workspaceId;
+      }
 
       if (status) {
         where.status = status;
@@ -887,10 +910,16 @@ export class ExecutionService {
   /**
    * Get execution statistics
    */
-  async getExecutionStats(userId?: string): Promise<ExecutionStats> {
+  async getExecutionStats(userId?: string, options?: WorkspaceQueryOptions): Promise<ExecutionStats> {
     try {
       if (userId) {
-        // Get stats for specific user
+        // Build workspace-aware where clause
+        const workflowWhere: any = { userId };
+        if (options?.workspaceId) {
+          workflowWhere.workspaceId = options.workspaceId;
+        }
+
+        // Get stats for specific user (and workspace if provided)
         const [
           totalExecutions,
           runningExecutions,
@@ -899,19 +928,19 @@ export class ExecutionService {
           cancelledExecutions,
         ] = await Promise.all([
           this.prisma.execution.count({
-            where: { workflow: { userId } },
+            where: { workflow: workflowWhere },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.RUNNING },
+            where: { workflow: workflowWhere, status: ExecutionStatus.RUNNING },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.SUCCESS },
+            where: { workflow: workflowWhere, status: ExecutionStatus.SUCCESS },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.ERROR },
+            where: { workflow: workflowWhere, status: ExecutionStatus.ERROR },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.CANCELLED },
+            where: { workflow: workflowWhere, status: ExecutionStatus.CANCELLED },
           }),
         ]);
 
