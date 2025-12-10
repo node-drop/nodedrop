@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
 import fs from "fs";
 import path from "path";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../middleware/errorHandler";
 import { validateQuery } from "../middleware/validation";
 import { ApiResponse, NodeQuerySchema } from "../types/api";
@@ -23,7 +23,7 @@ const router = Router();
 // GET /api/nodes - List available node types
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   validateQuery(NodeQuerySchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
@@ -87,7 +87,7 @@ router.get(
 // GET /api/nodes/categories - Get node categories
 router.get(
   "/categories",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const nodeTypes = await getNodeService().getNodeTypes();
     const categories = Array.from(
@@ -110,7 +110,7 @@ router.get(
 // GET /api/nodes/:type - Get node type details
 router.get(
   "/:type",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const nodeSchema = await getNodeService().getNodeSchema(req.params.type);
 
@@ -137,7 +137,7 @@ router.get(
 // POST /api/nodes/:type/execute - Test node execution
 router.post(
   "/:type/execute",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
       parameters = {},
@@ -174,7 +174,7 @@ router.post(
 // POST /api/nodes/:type/load-options - Load dynamic options for a field
 router.post(
   "/:type/load-options",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { method, parameters = {}, credentials = {} } = req.body;
 

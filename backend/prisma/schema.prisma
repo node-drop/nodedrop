@@ -11,15 +11,20 @@ datasource db {
 model User {
   id                       String            @id @default(cuid())
   email                    String            @unique
-  password                 String
+  emailVerified            Boolean           @default(false)
   name                     String?
+  image                    String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  // Custom fields
   role                     UserRole          @default(USER)
   active                   Boolean           @default(true)
   preferences              Json?             @default("{}")
-  resetToken               String?
-  resetTokenExpiry         DateTime?
-  createdAt                DateTime          @default(now())
-  updatedAt                DateTime          @updatedAt
+
+  // Relations
+  sessions                 Session[]
+  accounts                 Account[]
   credentials              Credential[]
   workflows                Workflow[]
   variables                Variable[]
@@ -30,6 +35,57 @@ model User {
   teamMemberships          TeamMember[]
 
   @@map("users")
+}
+
+// better-auth Session model
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// better-auth Account model (for OAuth)
+model Account {
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?   // For email/password auth
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+// better-auth Verification model (password reset, email verification)
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verifications")
 }
 
 model Category {

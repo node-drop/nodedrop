@@ -1,15 +1,41 @@
+/**
+ * ProfilePage Component
+ * 
+ * Displays and allows editing of user profile information.
+ * Uses user data from auth context and shows role badge.
+ * 
+ * Requirements: 3.4 - Session contains required user data (id, email, name, role)
+ */
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/contexts/AuthContext'
 import { userService } from '@/services'
-import { useAuthStore } from '@/stores'
-import { Loader2, Save, User } from 'lucide-react'
+import { Loader2, Save, Shield, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+/**
+ * Role badge component that displays the user's role with appropriate styling
+ */
+const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
+  const isAdmin = role === 'ADMIN'
+  
+  return (
+    <Badge 
+      variant={isAdmin ? 'default' : 'secondary'}
+      className={isAdmin ? 'bg-primary' : ''}
+    >
+      {isAdmin && <Shield className="w-3 h-3 mr-1" />}
+      {role}
+    </Badge>
+  )
+}
+
 export function ProfilePage() {
-  const { user: authUser, getCurrentUser } = useAuthStore()
+  const { user: authUser, refetchSession } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [formData, setFormData] = useState({
@@ -56,8 +82,8 @@ export function ProfilePage() {
         email: formData.email.trim(),
       })
 
-      // Refresh the current user in the store
-      await getCurrentUser()
+      // Refresh the session to get updated user data
+      await refetchSession()
 
       toast.success('Profile updated successfully')
     } catch (error: any) {
@@ -89,10 +115,13 @@ export function ProfilePage() {
     <div className="flex flex-1 flex-col h-full overflow-hidden">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <User className="h-8 w-8" />
-            Profile
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <User className="h-8 w-8" />
+              Profile
+            </h1>
+            {authUser?.role && <RoleBadge role={authUser.role} />}
+          </div>
           <p className="text-muted-foreground mt-2">
             Manage your personal information and account settings
           </p>
@@ -168,15 +197,24 @@ export function ProfilePage() {
 
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <div className="text-sm text-muted-foreground">
-                    {authUser?.role}
+                  <div className="flex items-center gap-2">
+                    {authUser?.role && <RoleBadge role={authUser.role} />}
+                    <span className="text-sm text-muted-foreground">
+                      {authUser?.role === 'ADMIN' 
+                        ? 'Full administrative access' 
+                        : 'Standard user access'}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Account Created</Label>
                   <div className="text-sm text-muted-foreground">
-                    {authUser?.createdAt && new Date(authUser.createdAt).toLocaleDateString()}
+                    {authUser?.createdAt && new Date(authUser.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
                   </div>
                 </div>
               </CardContent>

@@ -2,7 +2,7 @@ import { Layout, ProtectedRoute, WorkflowEditorLayout } from '@/components'
 import { GlobalToastProvider } from '@/components/providers/GlobalToastProvider'
 import { Toaster } from '@/components/ui/sonner'
 
-import { SidebarContextProvider, TeamProvider, ThemeProvider } from '@/contexts'
+import { AuthProvider, SidebarContextProvider, TeamProvider, ThemeProvider } from '@/contexts'
 import {
     CustomNodesPage,
     ExecutionsPage,
@@ -11,6 +11,7 @@ import {
     ProfilePage,
     PublicFormPage,
     RegisterPage,
+    ResetPasswordPage,
     WebhookRequestsPage,
     WorkflowEditorPage
 } from '@/pages'
@@ -22,8 +23,9 @@ function App() {
     <>
       <Router>
         <ThemeProvider>
-          <SidebarContextProvider>
-            <TeamProvider>
+          <AuthProvider>
+            <SidebarContextProvider>
+              <TeamProvider>
               <Routes>
           {/* Public routes */}
           <Route
@@ -47,6 +49,14 @@ function App() {
             element={
               <ProtectedRoute requireAuth={false}>
                 <ForgotPasswordPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <ProtectedRoute requireAuth={false}>
+                <ResetPasswordPage />
               </ProtectedRoute>
             }
           />
@@ -111,11 +121,12 @@ function App() {
 
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/login" replace />} />
-              </Routes>
-              <Toaster />
-              <GlobalToastProvider />
-            </TeamProvider>
-          </SidebarContextProvider>
+                </Routes>
+                <Toaster />
+                <GlobalToastProvider />
+              </TeamProvider>
+            </SidebarContextProvider>
+          </AuthProvider>
         </ThemeProvider>
       </Router>
     </>

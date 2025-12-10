@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../middleware/errorHandler";
 import {
   validateBody,
@@ -26,7 +26,7 @@ const categoryService = new CategoryService(prisma);
 // GET /api/workflows/for-trigger - Get workflows with active triggers for triggering
 router.get(
   "/for-trigger",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     // Get workflows with triggers field included
     const workflows = await prisma.workflow.findMany({
@@ -76,7 +76,7 @@ router.get(
 // GET /api/workflows/:id/triggers - Get triggers for a specific workflow
 router.get(
   "/:id/triggers",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workflow = await workflowService.getWorkflow(
@@ -106,7 +106,7 @@ router.get(
 // GET /api/workflows/:id/upcoming-executions - Get upcoming scheduled executions
 router.get(
   "/:id/upcoming-executions",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workflow = await workflowService.getWorkflow(
@@ -132,7 +132,7 @@ router.get(
 // GET /api/workflows/categories - Get available workflow categories
 router.get(
   "/categories",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const categories = await categoryService.getAvailableCategories(
       req.user!.id
@@ -150,7 +150,7 @@ router.get(
 // POST /api/workflows/categories - Create a new category
 router.post(
   "/categories",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const category = await categoryService.createCategory(
       req.user!.id,
@@ -169,7 +169,7 @@ router.post(
 // DELETE /api/workflows/categories/:name - Delete a category
 router.delete(
   "/categories/:name",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await categoryService.deleteCategory(
       req.user!.id,
@@ -188,7 +188,7 @@ router.delete(
 // GET /api/workflows - List workflows
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   validateQuery(WorkflowQuerySchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await workflowService.listWorkflows(
@@ -209,7 +209,7 @@ router.get(
 // POST /api/workflows - Create workflow
 router.post(
   "/",
-  authenticateToken,
+  requireAuth,
   validateBody(CreateWorkflowSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workflow = await workflowService.createWorkflow(
@@ -229,7 +229,7 @@ router.post(
 // GET /api/workflows/:id - Get workflow by ID
 router.get(
   "/:id",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workflow = await workflowService.getWorkflow(
@@ -249,7 +249,7 @@ router.get(
 // PUT /api/workflows/:id - Update workflow
 router.put(
   "/:id",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   validateBody(UpdateWorkflowSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -271,7 +271,7 @@ router.put(
 // DELETE /api/workflows/:id - Delete workflow
 router.delete(
   "/:id",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     await workflowService.deleteWorkflow(req.params.id, req.user!.id);
@@ -288,7 +288,7 @@ router.delete(
 // POST /api/workflows/:id/duplicate - Duplicate workflow
 router.post(
   "/:id/duplicate",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { name } = req.body;
@@ -310,7 +310,7 @@ router.post(
 // POST /api/workflows/:id/validate - Validate workflow
 router.post(
   "/:id/validate",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workflow = await workflowService.getWorkflow(

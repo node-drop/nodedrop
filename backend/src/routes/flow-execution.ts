@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
  */
 router.post(
   "/start",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { workflowId, startNodeId, triggerData } = req.body;
     const userId = req.user!.id;
@@ -60,7 +60,7 @@ router.post(
  */
 router.post(
   "/:executionId/cancel",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -101,7 +101,7 @@ router.post(
  */
 router.post(
   "/:executionId/pause",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -148,7 +148,7 @@ router.post(
  */
 router.post(
   "/:executionId/resume",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -193,7 +193,7 @@ router.post(
  */
 router.get(
   "/:executionId/status",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -232,7 +232,7 @@ router.get(
  */
 router.get(
   "/history/:workflowId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { workflowId } = req.params;
     const { limit = "50", offset = "0" } = req.query;
@@ -280,7 +280,7 @@ router.get(
  */
 router.get(
   "/active",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 

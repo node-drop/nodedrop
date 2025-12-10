@@ -1,4 +1,13 @@
-import { useAuthStore } from '@/stores'
+/**
+ * LoginForm Component
+ * 
+ * Handles user authentication using better-auth client.
+ * Uses signIn from auth client for authentication.
+ * 
+ * Requirements: 3.1 - User login with better-auth
+ * Requirements: 11.1 - Standardized error handling with ApiResponse format
+ */
+import { useAuth } from '@/contexts/AuthContext'
 import { LoginCredentials } from '@/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -11,11 +20,41 @@ import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
+/**
+ * Maps better-auth error codes to user-friendly messages
+ * Maintains ApiResponse format consistency (Requirements 11.1)
+ */
+const mapAuthError = (error: any): string => {
+  // Handle better-auth error codes
+  const errorCode = error?.code || error?.message || ''
+  
+  if (errorCode.includes('INVALID_CREDENTIALS') || errorCode.includes('Invalid credentials')) {
+    return 'Invalid email or password'
+  }
+  if (errorCode.includes('USER_NOT_FOUND') || errorCode.includes('User not found')) {
+    return 'No account found with this email'
+  }
+  if (errorCode.includes('RATE_LIMIT') || errorCode.includes('Too many')) {
+    return 'Too many login attempts. Please try again later.'
+  }
+  if (errorCode.includes('ACCOUNT_DISABLED') || errorCode.includes('disabled')) {
+    return 'This account has been disabled'
+  }
+  if (errorCode.includes('EMAIL_NOT_VERIFIED')) {
+    return 'Please verify your email before logging in'
+  }
+  
+  // Default error message
+  return error?.message || 'Login failed. Please try again.'
+}
+
 export const LoginForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [searchParams] = useSearchParams()
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-  const { login, isLoading, error, clearError } = useAuthStore()
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleSignIn, isLoading } = useAuth()
   const navigate = useNavigate()
 
   const form = useForm<LoginCredentials>({
@@ -25,15 +64,25 @@ export const LoginForm: React.FC = () => {
     },
   })
 
+  const clearError = () => setError(null)
+
   const onSubmit = async (data: LoginCredentials) => {
     try {
       clearError()
-      await login(data)
+      setIsSubmitting(true)
+      await handleSignIn(data.email, data.password)
       navigate('/workflows')
-    } catch (error) {
-      // Error is handled by the store
+    } catch (err: any) {
+      // Map error to user-friendly message (Requirements 11.1)
+      const errorMessage = mapAuthError(err)
+      setError(errorMessage)
+    } finally {
+      setIsSubmitting(false)
     }
   }
+
+  // Combined loading state from auth context and local submission
+  const showLoading = isLoading || isSubmitting
 
   const handleCreateAccount = () => {
     navigate('/register')
@@ -162,8 +211,8 @@ export const LoginForm: React.FC = () => {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={showLoading}>
+                {showLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Signing in...

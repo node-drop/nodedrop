@@ -3,40 +3,60 @@ import { LoginCredentials, RegisterCredentials, AuthResponse, User } from '@/typ
 
 export class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/login', credentials)
+    // Use better-auth sign-in endpoint
+    const response = await apiClient.post<any>('/auth/sign-in/email', {
+      email: credentials.email,
+      password: credentials.password
+    })
     
-    if (response.success && response.data?.token) {
-      apiClient.setToken(response.data.token)
-      // Note: Backend doesn't return refreshToken yet, so we'll skip storing it for now
-      // localStorage.setItem('refresh_token', response.data.refreshToken)
+    // better-auth returns user and session directly, not wrapped in data
+    // Transform to expected AuthResponse format
+    const authResponse: AuthResponse = {
+      user: response.data?.user || response.user,
+      token: response.data?.session?.token || response.session?.token || 'session-based'
     }
     
-    if (!response.data) {
-      throw new Error('No data received from login response')
+    if (authResponse.token && authResponse.token !== 'session-based') {
+      apiClient.setToken(authResponse.token)
     }
     
-    return response.data
+    if (!authResponse.user) {
+      throw new Error('No user data received from login response')
+    }
+    
+    return authResponse
   }
 
   async register(credentials: RegisterCredentials): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/register', credentials)
+    // Use better-auth sign-up endpoint
+    const response = await apiClient.post<any>('/auth/sign-up/email', {
+      email: credentials.email,
+      password: credentials.password,
+      name: credentials.name
+    })
     
-    if (response.success && response.data?.token) {
-      apiClient.setToken(response.data.token)
-      // Note: Backend doesn't return refreshToken yet, so we'll skip storing it for now
-      // localStorage.setItem('refresh_token', response.data.refreshToken)
+    // better-auth returns user and session directly
+    // Transform to expected AuthResponse format
+    const authResponse: AuthResponse = {
+      user: response.data?.user || response.user,
+      token: response.data?.session?.token || response.session?.token || 'session-based'
     }
     
-    if (!response.data) {
-      throw new Error('No data received from register response')
+    if (authResponse.token && authResponse.token !== 'session-based') {
+      apiClient.setToken(authResponse.token)
     }
     
-    return response.data
+    if (!authResponse.user) {
+      throw new Error('No user data received from register response')
+    }
+    
+    return authResponse
   }
 
   async logout(): Promise<void> {
     try {
-      await apiClient.post('/auth/logout')
+      // Use better-auth sign-out endpoint
+      await apiClient.post('/auth/sign-out')
     } catch (error) {
       // Continue with logout even if API call fails
       console.warn('Logout API call failed:', error)

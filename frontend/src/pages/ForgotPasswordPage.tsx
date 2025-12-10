@@ -1,3 +1,12 @@
+/**
+ * ForgotPasswordPage Component
+ * 
+ * Handles password reset request using better-auth client.
+ * Calls the password reset endpoint and shows success/error messages.
+ * 
+ * Requirements: 6.1 - Password reset request generates secure token
+ * Requirements: 14.3 - Rate limiting for password reset requests
+ */
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -12,6 +21,29 @@ import { Input } from '@/components/ui/input'
 
 interface ForgotPasswordFormData {
   email: string
+}
+
+/**
+ * Maps better-auth error codes to user-friendly messages
+ * Handles rate limiting errors specifically (Requirements 14.3)
+ */
+const mapAuthError = (error: any): string => {
+  // Handle better-auth error codes
+  const errorCode = error?.code || error?.message || ''
+  
+  if (errorCode.includes('RATE_LIMIT') || errorCode.includes('Too many') || errorCode.includes('rate limit') || errorCode.includes('429')) {
+    return 'Too many password reset requests. Please try again later.'
+  }
+  if (errorCode.includes('USER_NOT_FOUND') || errorCode.includes('not found')) {
+    // Don't reveal if user exists for security
+    return 'If an account exists with this email, you will receive a reset link.'
+  }
+  if (errorCode.includes('INVALID_EMAIL') || errorCode.includes('Invalid email')) {
+    return 'Please enter a valid email address'
+  }
+  
+  // Default error message
+  return error?.message || 'Failed to send reset email. Please try again.'
 }
 
 export const ForgotPasswordPage: React.FC = () => {
@@ -30,13 +62,18 @@ export const ForgotPasswordPage: React.FC = () => {
       setError(null)
       setIsLoading(true)
 
-      await apiClient.post('/auth/forgot-password', {
+      // Call better-auth's forget-password endpoint via API client
+      // The endpoint is /api/auth/forget-password for better-auth
+      await apiClient.post('/auth/forget-password', {
         email: data.email,
+        redirectTo: `${window.location.origin}/reset-password`,
       })
 
       setIsSuccess(true)
-    } catch (error: any) {
-      setError(error.message || 'Failed to send reset email')
+    } catch (err: any) {
+      // Map error to user-friendly message (Requirements 14.3)
+      const errorMessage = mapAuthError(err)
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

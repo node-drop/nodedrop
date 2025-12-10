@@ -13,6 +13,7 @@ class ApiClient {
       headers: {
         "Content-Type": "application/json",
       },
+      withCredentials: true, // Required for better-auth cookie-based sessions
     });
 
     this.setupInterceptors();
@@ -36,9 +37,11 @@ class ApiClient {
       (response: AxiosResponse) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Only handle unauthorized for authenticated requests, not login attempts
-          const isLoginRequest = error.config?.url?.includes('/auth/login');
-          if (!isLoginRequest) {
+          // Only handle unauthorized for authenticated requests, not login/register attempts
+          const isAuthRequest = error.config?.url?.includes('/auth/sign-in') || 
+                               error.config?.url?.includes('/auth/sign-up') ||
+                               error.config?.url?.includes('/auth/login');
+          if (!isAuthRequest) {
             // Clear token and notify auth store
             this.clearToken();
             this.handleUnauthorized();

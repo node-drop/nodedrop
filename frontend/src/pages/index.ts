@@ -6,6 +6,7 @@ export * from "./LoginPage";
 export * from "./ProfilePage";
 export * from "./PublicFormPage";
 export * from "./RegisterPage";
+export * from "./ResetPasswordPage";
 export * from "./WebhookRequestsPage";
 export * from "./WorkflowEditorPage";
 export * from "./WorkflowsPage";

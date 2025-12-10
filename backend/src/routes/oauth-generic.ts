@@ -4,7 +4,7 @@ import { CredentialService } from "../services/CredentialService"
 import { AppError } from "../utils/errors"
 import { logger } from "../utils/logger"
 import * as crypto from "crypto"
-import { authenticateToken, AuthenticatedRequest } from "../middleware/auth"
+import { requireAuth, AuthenticatedRequest } from "../middleware/auth"
 
 const router = Router()
 // Use the global credential service instance (has core credentials registered)
@@ -29,7 +29,7 @@ const pendingOAuthSessions = new Map<string, {
  * Generic OAuth authorization endpoint
  * Works with any registered OAuth provider
  */
-router.get("/oauth/:provider/authorize", authenticateToken, async (req: AuthenticatedRequest, res: Response, next) => {
+router.get("/oauth/:provider/authorize", requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { provider } = req.params
     const { clientId, clientSecret, credentialName, credentialType, credentialId, services, useCustomScopes, customScopes } = req.query

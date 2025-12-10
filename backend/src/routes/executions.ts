@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { validateParams, validateQuery } from "../middleware/validation";
 import { ExecutionService } from "../services";
@@ -49,7 +49,7 @@ const getExecutionService = () => {
 // POST /api/executions - Execute a workflow or single node
 router.post(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
       workflowId,
@@ -123,7 +123,7 @@ router.post(
 // GET /api/executions/scheduled - Get upcoming scheduled executions
 router.get(
   "/scheduled",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const workflowId = req.query.workflowId as string;
@@ -209,7 +209,7 @@ router.get(
 // GET /api/executions - List executions
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   validateQuery(ExecutionQuerySchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
@@ -254,7 +254,7 @@ router.get(
 // GET /api/executions/:id - Get execution by ID
 router.get(
   "/:id",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const execution = await getExecutionService().getExecution(
@@ -278,7 +278,7 @@ router.get(
 // GET /api/executions/:id/progress - Get execution progress
 router.get(
   "/:id/progress",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const progress = await getExecutionService().getExecutionProgress(
@@ -302,7 +302,7 @@ router.get(
 // DELETE /api/executions/:id - Delete execution
 router.delete(
   "/:id",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await getExecutionService().deleteExecution(
@@ -329,7 +329,7 @@ router.delete(
 // POST /api/executions/:id/cancel - Cancel execution
 router.post(
   "/:id/cancel",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await getExecutionService().cancelExecution(
@@ -356,7 +356,7 @@ router.post(
 // POST /api/executions/:id/retry - Retry execution
 router.post(
   "/:id/retry",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const result = await getExecutionService().retryExecution(
@@ -382,7 +382,7 @@ router.post(
 // GET /api/executions/stats - Get execution statistics
 router.get(
   "/stats",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const stats = await getExecutionService().getExecutionStats(req.user!.id);
 
@@ -398,7 +398,7 @@ router.get(
 // GET /api/executions/realtime/info - Get real-time monitoring info
 router.get(
   "/realtime/info",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const socketService = global.socketService;
 
@@ -432,7 +432,7 @@ router.get(
 // GET /api/executions/:id/subscribers - Get execution subscribers count
 router.get(
   "/:id/subscribers",
-  authenticateToken,
+  requireAuth,
   validateParams(IdParamSchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const socketService = global.socketService;

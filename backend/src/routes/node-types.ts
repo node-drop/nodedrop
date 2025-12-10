@@ -3,7 +3,7 @@ import { Request, Response, Router } from "express";
 import { promises as fs } from "fs";
 import multer from "multer";
 import path from "path";
-import { authenticateToken } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { CustomNodeUploadHandler } from "../services/CustomNodeUploadHandler";
 import { logger } from "../utils/logger";
 
@@ -29,7 +29,7 @@ const upload = multer({
 });
 
 // Apply authentication middleware to all routes
-// router.use(authenticateToken); // Temporarily disabled for testing
+// router.use(requireAuth); // Temporarily disabled for testing
 
 /**
  * GET /api/node-types

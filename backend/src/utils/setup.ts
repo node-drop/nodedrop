@@ -17,6 +17,9 @@ export interface SetupStatus {
 
 /**
  * Check if initial setup is complete
+ * 
+ * Setup is considered complete if an admin user exists in the database.
+ * The .setup-complete file is optional metadata for tracking when setup occurred.
  */
 export async function checkSetupStatus(prisma: PrismaClient): Promise<SetupStatus> {
   // Check for setup file
@@ -28,8 +31,9 @@ export async function checkSetupStatus(prisma: PrismaClient): Promise<SetupStatu
   });
 
   const hasAdmin = !!adminUser;
-  const isComplete = fileExists && hasAdmin;
-  const needsSetup = !isComplete;
+  // Setup is complete if we have an admin user (file is optional metadata)
+  const isComplete = hasAdmin;
+  const needsSetup = !hasAdmin;
 
   let setupData;
   if (fileExists) {

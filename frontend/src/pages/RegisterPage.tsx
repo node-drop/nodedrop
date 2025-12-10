@@ -1,8 +1,18 @@
+/**
+ * RegisterPage Component
+ * 
+ * Handles user registration using better-auth client.
+ * Uses signUp from auth client for registration.
+ * 
+ * Requirements: 5.1 - Registration validation (email format, password strength)
+ * Requirements: 11.3 - Detailed field-level error messages
+ */
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Eye, EyeOff, Loader2, Workflow } from 'lucide-react'
 
+import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/services'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -18,12 +28,41 @@ interface RegisterFormData {
   confirmPassword: string
 }
 
+/**
+ * Maps better-auth error codes to user-friendly messages
+ * Maintains ApiResponse format consistency (Requirements 11.3)
+ */
+const mapAuthError = (error: any): string => {
+  // Handle better-auth error codes
+  const errorCode = error?.code || error?.message || ''
+  
+  if (errorCode.includes('USER_ALREADY_EXISTS') || errorCode.includes('already exists') || errorCode.includes('User already exists')) {
+    return 'An account with this email already exists'
+  }
+  if (errorCode.includes('INVALID_EMAIL') || errorCode.includes('Invalid email')) {
+    return 'Please enter a valid email address'
+  }
+  if (errorCode.includes('WEAK_PASSWORD') || errorCode.includes('Password')) {
+    return 'Password does not meet security requirements'
+  }
+  if (errorCode.includes('RATE_LIMIT') || errorCode.includes('Too many')) {
+    return 'Too many registration attempts. Please try again later.'
+  }
+  if (errorCode.includes('VALIDATION') || errorCode.includes('validation')) {
+    return 'Please check your input and try again'
+  }
+  
+  // Default error message
+  return error?.message || 'Registration failed. Please try again.'
+}
+
 export const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isFirstUser, setIsFirstUser] = useState(false)
+  const { handleSignUp, isLoading } = useAuth()
   const navigate = useNavigate()
 
   // Check if this is the first user
@@ -49,25 +88,28 @@ export const RegisterPage: React.FC = () => {
 
   const password = form.watch('password')
 
+  // Combined loading state
+  const showLoading = isLoading || isSubmitting
+
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setError(null)
-      setIsLoading(true)
+      setIsSubmitting(true)
 
-      // Use the API client to make the request
-      await apiClient.post('/auth/register', {
-        email: data.email,
-        password: data.password,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      })
+      // Combine first and last name for better-auth
+      const fullName = `${data.firstName} ${data.lastName}`.trim()
 
-      // After successful registration, redirect to login with success message
-      navigate('/login?registered=true')
-    } catch (error: any) {
-      setError(error.message || 'Registration failed')
+      // Use handleSignUp from AuthContext which uses better-auth signUp
+      await handleSignUp(data.email, data.password, fullName)
+
+      // After successful registration, redirect to home page (user is now logged in)
+      navigate('/')
+    } catch (err: any) {
+      // Map error to user-friendly message (Requirements 11.3)
+      const errorMessage = mapAuthError(err)
+      setError(errorMessage)
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -265,8 +307,8 @@ export const RegisterPage: React.FC = () => {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={showLoading}>
+                {showLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creating account...

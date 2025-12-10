@@ -11,17 +11,39 @@ async function main() {
     // Note: Admin user is created through the setup wizard
     // This seed only creates test data and categories
 
-    // Create test user
+    // Create test user with better-auth schema
+    // Note: With better-auth, passwords are stored in the Account model
     const testUserPassword = await bcrypt.hash("test123", 10);
+    
+    // First, create or update the user
     const testUser = await prisma.user.upsert({
       where: { email: "test@node-drop.com" },
       update: {},
       create: {
         email: "test@node-drop.com",
-        password: testUserPassword,
         name: "Test User",
         role: "USER",
         active: true,
+        emailVerified: true,
+      },
+    });
+    
+    // Then, create the account with the password (better-auth stores passwords in Account)
+    await prisma.account.upsert({
+      where: {
+        providerId_accountId: {
+          providerId: "credential",
+          accountId: testUser.id,
+        },
+      },
+      update: {
+        password: testUserPassword,
+      },
+      create: {
+        userId: testUser.id,
+        providerId: "credential",
+        accountId: testUser.id,
+        password: testUserPassword,
       },
     });
 

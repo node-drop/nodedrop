@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
-import { authenticateToken, AuthenticatedRequest } from "../middleware/auth";
+import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { WorkflowEnvironmentService } from "../services/WorkflowEnvironmentService";
 import { EnvironmentType } from "../types/environment";
 import { AppError } from "../utils/errors";
@@ -15,7 +15,7 @@ const environmentService = new WorkflowEnvironmentService(prisma);
  */
 router.get(
   "/workflows/:workflowId/environments",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId } = req.params;
@@ -42,7 +42,7 @@ router.get(
  */
 router.get(
   "/workflows/:workflowId/environments/summary",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId } = req.params;
@@ -69,7 +69,7 @@ router.get(
  */
 router.get(
   "/workflows/:workflowId/environments/:environment",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -107,7 +107,7 @@ router.get(
  */
 router.post(
   "/workflows/:workflowId/environments",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId } = req.params;
@@ -148,7 +148,7 @@ router.post(
  */
 router.post(
   "/workflows/:workflowId/environments/deploy",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId } = req.params;
@@ -202,7 +202,7 @@ router.post(
  */
 router.post(
   "/workflows/:workflowId/environments/:environment/update",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -242,7 +242,7 @@ router.post(
  */
 router.post(
   "/workflows/:workflowId/environments/:environment/promote",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -282,7 +282,7 @@ router.post(
  */
 router.post(
   "/workflows/:workflowId/environments/:environment/rollback",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -325,7 +325,7 @@ router.post(
  */
 router.get(
   "/workflows/:workflowId/environments/:environment/deployments",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -363,7 +363,7 @@ router.get(
  */
 router.get(
   "/workflows/:workflowId/environments/compare",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId } = req.params;
@@ -404,7 +404,7 @@ router.get(
  */
 router.put(
   "/workflows/:workflowId/environments/:environment/activate",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -438,7 +438,7 @@ router.put(
  */
 router.put(
   "/workflows/:workflowId/environments/:environment/deactivate",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
@@ -472,7 +472,7 @@ router.put(
  */
 router.delete(
   "/workflows/:workflowId/environments/:environment",
-  authenticateToken,
+  requireAuth,
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;

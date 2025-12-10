@@ -45,6 +45,11 @@ const config: Config = {
     "^@services/(.*)$": "<rootDir>/src/services/$1",
     "^@utils/(.*)$": "<rootDir>/src/utils/$1",
     "^@types/(.*)$": "<rootDir>/src/types/$1",
+    // Mock better-auth modules to avoid ESM issues in tests
+    "^better-auth$": "<rootDir>/src/__tests__/__mocks__/better-auth.ts",
+    "^better-auth/node$": "<rootDir>/src/__tests__/__mocks__/better-auth-node.ts",
+    "^better-auth/adapters/prisma$": "<rootDir>/src/__tests__/__mocks__/better-auth-prisma.ts",
+    "^better-auth/react$": "<rootDir>/src/__tests__/__mocks__/better-auth-react.ts",
   },
 
   // Transform configuration
@@ -74,6 +79,11 @@ const config: Config = {
 
   // Ignore patterns
   testPathIgnorePatterns: ["/node_modules/", "/dist/", "/coverage/"],
+
+  // Transform ESM modules from better-auth
+  transformIgnorePatterns: [
+    "/node_modules/(?!(better-auth)/)"
+  ],
 
 
 

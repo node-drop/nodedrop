@@ -1,196 +1,95 @@
-import { Request, Router, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
-import { validateBody } from '../middleware/validation';
-import { asyncHandler, AppError } from '../middleware/errorHandler';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
-import { LoginSchema, RegisterSchema, ForgotPasswordSchema, ApiResponse } from '../types/api';
-import crypto from 'crypto';
+/**
+ * Authentication Routes
+ * 
+ * This module provides authentication endpoints using better-auth.
+ * It mounts better-auth routes at /api/auth/* and provides custom endpoints
+ * for API compatibility.
+ * 
+ * Requirements: 15.1, 15.2, 12.1, 12.4, 11.1, 11.5, 6.1, 6.2, 6.3, 6.4, 6.5, 14.1, 14.2, 14.3, 14.4
+ */
+
+import { Router, Request, Response } from "express";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "../config/auth";
+import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { asyncHandler, AppError } from "../middleware/errorHandler";
+import { ApiResponse } from "../types/api";
+import { prisma } from "../config/database";
+import { checkSetupStatus } from "../utils/setup";
+import { mapBetterAuthError } from "../utils/auth-error-mapper";
+import { createPasswordResetService } from "../services/password-reset.service";
+import {
+  loginRateLimiter,
+  registrationRateLimiter,
+  passwordResetRateLimiter
+} from "../rate-limit/auth-rate-limiters";
+import { assignRoleToNewUser } from "../config/auth-role-plugin";
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Helper function to sign JWT tokens
-const signToken = (payload: object, secret: string, expiresIn: string = '7d'): string => {
-  return jwt.sign(payload, secret, { expiresIn } as any);
-};
-
-// GET /api/auth - Auth endpoints info (should use specific endpoints)
-router.get('/', (req: Request, res: Response) => {
-  res.status(400).json({
-    success: false,
-    error: {
-      code: 'INVALID_METHOD',
-      message: 'Use specific auth endpoints',
-      availableEndpoints: {
-        login: 'POST /api/auth/login',
-        register: 'POST /api/auth/register',
-        me: 'GET /api/auth/me',
-        refresh: 'POST /api/auth/refresh',
-        forgotPassword: 'POST /api/auth/forgot-password',
-        setupStatus: 'GET /api/auth/setup-status'
+/**
+ * GET /api/auth - Auth endpoints info
+ * Returns available authentication endpoints
+ */
+router.get("/", (_req: Request, res: Response) => {
+  const response: ApiResponse = {
+    success: true,
+    data: {
+      message: "Authentication API",
+      endpoints: {
+        // better-auth endpoints
+        signIn: "POST /api/auth/sign-in/email",
+        signUp: "POST /api/auth/sign-up/email",
+        signOut: "POST /api/auth/sign-out",
+        session: "GET /api/auth/get-session",
+        // Custom password reset endpoints
+        forgotPassword: "POST /api/auth/forgot-password",
+        resetPassword: "POST /api/auth/reset-password",
+        validateResetToken: "POST /api/auth/validate-reset-token",
+        // Custom endpoints
+        me: "GET /api/auth/me",
+        setupStatus: "GET /api/auth/setup-status",
+        // Admin endpoints (requires ADMIN role)
+        adminRevokeSessions: "POST /api/auth/admin/revoke-sessions/:userId",
+        adminDeactivateUser: "POST /api/auth/admin/deactivate-user/:userId",
+        adminReactivateUser: "POST /api/auth/admin/reactivate-user/:userId"
       }
     }
-  });
+  };
+  res.json(response);
 });
 
-// GET /api/auth/setup-status - Check if setup is needed (first user)
-router.get('/setup-status', asyncHandler(async (req: Request, res: Response) => {
-  const { checkSetupStatus } = require('../utils/setup');
-  const status = await checkSetupStatus(prisma);
-  
-  res.json({
-    success: true,
-    data: status
-  });
-}));
-
-// POST /api/auth/register - Register new user
-router.post(
-  '/register',
-  validateBody(RegisterSchema),
+/**
+ * GET /api/auth/setup-status - Check if setup is needed
+ * Returns whether the system needs initial setup (first user registration)
+ * 
+ * Requirements: 12.1, 12.4
+ */
+router.get(
+  "/setup-status",
   asyncHandler(async (req: Request, res: Response) => {
-    const { email, password, firstName, lastName } = req.body;
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (existingUser) {
-      throw new AppError('User already exists with this email', 400, 'USER_EXISTS');
-    }
-
-    // Check if this is the first user (make them admin)
-    const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
-
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: `${firstName} ${lastName}`,
-        role: isFirstUser ? 'ADMIN' : 'USER'
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true
-      }
-    });
-
-    // If first user, mark setup as complete
-    if (isFirstUser) {
-      const { markSetupComplete } = require('../utils/setup');
-      markSetupComplete({
-        siteName: 'Node-Drop',
-        adminEmail: email,
-      });
-    }
-
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret not configured', 500, 'CONFIG_ERROR');
-    }
-
-    const token = signToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      jwtSecret,
-      process.env.JWT_EXPIRES_IN || '7d'
-    );
-
+    const status = await checkSetupStatus(prisma);
+    
     const response: ApiResponse = {
       success: true,
-      data: {
-        user: {
-          ...user,
-          firstName,
-          lastName
-        },
-        token
-      }
+      data: status
     };
-
-    res.status(201).json(response);
-  })
-);
-
-// POST /api/auth/login - Login user
-router.post(
-  '/login',
-  validateBody(LoginSchema),
-  asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (!user) {
-      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
-    }
-
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret not configured', 500, 'CONFIG_ERROR');
-    }
-
-    const token = signToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      jwtSecret,
-      process.env.JWT_EXPIRES_IN || '7d'
-    );
-
-    // Note: lastLoginAt field not implemented in current schema
-
-    const response: ApiResponse = {
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          createdAt: user.createdAt
-        },
-        token
-      }
-    };
-
+    
     res.json(response);
   })
 );
 
-// GET /api/auth/me - Get current user
+/**
+ * GET /api/auth/me - Get current authenticated user
+ * Returns the current user's data from the session
+ * 
+ * Requirements: 15.2
+ */
 router.get(
-  '/me',
-  authenticateToken,
+  "/me",
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    // Fetch full user data from database
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
       select: {
@@ -198,13 +97,16 @@ router.get(
         email: true,
         name: true,
         role: true,
+        emailVerified: true,
+        image: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        preferences: true
       }
     });
 
     if (!user) {
-      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
     }
 
     const response: ApiResponse = {
@@ -216,93 +118,456 @@ router.get(
   })
 );
 
-// POST /api/auth/refresh - Refresh token
+// Initialize password reset service
+const passwordResetService = createPasswordResetService(prisma);
+
+/**
+ * POST /api/auth/forgot-password - Request password reset
+ * Generates a secure reset token and sends reset email (logs for now)
+ * Rate limited per email address to prevent abuse.
+ * 
+ * Requirements: 6.1, 6.2, 14.3, 14.4
+ */
 router.post(
-  '/refresh',
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret not configured', 500, 'CONFIG_ERROR');
-    }
-
-    // Generate new token
-    const token = signToken(
-      {
-        id: req.user!.id,
-        email: req.user!.email,
-        role: req.user!.role
-      },
-      jwtSecret,
-      process.env.JWT_EXPIRES_IN || '7d'
-    );
-
-    const response: ApiResponse = {
-      success: true,
-      data: { token }
-    };
-
-    res.json(response);
-  })
-);
-
-// POST /api/auth/forgot-password - Send password reset email
-router.post(
-  '/forgot-password',
-  validateBody(ForgotPasswordSchema),
+  "/forgot-password",
+  passwordResetRateLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { email } = req.body;
 
-    if (!email) {
-      throw new AppError('Email is required', 400, 'MISSING_EMAIL');
+    // Validate email is provided
+    if (!email || typeof email !== "string") {
+      throw new AppError("Email is required", 400, "VALIDATION_ERROR");
     }
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
+    // Request password reset
+    const result = await passwordResetService.requestPasswordReset(email);
 
-    // Always return success to prevent email enumeration attacks
     const response: ApiResponse = {
-      success: true,
+      success: result.success,
       data: {
-        message: 'If an account with that email exists, we have sent a password reset link.'
+        message: result.message
       }
     };
-
-    // If user doesn't exist, still return success but don't send email
-    if (!user) {
-      res.json(response);
-      return;
-    }
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
-
-    // Save reset token to database (you'll need to add these fields to your User model)
-    try {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          resetToken,
-          resetTokenExpiry
-        }
-      });
-
-      // TODO: Send email with reset link
-      // For now, we'll just log it (in production, integrate with email service)
-      console.log(`Password reset requested for ${email}`);
-      console.log(`Reset token: ${resetToken}`);
-      console.log(`Reset link: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`);
-
-    } catch (error) {
-      // If database update fails, still return success to prevent information leakage
-      console.error('Failed to save reset token:', error);
-    }
 
     res.json(response);
   })
 );
+
+/**
+ * POST /api/auth/reset-password - Reset password with token
+ * Validates token, updates password, and invalidates all sessions
+ * 
+ * Requirements: 6.3, 6.4, 6.5
+ */
+router.post(
+  "/reset-password",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email, token, newPassword } = req.body;
+
+    // Validate required fields
+    if (!email || typeof email !== "string") {
+      throw new AppError("Email is required", 400, "VALIDATION_ERROR");
+    }
+    if (!token || typeof token !== "string") {
+      throw new AppError("Reset token is required", 400, "VALIDATION_ERROR");
+    }
+    if (!newPassword || typeof newPassword !== "string") {
+      throw new AppError("New password is required", 400, "VALIDATION_ERROR");
+    }
+
+    // Validate password length
+    if (newPassword.length < 8) {
+      throw new AppError("Password must be at least 8 characters", 400, "PASSWORD_TOO_SHORT");
+    }
+    if (newPassword.length > 128) {
+      throw new AppError("Password must be less than 128 characters", 400, "PASSWORD_TOO_LONG");
+    }
+
+    // Reset password
+    const result = await passwordResetService.resetPassword(email, token, newPassword);
+
+    if (!result.success) {
+      throw new AppError(result.message, 400, result.code || "RESET_FAILED");
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        message: result.message
+      }
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * POST /api/auth/validate-reset-token - Validate a reset token
+ * Checks if the token is valid and not expired (useful for frontend validation)
+ * 
+ * Requirements: 6.3, 6.4
+ */
+router.post(
+  "/validate-reset-token",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email, token } = req.body;
+
+    // Validate required fields
+    if (!email || typeof email !== "string") {
+      throw new AppError("Email is required", 400, "VALIDATION_ERROR");
+    }
+    if (!token || typeof token !== "string") {
+      throw new AppError("Reset token is required", 400, "VALIDATION_ERROR");
+    }
+
+    // Validate token
+    const validation = await passwordResetService.validateResetToken(email, token);
+
+    if (!validation.valid) {
+      throw new AppError(validation.message || "Invalid token", 400, validation.code || "INVALID_TOKEN");
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        valid: true,
+        message: "Token is valid"
+      }
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * POST /api/auth/admin/revoke-sessions/:userId - Revoke all sessions for a user
+ * Admin-only endpoint to invalidate all active sessions for a target user.
+ * 
+ * Requirements: 7.5
+ */
+router.post(
+  "/admin/revoke-sessions/:userId",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.params;
+
+    // Validate userId is provided
+    if (!userId || typeof userId !== "string") {
+      throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
+    }
+
+    // Check if target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true }
+    });
+
+    if (!targetUser) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    // Prevent admin from revoking their own sessions via this endpoint
+    if (targetUser.id === req.user!.id) {
+      throw new AppError(
+        "Cannot revoke your own sessions via this endpoint. Use sign-out instead.",
+        400,
+        "CANNOT_REVOKE_SELF"
+      );
+    }
+
+    // Delete all sessions for the target user
+    const deleteResult = await prisma.session.deleteMany({
+      where: { userId: userId }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        message: `Successfully revoked ${deleteResult.count} session(s) for user ${targetUser.email}`,
+        revokedCount: deleteResult.count,
+        userId: targetUser.id,
+        userEmail: targetUser.email
+      }
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * POST /api/auth/admin/deactivate-user/:userId - Deactivate a user and revoke sessions
+ * Admin-only endpoint to deactivate a user account and invalidate all their sessions.
+ * 
+ * Requirements: 7.5
+ */
+router.post(
+  "/admin/deactivate-user/:userId",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.params;
+
+    // Validate userId is provided
+    if (!userId || typeof userId !== "string") {
+      throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
+    }
+
+    // Check if target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true, active: true }
+    });
+
+    if (!targetUser) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    // Prevent admin from deactivating themselves
+    if (targetUser.id === req.user!.id) {
+      throw new AppError(
+        "Cannot deactivate your own account",
+        400,
+        "CANNOT_DEACTIVATE_SELF"
+      );
+    }
+
+    // Deactivate user and delete all their sessions in a transaction
+    const [updatedUser, deleteResult] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { active: false }
+      }),
+      prisma.session.deleteMany({
+        where: { userId: userId }
+      })
+    ]);
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        message: `Successfully deactivated user ${targetUser.email} and revoked ${deleteResult.count} session(s)`,
+        userId: updatedUser.id,
+        userEmail: updatedUser.email,
+        active: updatedUser.active,
+        revokedSessionCount: deleteResult.count
+      }
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * POST /api/auth/admin/reactivate-user/:userId - Reactivate a deactivated user
+ * Admin-only endpoint to reactivate a previously deactivated user account.
+ * 
+ * Requirements: 7.5
+ */
+router.post(
+  "/admin/reactivate-user/:userId",
+  requireAuth,
+  requireRole(["ADMIN"]),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.params;
+
+    // Validate userId is provided
+    if (!userId || typeof userId !== "string") {
+      throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
+    }
+
+    // Check if target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true, active: true }
+    });
+
+    if (!targetUser) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    if (targetUser.active) {
+      throw new AppError("User is already active", 400, "USER_ALREADY_ACTIVE");
+    }
+
+    // Reactivate user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { active: true }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        message: `Successfully reactivated user ${targetUser.email}`,
+        userId: updatedUser.id,
+        userEmail: updatedUser.email,
+        active: updatedUser.active
+      }
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * Rate limiting middleware for better-auth sign-in endpoint
+ * Applied before the better-auth handler for login requests
+ * 
+ * Requirements: 14.1, 14.4
+ */
+router.post("/sign-in/*", loginRateLimiter);
+
+/**
+ * Rate limiting middleware for better-auth sign-up endpoint
+ * Applied before the better-auth handler for registration requests
+ * 
+ * Requirements: 14.2, 14.4
+ */
+router.post("/sign-up/*", registrationRateLimiter);
+
+/**
+ * Custom sign-out handler to ensure proper session cleanup
+ * 
+ * This handler wraps better-auth's sign-out to add logging and ensure
+ * the session is properly deleted from the database.
+ * 
+ * Requirements: 15.1, 7.4
+ */
+router.post("/sign-out", async (req: Request, res: Response) => {
+  try {
+    console.log(`[Auth] POST /sign-out - Starting logout`);
+    
+    // First, try to get the current session to delete it from DB
+    try {
+      const session = await auth.api.getSession({
+        headers: req.headers as any
+      });
+      
+      if (session?.session?.id) {
+        // Delete the session from database
+        await prisma.session.delete({
+          where: { id: session.session.id }
+        }).catch(err => {
+          console.log(`[Auth] Session already deleted or not found: ${err.message}`);
+        });
+        console.log(`[Auth] Deleted session ${session.session.id} from database`);
+      }
+    } catch (sessionError) {
+      console.log(`[Auth] No active session to delete: ${sessionError}`);
+    }
+    
+    // Call better-auth handler for sign-out (this clears cookies)
+    const handler = toNodeHandler(auth);
+    await handler(req, res);
+    
+    console.log(`[Auth] POST /sign-out - Logout completed`);
+  } catch (error) {
+    console.error("[Auth] Error in sign-out handler:", error);
+    
+    // Even on error, try to clear cookies
+    res.clearCookie("nd_auth.session_token");
+    res.clearCookie("nd_auth.session_data");
+    
+    // Map better-auth errors to ApiResponse format
+    const mappedError = mapBetterAuthError(error);
+    
+    res.status(mappedError.statusCode).json({
+      success: false,
+      error: {
+        code: mappedError.code,
+        message: mappedError.message,
+        ...(mappedError.details && { details: mappedError.details })
+      }
+    } as ApiResponse);
+  }
+});
+
+/**
+ * Custom sign-up handler that wraps better-auth and assigns roles
+ * 
+ * This intercepts sign-up requests to assign roles after user creation:
+ * - First user gets ADMIN role
+ * - Subsequent users get USER role
+ * 
+ * Requirements: 5.3, 5.4, 15.1
+ */
+router.post("/sign-up/email", async (req: Request, res: Response) => {
+  try {
+    console.log(`[Auth] POST /sign-up/email`, { body: req.body ? Object.keys(req.body) : 'no body' });
+    
+    // Create a custom response to capture the result
+    const originalJson = res.json.bind(res);
+    let responseData: any = null;
+    
+    res.json = function(data: any) {
+      responseData = data;
+      return originalJson(data);
+    };
+    
+    // Call better-auth handler
+    const handler = toNodeHandler(auth);
+    await handler(req, res);
+    
+    // After successful sign-up, assign role
+    // Check if response was successful and contains user data
+    if (responseData && responseData.user && responseData.user.id) {
+      // Assign role asynchronously (don't block the response)
+      assignRoleToNewUser(responseData.user.id).catch(err => {
+        console.error("[Auth] Error assigning role after sign-up:", err);
+      });
+    }
+  } catch (error) {
+    console.error("[Auth] Error in sign-up handler:", error);
+    
+    // Map better-auth errors to ApiResponse format
+    const mappedError = mapBetterAuthError(error);
+    
+    res.status(mappedError.statusCode).json({
+      success: false,
+      error: {
+        code: mappedError.code,
+        message: mappedError.message,
+        ...(mappedError.details && { details: mappedError.details })
+      }
+    } as ApiResponse);
+  }
+});
+
+/**
+ * better-auth route handler
+ * 
+ * This handles all better-auth routes including:
+ * - POST /api/auth/sign-in/email - Email/password login
+ * - POST /api/auth/sign-out - Logout
+ * - GET /api/auth/get-session - Get current session
+ * 
+ * Note: sign-up/email is handled separately above for role assignment
+ * 
+ * Requirements: 15.1
+ */
+router.all("/*", async (req: Request, res: Response) => {
+  try {
+    console.log(`[Auth] ${req.method} ${req.path}`, { body: req.body ? Object.keys(req.body) : 'no body' });
+    
+    // Convert Express request/response to Node handler format
+    const handler = toNodeHandler(auth);
+    await handler(req, res);
+  } catch (error) {
+    console.error("[Auth] Error in better-auth handler:", error);
+    
+    // Map better-auth errors to ApiResponse format
+    const mappedError = mapBetterAuthError(error);
+    
+    res.status(mappedError.statusCode).json({
+      success: false,
+      error: {
+        code: mappedError.code,
+        message: mappedError.message,
+        ...(mappedError.details && { details: mappedError.details })
+      }
+    } as ApiResponse);
+  }
+});
 
 export { router as authRoutes };

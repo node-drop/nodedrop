@@ -3,7 +3,7 @@ import { Request, Response, Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { createServer } from "http";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
@@ -76,7 +76,7 @@ const validateRequest = (req: Request, res: Response, next: any) => {
 // Create trigger
 router.post(
   "/workflows/:workflowId/triggers",
-  authenticateToken,
+  requireAuth,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     body("type")
@@ -115,7 +115,7 @@ router.post(
 // Update trigger
 router.put(
   "/workflows/:workflowId/triggers/:triggerId",
-  authenticateToken,
+  requireAuth,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
@@ -160,7 +160,7 @@ router.put(
 // Delete trigger
 router.delete(
   "/workflows/:workflowId/triggers/:triggerId",
-  authenticateToken,
+  requireAuth,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
@@ -182,7 +182,7 @@ router.delete(
 // Execute manual trigger
 router.post(
   "/workflows/:workflowId/triggers/:triggerId/execute",
-  authenticateToken,
+  requireAuth,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
@@ -220,7 +220,7 @@ router.post(
 // Get trigger events
 router.get(
   "/workflows/:workflowId/triggers/events",
-  authenticateToken,
+  requireAuth,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     query("type")
@@ -267,7 +267,7 @@ router.get(
 // Get trigger statistics
 router.get(
   "/workflows/:workflowId/triggers/stats",
-  authenticateToken,
+  requireAuth,
   [param("workflowId").isUUID().withMessage("Invalid workflow ID")],
   validateRequest,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -286,7 +286,7 @@ router.get(
 // Get all active triggers (schedule + polling) for user
 router.get(
   "/active-triggers",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 
@@ -304,7 +304,7 @@ router.get(
 // Delete an active trigger (schedule or polling)
 router.delete(
   "/active-triggers/:triggerId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { triggerId } = req.params;
     const userId = req.user!.id;

@@ -1,6 +1,6 @@
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { VariableService } from "../services/VariableService";
 import { AppError } from "../utils/errors";
 import {
@@ -16,7 +16,7 @@ const variableService = new VariableService();
 // Get all variables for the authenticated user
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { search, scope, workflowId } = req.query;
 
@@ -37,7 +37,7 @@ router.get(
 // Get variable statistics
 router.get(
   "/stats",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const stats = await variableService.getVariableStats(req.user!.id);
 
@@ -51,7 +51,7 @@ router.get(
 // Get variables for execution (internal endpoint)
 router.get(
   "/execution",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { workflowId } = req.query;
 
@@ -70,7 +70,7 @@ router.get(
 // Get a specific variable
 router.get(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -90,7 +90,7 @@ router.get(
 // Create a new variable
 router.post(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const validatedData = variableCreateSchema.parse(req.body);
 
@@ -113,7 +113,7 @@ router.post(
 // Update a variable
 router.put(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const validatedData = variableUpdateSchema.parse(req.body);
@@ -134,7 +134,7 @@ router.put(
 // Delete a variable
 router.delete(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -150,7 +150,7 @@ router.delete(
 // Bulk create or update variables
 router.post(
   "/bulk",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const validatedData = variableBulkUpsertSchema.parse(req.body);
 
@@ -170,7 +170,7 @@ router.post(
 // Replace variables in text
 router.post(
   "/replace",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const validatedData = variableReplaceSchema.parse(req.body);
 

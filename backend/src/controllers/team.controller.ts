@@ -434,3 +434,82 @@ export const getTeamWorkflows = asyncHandler(
     res.json(response);
   }
 );
+
+/**
+ * POST /api/teams/:id/switch
+ * Switch to a team context
+ * 
+ * Requirements: 13.5 - Update session context without re-authentication
+ * 
+ * This endpoint allows users to switch their active team context.
+ * The team ID is returned and should be stored client-side and sent
+ * in subsequent requests via the X-Active-Team-Id header.
+ */
+export const switchTeam = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      throw new AppError("User not authenticated", 401);
+    }
+
+    const teamId = req.params.id;
+
+    // Verify user is a member of the team they're switching to
+    // This uses the team memberships already loaded in the session
+    if (!req.teamMemberships) {
+      throw new AppError("Team memberships not loaded", 500);
+    }
+
+    const membership = req.teamMemberships.find(tm => tm.teamId === teamId);
+    
+    if (!membership) {
+      throw new AppError("You are not a member of this team", 403);
+    }
+
+    // Get full team details for the response
+    const team = await TeamService.getTeam(teamId, req.user.id);
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        team,
+        membership: {
+          teamId: membership.teamId,
+          teamName: membership.teamName,
+          teamSlug: membership.teamSlug,
+          role: membership.role
+        },
+        message: "Team context switched successfully. Include X-Active-Team-Id header in subsequent requests."
+      },
+    };
+
+    res.json(response);
+  }
+);
+
+/**
+ * POST /api/teams/clear-context
+ * Clear team context (switch to personal)
+ * 
+ * Requirements: 13.5 - Update session context without re-authentication
+ * 
+ * This endpoint allows users to clear their active team context and
+ * switch back to their personal context. The client should stop sending
+ * the X-Active-Team-Id header after calling this endpoint.
+ */
+export const clearTeamContext = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      throw new AppError("User not authenticated", 401);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        activeTeamId: null,
+        message: "Team context cleared. Remove X-Active-Team-Id header from subsequent requests."
+      },
+    };
+
+    res.json(response);
+  }
+);

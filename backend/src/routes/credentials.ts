@@ -1,6 +1,10 @@
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { 
+  AuthenticatedRequest, 
+  requireAuth, 
+  validateCredentialSharing 
+} from "../middleware/auth";
 import { AppError } from "../utils/errors";
 import {
   credentialCreateSchema,
@@ -20,7 +24,7 @@ const getCredentialService = () => {
 // Get all credentials for the authenticated user (owned + shared)
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { type } = req.query;
 
@@ -73,7 +77,7 @@ router.get(
 // Get available credential types
 router.get(
   "/types",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const credentialTypes = getCredentialService().getCredentialTypes();
 
@@ -105,7 +109,7 @@ router.get(
 // Get credential type with node context (for default values)
 router.get(
   "/types/:typeName/defaults",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { typeName } = req.params;
     const { nodeType } = req.query;
@@ -186,7 +190,7 @@ router.get(
 // Get expiring credentials
 router.get(
   "/expiring/:days?",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const warningDays = parseInt(req.params.days || "7");
 
@@ -210,7 +214,7 @@ router.get(
 // Get a specific credential
 router.get(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -236,7 +240,7 @@ router.get(
 // Get credential for execution (internal endpoint)
 router.get(
   "/:id/execution",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -253,7 +257,7 @@ router.get(
 // Create a new credential
 router.post(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const validatedData = credentialCreateSchema.parse(req.body);
 
@@ -278,7 +282,7 @@ router.post(
 // Update a credential
 router.put(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const validatedData = credentialUpdateSchema.parse(req.body);
@@ -306,7 +310,7 @@ router.put(
 // Delete a credential
 router.delete(
   "/:id",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -322,7 +326,7 @@ router.delete(
 // Test a credential
 router.post(
   "/test",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { type, data } = req.body;
 
@@ -342,7 +346,7 @@ router.post(
 // Test a saved credential (for OAuth credentials that don't have tokens in the form)
 router.post(
   "/test-saved",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { credentialId } = req.body;
 
@@ -376,7 +380,7 @@ router.post(
 // Rotate a credential
 router.post(
   "/:id/rotate",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const { data } = req.body;
@@ -410,7 +414,7 @@ router.post(
 // Get credentials shared WITH me
 router.get(
   "/shared-with-me",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const sharedCredentials = await getCredentialService().getSharedCredentials(
       req.user!.id
@@ -426,7 +430,7 @@ router.get(
 // Get shares for a specific credential (who has access)
 router.get(
   "/:id/shares",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
@@ -443,9 +447,11 @@ router.get(
 );
 
 // Share credential with a user
+// Requirements: 13.3 - Validates both users have valid sessions
 router.post(
   "/:id/share",
-  authenticateToken,
+  requireAuth,
+  validateCredentialSharing, // Validates target user has active session (Requirements: 13.3)
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const { userId, permission = "USE" } = req.body;
@@ -477,7 +483,7 @@ router.post(
 // Update share permission
 router.put(
   "/:id/share/:userId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id, userId } = req.params;
     const { permission } = req.body;
@@ -504,7 +510,7 @@ router.put(
 // Unshare credential (revoke access)
 router.delete(
   "/:id/share/:userId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id, userId } = req.params;
 
@@ -528,7 +534,7 @@ router.delete(
 // Get teams a credential is shared with
 router.get(
   "/:id/teams",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
 
