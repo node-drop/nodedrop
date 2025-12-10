@@ -73,6 +73,10 @@ export function useReactFlowInteractions() {
   // Handle node selection
   const handleSelectionChange = useCallback(
     (params: OnSelectionChangeParams) => {
+      // Store selected node IDs in the UI store for global access
+      const selectedIds = params.nodes.map(node => node.id);
+      useReactFlowUIStore.getState().setSelectedNodeIds(selectedIds);
+      
       const selectedNode = params.nodes[0];
       if (selectedNode) {
         setSelectedNode(selectedNode.id);

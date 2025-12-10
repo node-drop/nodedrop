@@ -17,6 +17,7 @@ import {
     useExecutionPanelData,
     useKeyboardShortcuts,
     useReactFlowInteractions,
+    useSelectedNodes,
     useWorkflowOperations,
 } from '@/hooks/workflow'
 import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
@@ -169,10 +170,8 @@ export function WorkflowEditor({
         showNodePalette,
     } = useWorkflowToolbarStore()
 
-    // Get selected nodes from React Flow nodes
-    const selectedNodes = useMemo(() => {
-        return nodes.filter(node => node.selected)
-    }, [nodes])
+    // Get selected nodes from React Flow
+    const { selectedNodes } = useSelectedNodes()
 
     // Execution panel data
     const { flowExecutionStatus } = useExecutionPanelData({
@@ -229,7 +228,18 @@ export function WorkflowEditor({
     }) => {
         if (!workflow || selectedNodes.length === 0) return
 
-        const selectedNodeIds = new Set(selectedNodes.map(n => n.id))
+        // Include child nodes if a group is selected
+        const selectedGroupIds = selectedNodes
+            .filter((node) => node.type === "group")
+            .map((node) => node.id)
+
+        const childNodeIds = workflow.nodes
+            .filter((node) => node.parentId && selectedGroupIds.includes(node.parentId))
+            .map((node) => node.id)
+
+        const allNodeIds = [...selectedNodes.map(n => n.id), ...childNodeIds]
+        const selectedNodeIds = new Set(allNodeIds)
+
         const templateNodes = workflow.nodes.filter(node => selectedNodeIds.has(node.id))
         const templateConnections = workflow.connections.filter(conn =>
             selectedNodeIds.has(conn.sourceNodeId) && selectedNodeIds.has(conn.targetNodeId)

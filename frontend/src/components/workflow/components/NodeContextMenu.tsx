@@ -172,7 +172,7 @@ export function NodeContextMenu({
         </>
       )}
 
-      {/* Create Template option - show if multiple nodes are selected */}
+      {/* Create Template option - show if nodes are selected (including groups with children) */}
       {canCreateTemplate && onCreateTemplate && (
         <>
           <ContextMenuSeparator />

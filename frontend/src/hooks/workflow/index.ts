@@ -49,6 +49,7 @@ export { useCopyPaste } from "./useCopyPaste";
 export { useCrossWindowCopyPaste } from "./useCrossWindowCopyPaste";
 export { useDeleteNodes } from "./useDeleteNodes";
 export { default as useDetachNodes } from "./useDetachNodes";
+export { useSelectedNodes } from "./useSelectedNodes";
 export {
   useEdgeAnimation,
   useExecutionAwareEdges,

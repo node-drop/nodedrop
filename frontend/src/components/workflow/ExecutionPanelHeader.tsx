@@ -1,9 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
-import { useReactFlowUIStore } from '@/stores'
+import { useSelectedNodes } from '@/hooks/workflow'
+import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
 import { ExecutionState } from '@/types'
-import { CheckCircle, ChevronDown, ChevronUp, PanelRight } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight } from 'lucide-react'
 
 interface ExecutionPanelHeaderProps {
   executionState: ExecutionState
@@ -18,6 +19,11 @@ export function ExecutionPanelHeader({
 }: ExecutionPanelHeaderProps) {
   const { validateAndShowResult } = useWorkflowOperations()
   const { showRightSidebar, toggleRightSidebar } = useReactFlowUIStore()
+  const { openTemplateDialog } = useWorkflowStore()
+  
+  // Get selected nodes count
+  const { selectedNodesCount, hasSelectedNodes } = useSelectedNodes()
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'success': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30'
@@ -59,6 +65,22 @@ export function ExecutionPanelHeader({
           </TooltipTrigger>
           <TooltipContent>
             <p>Validate workflow</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={openTemplateDialog}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              disabled={!hasSelectedNodes}
+            >
+              <PackagePlus className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{hasSelectedNodes ? `Create template from ${selectedNodesCount} selected node${selectedNodesCount !== 1 ? 's' : ''}` : 'Select nodes to create template'}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>

@@ -21,6 +21,10 @@ interface ReactFlowUIState {
   reactFlowInstance: ReactFlowInstance | null;
   setReactFlowInstance: (instance: ReactFlowInstance | null) => void;
 
+  // Selected nodes tracking
+  selectedNodeIds: string[];
+  setSelectedNodeIds: (ids: string[]) => void;
+
   // Connection line path for editable edges (free drawing)
   connectionLinePath: XYPosition[];
   setConnectionLinePath: (connectionLinePath: XYPosition[]) => void;
@@ -107,6 +111,7 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
     (set, get) => ({
       // Initial state
       reactFlowInstance: null,
+      selectedNodeIds: [],
       showMinimap: true,
       showBackground: true,
       showControls: true,
@@ -133,6 +138,9 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
 
       // Set ReactFlow instance
       setReactFlowInstance: (instance) => set({ reactFlowInstance: instance }),
+      
+      // Set selected node IDs
+      setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
       
       // Set connection line path
       setConnectionLinePath: (connectionLinePath) => set({ connectionLinePath }),

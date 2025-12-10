@@ -21,12 +21,14 @@ import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkfl
 import { useEnvironmentStore } from '@/stores/environment'
 import { getEnvironmentLabel } from '@/types/environment'
 import { validateImportFile } from '@/utils/errorHandling'
+import { useSelectedNodes } from '@/hooks/workflow'
 import {
   ChevronDown,
   Download,
   Loader2,
   MoreHorizontal,
   Package,
+  PackagePlus,
   PanelRight,
   RefreshCw,
   Save,
@@ -60,6 +62,9 @@ export function WorkflowToolbar({
   
   // Add Node Dialog store
   const { openDialog } = useAddNodeDialogStore()
+  
+  // Get selected nodes count
+  const { selectedNodesCount } = useSelectedNodes()
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -86,7 +91,8 @@ export function WorkflowToolbar({
     importWorkflow: mainImportWorkflow,
     isDirty, // Use isDirty from main workflow store
     setDirty,
-    updateWorkflow
+    updateWorkflow,
+    openTemplateDialog
   } = useWorkflowStore()
   
   // Get toolbar state from the dedicated store (excluding isDirty which comes from main store)
@@ -410,6 +416,20 @@ export function WorkflowToolbar({
             <DropdownMenuItem onClick={toggleRightSidebar} className="text-xs">
               <PanelRight className="mr-2 h-3.5 w-3.5" />
               {showRightSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
+            </DropdownMenuItem>
+            
+            <DropdownMenuSeparator />
+            
+            <DropdownMenuItem 
+              onClick={openTemplateDialog}
+              disabled={selectedNodesCount === 0}
+              className="text-xs"
+            >
+              <PackagePlus className="mr-2 h-3.5 w-3.5" />
+              Create Template
+              {selectedNodesCount === 0 && (
+                <span className="ml-auto text-[10px] text-muted-foreground">(no selection)</span>
+              )}
             </DropdownMenuItem>
             
             <DropdownMenuSeparator />
