@@ -27,7 +27,7 @@ export async function checkSetupStatus(prisma: PrismaClient): Promise<SetupStatu
   
   // Check for admin user in database
   const adminUser = await prisma.user.findFirst({
-    where: { role: 'ADMIN' }
+    where: { role: 'admin' }
   });
 
   const hasAdmin = !!adminUser;
@@ -80,7 +80,7 @@ export async function resetSetup(prisma: PrismaClient): Promise<void> {
 
   // Delete admin users
   await prisma.user.deleteMany({
-    where: { role: 'ADMIN' }
+    where: { role: 'admin' }
   });
 }
 

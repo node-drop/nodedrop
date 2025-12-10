@@ -21,7 +21,7 @@ import { toast } from 'sonner'
  * Role badge component that displays the user's role with appropriate styling
  */
 const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
-  const isAdmin = role === 'ADMIN'
+  const isAdmin = role === 'admin'
   
   return (
     <Badge 
@@ -200,7 +200,7 @@ export function ProfilePage() {
                   <div className="flex items-center gap-2">
                     {authUser?.role && <RoleBadge role={authUser.role} />}
                     <span className="text-sm text-muted-foreground">
-                      {authUser?.role === 'ADMIN' 
+                      {authUser?.role === 'admin' 
                         ? 'Full administrative access' 
                         : 'Standard user access'}
                     </span>

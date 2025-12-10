@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       id: betterAuthUser.id,
       email: betterAuthUser.email,
       name: betterAuthUser.name || "",
-      role: (betterAuthUser.role as "ADMIN" | "USER") || "USER",
+      role: (betterAuthUser.role as "admin" | "user") || "user",
       createdAt: betterAuthUser.createdAt?.toString() || new Date().toISOString(),
       updatedAt: betterAuthUser.updatedAt?.toString(),
     };

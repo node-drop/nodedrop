@@ -37,7 +37,7 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     name: string | null;
-    role: "USER" | "ADMIN";
+    role: "user" | "admin";
     emailVerified: boolean;
     image: string | null;
   };
@@ -100,7 +100,7 @@ const validateBearerToken = async (token: string): Promise<{
     id: string;
     email: string;
     name: string | null;
-    role: "USER" | "ADMIN";
+    role: "user" | "admin";
     emailVerified: boolean;
     image: string | null;
     active: boolean;
@@ -171,7 +171,7 @@ const validateBearerToken = async (token: string): Promise<{
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: session.user.role as "USER" | "ADMIN",
+      role: session.user.role as "user" | "admin",
       emailVerified: session.user.emailVerified,
       image: session.user.image,
       active: session.user.active,
@@ -217,7 +217,7 @@ export const requireAuth = async (
         id: string;
         email: string;
         name: string | null;
-        role: "USER" | "ADMIN";
+        role: "user" | "admin";
         emailVerified: boolean;
         image: string | null;
         active: boolean;
@@ -294,7 +294,7 @@ export const requireAuth = async (
                 id: dbUser.id,
                 email: dbUser.email,
                 name: dbUser.name,
-                role: dbUser.role as "USER" | "ADMIN",
+                role: dbUser.role as "user" | "admin",
                 emailVerified: dbUser.emailVerified,
                 image: dbUser.image,
                 active: dbUser.active,
@@ -375,21 +375,21 @@ export const requireAuth = async (
  * 
  * Requirements: 4.2, 4.3
  * 
- * @param roles - Array of allowed roles (e.g., ["ADMIN"] or ["USER", "ADMIN"])
+ * @param roles - Array of allowed roles (e.g., ["admin"] or ["user", "admin"])
  * 
  * @example
- * // Require ADMIN role
- * router.get('/admin', requireAuth, requireRole(["ADMIN"]), (req, res) => {
+ * // Require admin role
+ * router.get('/admin', requireAuth, requireRole(["admin"]), (req, res) => {
  *   res.json({ message: "Admin only" });
  * });
  * 
  * @example
- * // Allow both USER and ADMIN
- * router.get('/users', requireAuth, requireRole(["USER", "ADMIN"]), (req, res) => {
+ * // Allow both user and admin
+ * router.get('/users', requireAuth, requireRole(["user", "admin"]), (req, res) => {
  *   res.json({ message: "Authenticated users" });
  * });
  */
-export const requireRole = (roles: Array<"USER" | "ADMIN">) => {
+export const requireRole = (roles: Array<"user" | "admin">) => {
   return (
     req: AuthenticatedRequest,
     res: Response,
@@ -450,7 +450,7 @@ export const optionalAuth = async (
         id: string;
         email: string;
         name: string | null;
-        role: "USER" | "ADMIN";
+        role: "user" | "admin";
         emailVerified: boolean;
         image: string | null;
         active: boolean;
@@ -530,7 +530,7 @@ export const optionalAuth = async (
                 id: dbUser.id,
                 email: dbUser.email,
                 name: dbUser.name,
-                role: dbUser.role as "USER" | "ADMIN",
+                role: dbUser.role as "user" | "admin",
                 emailVerified: dbUser.emailVerified,
                 image: dbUser.image,
                 active: dbUser.active,

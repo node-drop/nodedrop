@@ -18,7 +18,7 @@ interface ProtectedRouteProps {
   /** Whether authentication is required (default: true) */
   requireAuth?: boolean
   /** Required role(s) for access - if specified, user must have one of these roles */
-  requiredRole?: 'USER' | 'ADMIN' | Array<'USER' | 'ADMIN'>
+  requiredRole?: 'user' | 'admin' | Array<'user' | 'admin'>
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -112,8 +112,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const { user } = useAuthStore.getState()
     if (user) {
       const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
-      // ADMIN role has access to everything
-      if (user.role !== 'ADMIN' && !allowedRoles.includes(user.role as 'USER' | 'ADMIN')) {
+      // admin role has access to everything
+      if (user.role !== 'admin' && !allowedRoles.includes(user.role as 'user' | 'admin')) {
         return <Navigate to="/unauthorized" state={{ from: location }} replace />
       }
     }

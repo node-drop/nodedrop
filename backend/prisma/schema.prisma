@@ -17,8 +17,8 @@ model User {
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
 
-  // Custom fields
-  role                     UserRole          @default(USER)
+  // Custom fields - role managed by better-auth admin plugin
+  role                     String            @default("user")
   active                   Boolean           @default(true)
   preferences              Json?             @default("{}")
 
@@ -440,10 +440,8 @@ model ExecutionHistory {
   @@map("execution_history")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
+// UserRole enum removed - now using String for role field
+// Managed by better-auth admin plugin with values: "user", "admin"
 
 enum ExecutionStatus {
   RUNNING

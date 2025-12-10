@@ -117,7 +117,7 @@ router.get('/updates/check', requireAuth, async (_req, res) => {
 });
 
 // Trigger update (admin only)
-router.post('/updates/install', requireAuth, requireRole(["ADMIN"]), async (req, res) => {
+router.post('/updates/install', requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
 
     // Check if running in Docker

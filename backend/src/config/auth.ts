@@ -9,8 +9,8 @@
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { admin } from "better-auth/plugins/admin";
 import { prisma } from "./database";
-import { rolePlugin } from "./auth-role-plugin";
 
 /**
  * Session expiration time in seconds (7 days)
@@ -115,8 +115,11 @@ export const auth = betterAuth({
     } : {})
   },
   
-  // Custom plugins (role assignment is handled separately in auth routes)
-  plugins: [],
+  // Admin plugin for role management
+  // First user automatically becomes admin, subsequent users get "user" role
+  plugins: [
+    admin()
+  ],
   
   // Trust host header for proxy setups
   trustedOrigins: process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : ["http://localhost:3000"]

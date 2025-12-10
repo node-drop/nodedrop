@@ -23,7 +23,6 @@ import {
   registrationRateLimiter,
   passwordResetRateLimiter
 } from "../rate-limit/auth-rate-limiters";
-import { assignRoleToNewUser } from "../config/auth-role-plugin";
 
 const router = Router();
 
@@ -248,7 +247,7 @@ router.post(
 router.post(
   "/admin/revoke-sessions/:userId",
   requireAuth,
-  requireRole(["ADMIN"]),
+  requireRole(["admin"]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.params;
 
@@ -304,7 +303,7 @@ router.post(
 router.post(
   "/admin/deactivate-user/:userId",
   requireAuth,
-  requireRole(["ADMIN"]),
+  requireRole(["admin"]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.params;
 
@@ -367,7 +366,7 @@ router.post(
 router.post(
   "/admin/reactivate-user/:userId",
   requireAuth,
-  requireRole(["ADMIN"]),
+  requireRole(["admin"]),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { userId } = req.params;
 
@@ -483,56 +482,8 @@ router.post("/sign-out", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Custom sign-up handler that wraps better-auth and assigns roles
- * 
- * This intercepts sign-up requests to assign roles after user creation:
- * - First user gets ADMIN role
- * - Subsequent users get USER role
- * 
- * Requirements: 5.3, 5.4, 15.1
- */
-router.post("/sign-up/email", async (req: Request, res: Response) => {
-  try {
-    console.log(`[Auth] POST /sign-up/email`, { body: req.body ? Object.keys(req.body) : 'no body' });
-    
-    // Create a custom response to capture the result
-    const originalJson = res.json.bind(res);
-    let responseData: any = null;
-    
-    res.json = function(data: any) {
-      responseData = data;
-      return originalJson(data);
-    };
-    
-    // Call better-auth handler
-    const handler = toNodeHandler(auth);
-    await handler(req, res);
-    
-    // After successful sign-up, assign role
-    // Check if response was successful and contains user data
-    if (responseData && responseData.user && responseData.user.id) {
-      // Assign role asynchronously (don't block the response)
-      assignRoleToNewUser(responseData.user.id).catch(err => {
-        console.error("[Auth] Error assigning role after sign-up:", err);
-      });
-    }
-  } catch (error) {
-    console.error("[Auth] Error in sign-up handler:", error);
-    
-    // Map better-auth errors to ApiResponse format
-    const mappedError = mapBetterAuthError(error);
-    
-    res.status(mappedError.statusCode).json({
-      success: false,
-      error: {
-        code: mappedError.code,
-        message: mappedError.message,
-        ...(mappedError.details && { details: mappedError.details })
-      }
-    } as ApiResponse);
-  }
-});
+// Sign-up is now handled by better-auth with admin plugin
+// First user automatically becomes admin, subsequent users get "user" role
 
 /**
  * better-auth route handler

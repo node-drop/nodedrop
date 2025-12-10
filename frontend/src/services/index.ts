@@ -1,6 +1,5 @@
 // API service exports
 export * from "./api";
-export * from "./auth";
 export * from "./credential";
 export * from "./customNode";
 export * from "./ExecutionStateManager";

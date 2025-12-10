@@ -366,7 +366,7 @@ async function main() {
 
     // Get admin user (should exist from setup wizard)
     const adminUser = await prisma.user.findFirst({
-      where: { role: "ADMIN" }
+      where: { role: "admin" }
     });
 
     if (!adminUser) {
