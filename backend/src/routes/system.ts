@@ -177,8 +177,9 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
         console.log('[Update] Executing update command...');
         
         // Try docker-compose first (v1), fall back to docker compose (v2)
-        // Build the update command - use docker-compose for better compatibility
-        const updateCommand = `docker pull ${imageName} && (docker-compose -f ${installDir}/docker-compose.yml up -d --force-recreate || docker compose -f ${installDir}/docker-compose.yml up -d --force-recreate)`;
+        // Build the update command - properly stop containers first to avoid name conflicts
+        // Then pull new image and start with fresh containers
+        const updateCommand = `docker pull ${imageName} && (docker-compose -f ${installDir}/docker-compose.yml down && docker-compose -f ${installDir}/docker-compose.yml up -d || docker compose -f ${installDir}/docker-compose.yml down && docker compose -f ${installDir}/docker-compose.yml up -d)`;
         console.log('[Update] Command:', updateCommand);
         
         // Use spawn with detached mode for better reliability
