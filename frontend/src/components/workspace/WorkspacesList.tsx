@@ -3,6 +3,7 @@ import { Building2, Crown, MoreHorizontal, Plus, Settings, Users, Search, Refres
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useSidebarContext } from "@/contexts"
 import { useWorkspaceStore, WorkspaceLimitInfo } from "@/stores/workspace"
+import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -87,12 +88,16 @@ export function WorkspacesList({
     }
   }
 
-  const canCreateMore = limitInfo?.allowed ?? true
-  const limitTooltip = limitInfo && !limitInfo.allowed 
-    ? limitInfo.reason 
-    : limitInfo && limitInfo.maxAllowed !== -1
-      ? `${limitInfo.currentCount} of ${limitInfo.maxAllowed} workspaces used`
-      : undefined
+  // In community edition, hide create button entirely
+  const isMultiWorkspaceEnabled = editionConfig.isFeatureEnabled('multiWorkspace')
+  const canCreateMore = isMultiWorkspaceEnabled && (limitInfo?.allowed ?? true)
+  const limitTooltip = !isMultiWorkspaceEnabled
+    ? 'Multi-workspace is a Cloud feature'
+    : limitInfo && !limitInfo.allowed 
+      ? limitInfo.reason 
+      : limitInfo && limitInfo.maxAllowed !== -1
+        ? `${limitInfo.currentCount} of ${limitInfo.maxAllowed} workspaces used`
+        : undefined
 
   // Set header slot with count, refresh, and search
   React.useEffect(() => {
@@ -116,27 +121,30 @@ export function WorkspacesList({
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 gap-1 px-2"
-                    onClick={handleCreateWorkspace}
-                    disabled={!canCreateMore}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span className="text-xs">New</span>
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {limitTooltip && (
-                <TooltipContent>
-                  <p>{limitTooltip}</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
+            {/* Only show create button in cloud edition */}
+            {isMultiWorkspaceEnabled && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 gap-1 px-2"
+                      onClick={handleCreateWorkspace}
+                      disabled={!canCreateMore}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="text-xs">New</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {limitTooltip && (
+                  <TooltipContent>
+                    <p>{limitTooltip}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            )}
           </div>
         </div>
         <div className="relative">

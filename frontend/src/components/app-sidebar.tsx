@@ -17,6 +17,7 @@ import {
   ManageMembersDialog as WorkspaceManageMembersDialog,
   InviteMemberModal
 } from "@/components/workspace"
+import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import {
@@ -322,7 +323,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroup className="mt-auto">
             <SidebarGroupContent className="px-1.5 md:px-0">
               <SidebarMenu>
-                {data.bottomItems.map((item) => (
+                {data.bottomItems
+                  .filter((item) => {
+                    // Hide Teams in community edition (still accessible but shows upgrade prompt)
+                    // Hide Workspaces list in community edition (single workspace)
+                    if (item.title === "Teams" && !editionConfig.isFeatureEnabled('teamCollaboration')) {
+                      return false;
+                    }
+                    if (item.title === "Workspaces" && !editionConfig.isFeatureEnabled('multiWorkspace')) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       tooltip={{
@@ -380,8 +393,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarHeader>
         ) : (
           <SidebarHeader className="gap-3.5 border-b p-4">
-            {/* Workspace Switcher - Show when user has workspaces */}
-            {workspaces.length > 0 && (
+            {/* Workspace Switcher - Show in cloud edition when user has workspaces */}
+            {editionConfig.isFeatureEnabled('multiWorkspace') && workspaces.length > 0 && (
               <WorkspaceSwitcher 
                 onWorkspaceChange={(workspaceId) => {
                   console.log("Workspace changed to:", workspaceId)
@@ -390,8 +403,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               />
             )}
             
-            {/* Team Switcher - Only show for context-aware views and when user has teams */}
-            {teams.length > 0 && (activeWorkflowItem?.title === "All Workflows" || 
+            {/* Team Switcher - Only show in cloud edition for context-aware views and when user has teams */}
+            {editionConfig.isFeatureEnabled('teamCollaboration') && teams.length > 0 && (activeWorkflowItem?.title === "All Workflows" || 
               activeWorkflowItem?.title === "All Credentials") && (
               <TeamSwitcher 
                 onTeamChange={(teamId) => {

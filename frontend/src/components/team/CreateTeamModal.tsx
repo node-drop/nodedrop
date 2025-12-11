@@ -1,5 +1,6 @@
 import * as React from "react"
-import { AlertCircle, Sparkles } from "lucide-react"
+import { AlertCircle, Sparkles, Cloud } from "lucide-react"
+import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -43,7 +44,9 @@ export function CreateTeamModal({ open, onOpenChange, onSuccess }: CreateTeamMod
   const { createTeam } = useTeamStore()
   const { currentWorkspace } = useWorkspace()
 
+  const isTeamFeatureEnabled = editionConfig.isFeatureEnabled('teamCollaboration')
   const isFreePlan = currentWorkspace?.plan === "free"
+  const showUpgradePrompt = !isTeamFeatureEnabled || isFreePlan
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,10 +91,10 @@ export function CreateTeamModal({ open, onOpenChange, onSuccess }: CreateTeamMod
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
-        {isFreePlan ? (
+        {showUpgradePrompt ? (
           <>
             <DialogHeader>
-              <DialogTitle>Teams - Pro Feature</DialogTitle>
+              <DialogTitle>Teams - {isTeamFeatureEnabled ? 'Pro Feature' : 'Cloud Feature'}</DialogTitle>
               <DialogDescription>
                 Teams allow you to collaborate with others on workflows and credentials.
               </DialogDescription>
@@ -99,17 +102,23 @@ export function CreateTeamModal({ open, onOpenChange, onSuccess }: CreateTeamMod
 
             <div className="space-y-4 py-4">
               <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Upgrade required</AlertTitle>
+                {isTeamFeatureEnabled ? (
+                  <AlertCircle className="h-4 w-4" />
+                ) : (
+                  <Cloud className="h-4 w-4" />
+                )}
+                <AlertTitle>{isTeamFeatureEnabled ? 'Upgrade required' : 'Cloud Feature'}</AlertTitle>
                 <AlertDescription>
-                  Teams are available on Pro and Enterprise plans. Upgrade to create teams and collaborate with your colleagues.
+                  {isTeamFeatureEnabled 
+                    ? 'Teams are available on Pro and Enterprise plans. Upgrade to create teams and collaborate with your colleagues.'
+                    : 'Teams are available in NodeDrop Cloud. The open source version is designed for individual use.'}
                 </AlertDescription>
               </Alert>
 
               <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Sparkles className="h-4 w-4 text-yellow-500" />
-                  Upgrade to Pro
+                  {isTeamFeatureEnabled ? 'Upgrade to Pro' : 'NodeDrop Cloud'}
                 </div>
                 <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• Create unlimited teams</li>
@@ -117,8 +126,13 @@ export function CreateTeamModal({ open, onOpenChange, onSuccess }: CreateTeamMod
                   <li>• Share credentials securely</li>
                   <li>• Collaborate on workflows</li>
                 </ul>
-                <Button variant="default" size="sm" className="w-full" disabled>
-                  Coming Soon
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => window.open('https://nodedrop.io/pricing', '_blank')}
+                >
+                  {isTeamFeatureEnabled ? 'Coming Soon' : 'Learn More'}
                 </Button>
               </div>
             </div>

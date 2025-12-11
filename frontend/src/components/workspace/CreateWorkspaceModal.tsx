@@ -2,9 +2,10 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Building2, Loader2, AlertCircle, Sparkles } from "lucide-react"
+import { Building2, Loader2, AlertCircle, Sparkles, Cloud } from "lucide-react"
 import { toast } from "sonner"
 
+import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -93,8 +94,10 @@ export function CreateWorkspaceModal({
     }
   }
 
-  const canCreate = limitInfo?.allowed ?? false
+  const isMultiWorkspaceEnabled = editionConfig.isFeatureEnabled('multiWorkspace')
+  const canCreate = isMultiWorkspaceEnabled && (limitInfo?.allowed ?? false)
   const showLimitReached = limitInfo && !limitInfo.allowed
+  const showCommunityMessage = !isMultiWorkspaceEnabled
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -109,7 +112,44 @@ export function CreateWorkspaceModal({
           </DialogDescription>
         </DialogHeader>
 
-        {isCheckingLimit ? (
+        {showCommunityMessage ? (
+          <div className="space-y-4">
+            <Alert>
+              <Cloud className="h-4 w-4" />
+              <AlertTitle>Cloud Feature</AlertTitle>
+              <AlertDescription>
+                Multi-workspace is available in NodeDrop Cloud. The open source version includes one workspace with unlimited workflows.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-yellow-500" />
+                NodeDrop Cloud
+              </div>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Multiple workspaces</li>
+                <li>• Team collaboration</li>
+                <li>• Member invitations</li>
+                <li>• Priority support</li>
+              </ul>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="w-full"
+                onClick={() => window.open('https://nodedrop.io/pricing', '_blank')}
+              >
+                Learn More
+              </Button>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : isCheckingLimit ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>

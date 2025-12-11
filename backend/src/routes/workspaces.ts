@@ -2,6 +2,10 @@
  * Workspace Routes
  * 
  * API endpoints for workspace management in multi-tenant SaaS.
+ * 
+ * Edition behavior:
+ * - Community: Single workspace per user, no multi-workspace features
+ * - Cloud: Full multi-workspace, team collaboration, invitations
  */
 
 import { Router, Response } from "express";
@@ -12,9 +16,11 @@ import {
   requireWorkspaceRole, 
   WorkspaceRequest 
 } from "../middleware/workspace";
+import { requireEditionFeature } from "../middleware/edition";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkspaceService } from "../services/WorkspaceService";
 import { AppError } from "../middleware/errorHandler";
+import { isFeatureEnabled } from "../config/edition";
 
 const router = Router();
 
@@ -38,11 +44,25 @@ router.get(
 /**
  * GET /api/workspaces/can-create
  * Check if user can create more workspaces
+ * Cloud only - Community edition always returns false (single workspace)
  */
 router.get(
   "/can-create",
   requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    // In community edition, users cannot create additional workspaces
+    if (!isFeatureEnabled('multiWorkspace')) {
+      res.json({ 
+        success: true, 
+        data: { 
+          allowed: false, 
+          reason: 'Multi-workspace is a Cloud feature. Upgrade to NodeDrop Cloud for multiple workspaces.',
+          currentCount: 1,
+          maxAllowed: 1
+        } 
+      });
+      return;
+    }
     const result = await WorkspaceService.canCreateWorkspace(req.user!.id);
     res.json({ success: true, data: result });
   })
@@ -51,10 +71,12 @@ router.get(
 /**
  * POST /api/workspaces
  * Create a new workspace
+ * Cloud only - Community edition has single workspace created at registration
  */
 router.post(
   "/",
   requireAuth,
+  requireEditionFeature('multiWorkspace'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { name, slug, description } = req.body;
 
@@ -144,10 +166,12 @@ router.get(
 /**
  * POST /api/workspaces/:workspaceId/members/invite
  * Invite a new member to workspace
+ * Cloud only - Community edition is single-user
  */
 router.post(
   "/:workspaceId/members/invite",
   requireAuth,
+  requireEditionFeature('memberInvitations'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { email, role } = req.body;
 
@@ -172,10 +196,12 @@ router.post(
 /**
  * POST /api/workspaces/invitations/:token/accept
  * Accept a workspace invitation
+ * Cloud only - Community edition is single-user
  */
 router.post(
   "/invitations/:token/accept",
   requireAuth,
+  requireEditionFeature('memberInvitations'),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workspace = await WorkspaceService.acceptInvitation(
       req.params.token,

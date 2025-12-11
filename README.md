@@ -257,6 +257,16 @@ We welcome contributions! Please follow these steps:
 - Use `npm run clean` for a completely fresh start
 - Install the React DevTools browser extension for debugging
 
+## 📦 Editions
+
+### Community Edition (This Repo)
+Free, self-hosted, unlimited workflows and executions. Perfect for individuals and small teams.
+
+### Cloud Edition
+Managed SaaS at [nodedrop.io](https://nodedrop.io) with multi-workspace, team collaboration, and enterprise features.
+
+See [docs/EDITIONS.md](./docs/EDITIONS.md) for details.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

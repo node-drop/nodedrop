@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Layout, ProtectedRoute, WorkflowEditorLayout } from '@/components'
 import { GlobalToastProvider } from '@/components/providers/GlobalToastProvider'
 import { Toaster } from '@/components/ui/sonner'
+import { initializeEdition } from '@/config/edition'
 
 import { AuthProvider, SidebarContextProvider, TeamProvider, ThemeProvider, WorkspaceProvider } from '@/contexts'
 import {
@@ -21,6 +23,18 @@ import { OAuthCallback } from '@/pages/OAuthCallback'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 
 function App() {
+  const [editionLoaded, setEditionLoaded] = useState(false)
+
+  // Initialize edition config on app startup
+  useEffect(() => {
+    initializeEdition().finally(() => setEditionLoaded(true))
+  }, [])
+
+  // Show nothing until edition is loaded (very fast, usually instant)
+  if (!editionLoaded) {
+    return null
+  }
+
   return (
     <>
       <Router>

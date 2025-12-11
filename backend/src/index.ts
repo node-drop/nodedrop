@@ -441,7 +441,9 @@ app.use("/api/users", userRoutes);
 
 // System routes
 import systemRoutes from "./routes/system";
+import editionRoutes from "./routes/edition";
 app.use("/api/system", systemRoutes);
+app.use("/api/edition", editionRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api", environmentRoutes); // Environment routes are nested under workflows
 app.use("/api/executions", executionRoutes);

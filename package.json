@@ -1,8 +1,25 @@
 {
-  "name": "node-drop",
+  "name": "nodedrop",
   "version": "1.0.15-alpha",
-  "description": "A workflow automation platform",
-  "private": true,
+  "description": "A workflow automation platform - Open Source",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/node-drop/nodedrop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/node-drop/nodedrop/issues"
+  },
+  "homepage": "https://nodedrop.io",
+  "keywords": [
+    "workflow",
+    "automation",
+    "n8n",
+    "zapier",
+    "integration",
+    "low-code",
+    "no-code"
+  ],
   "workspaces": [
     "frontend",
     "backend",

@@ -1,4 +1,5 @@
 "use client"
+import { editionConfig } from "@/config/edition"
 import {
   Avatar,
   AvatarFallback,
@@ -240,7 +241,8 @@ export function NavUser({
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            {currentWorkspace && (
+            {/* Workspace section - only show in cloud edition with multi-workspace enabled */}
+            {editionConfig.isFeatureEnabled('multiWorkspace') && currentWorkspace && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
