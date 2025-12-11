@@ -52,6 +52,43 @@ export class WorkspaceService {
     data: CreateWorkspaceRequest
   ): Promise<WorkspaceResponse> {
     try {
+      // Check user's workspace limit based on their highest plan
+      const userWorkspaces = await prisma.workspaceMember.findMany({
+        where: { 
+          userId,
+          role: WorkspaceRole.OWNER, // Only count workspaces they own
+        },
+        include: {
+          workspace: {
+            select: { plan: true },
+          },
+        },
+      });
+
+      // Determine user's effective plan (highest plan among owned workspaces, or free if none)
+      let effectivePlan = "free";
+      for (const membership of userWorkspaces) {
+        const plan = membership.workspace.plan;
+        if (plan === "enterprise") {
+          effectivePlan = "enterprise";
+          break;
+        } else if (plan === "pro" && effectivePlan !== "enterprise") {
+          effectivePlan = "pro";
+        }
+      }
+
+      const planLimits = WORKSPACE_PLANS[effectivePlan] || WORKSPACE_PLANS.free;
+      const ownedWorkspaceCount = userWorkspaces.length;
+
+      // Check if user can create more workspaces
+      if (planLimits.maxWorkspaces !== -1 && ownedWorkspaceCount >= planLimits.maxWorkspaces) {
+        throw new AppError(
+          `Workspace limit reached. ${effectivePlan === "free" ? "Upgrade to Pro for more workspaces." : "Upgrade your plan for more workspaces."}`,
+          403,
+          "WORKSPACE_LIMIT_REACHED"
+        );
+      }
+
       const slug = data.slug || this.generateSlug(data.name);
 
       // Check if slug already exists
@@ -63,9 +100,8 @@ export class WorkspaceService {
         throw new AppError("Workspace slug already exists", 400, "SLUG_EXISTS");
       }
 
-      // Get default plan limits
-      const planLimits = WORKSPACE_PLANS.free;
-
+      // Get default plan limits for new workspace (always starts as free)
+      const newWorkspacePlanLimits = WORKSPACE_PLANS.free;
 
       // Create workspace with owner as member
       const workspace = await prisma.workspace.create({
@@ -75,10 +111,10 @@ export class WorkspaceService {
           description: data.description,
           ownerId: userId,
           plan: "free",
-          maxMembers: planLimits.maxMembers,
-          maxWorkflows: planLimits.maxWorkflows,
-          maxExecutionsPerMonth: planLimits.maxExecutionsPerMonth,
-          maxCredentials: planLimits.maxCredentials,
+          maxMembers: newWorkspacePlanLimits.maxMembers,
+          maxWorkflows: newWorkspacePlanLimits.maxWorkflows,
+          maxExecutionsPerMonth: newWorkspacePlanLimits.maxExecutionsPerMonth,
+          maxCredentials: newWorkspacePlanLimits.maxCredentials,
           members: {
             create: {
               userId,
@@ -210,6 +246,66 @@ export class WorkspaceService {
     } catch (error) {
       logger.error("Error getting user workspaces:", error);
       throw new AppError("Failed to get workspaces", 500, "WORKSPACES_GET_ERROR");
+    }
+  }
+
+  /**
+   * Check if user can create more workspaces
+   */
+  static async canCreateWorkspace(userId: string): Promise<{ 
+    allowed: boolean; 
+    reason?: string;
+    currentCount: number;
+    maxAllowed: number;
+    plan: string;
+  }> {
+    try {
+      const ownedWorkspaces = await prisma.workspaceMember.findMany({
+        where: { 
+          userId,
+          role: WorkspaceRole.OWNER,
+        },
+        include: {
+          workspace: {
+            select: { plan: true },
+          },
+        },
+      });
+
+      // Determine user's effective plan
+      let effectivePlan = "free";
+      for (const membership of ownedWorkspaces) {
+        const plan = membership.workspace.plan;
+        if (plan === "enterprise") {
+          effectivePlan = "enterprise";
+          break;
+        } else if (plan === "pro" && effectivePlan !== "enterprise") {
+          effectivePlan = "pro";
+        }
+      }
+
+      const planLimits = WORKSPACE_PLANS[effectivePlan] || WORKSPACE_PLANS.free;
+      const currentCount = ownedWorkspaces.length;
+      const maxAllowed = planLimits.maxWorkspaces;
+
+      if (maxAllowed === -1) {
+        return { allowed: true, currentCount, maxAllowed, plan: effectivePlan };
+      }
+
+      if (currentCount >= maxAllowed) {
+        return { 
+          allowed: false, 
+          reason: `You've reached the maximum of ${maxAllowed} workspace${maxAllowed !== 1 ? 's' : ''} for the ${planLimits.name} plan.`,
+          currentCount,
+          maxAllowed,
+          plan: effectivePlan,
+        };
+      }
+
+      return { allowed: true, currentCount, maxAllowed, plan: effectivePlan };
+    } catch (error) {
+      logger.error("Error checking workspace limit:", error);
+      return { allowed: false, reason: "Error checking limits", currentCount: 0, maxAllowed: 0, plan: "free" };
     }
   }
 

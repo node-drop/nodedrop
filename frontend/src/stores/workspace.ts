@@ -3,6 +3,14 @@ import { persist } from 'zustand/middleware'
 import { workspaceService } from '@/services/workspace'
 import { Workspace, WorkspaceMember, WorkspaceUsage } from '@/types/workspace'
 
+export interface WorkspaceLimitInfo {
+  allowed: boolean
+  reason?: string
+  currentCount: number
+  maxAllowed: number
+  plan: string
+}
+
 interface WorkspaceState {
   // State
   workspaces: Workspace[]
@@ -10,6 +18,7 @@ interface WorkspaceState {
   currentWorkspaceId: string | null
   members: WorkspaceMember[]
   usage: WorkspaceUsage | null
+  workspaceLimitInfo: WorkspaceLimitInfo | null
   isLoading: boolean
   error: string | null
 
@@ -18,6 +27,7 @@ interface WorkspaceState {
   fetchWorkspace: (id: string) => Promise<Workspace>
   fetchMembers: (workspaceId: string) => Promise<void>
   fetchUsage: (workspaceId: string) => Promise<void>
+  checkCanCreateWorkspace: () => Promise<WorkspaceLimitInfo>
   setCurrentWorkspace: (workspaceId: string | null) => void
   createWorkspace: (name: string, description?: string) => Promise<Workspace>
   updateWorkspace: (id: string, data: Partial<Workspace>) => Promise<Workspace>
@@ -35,6 +45,7 @@ const initialState = {
   currentWorkspaceId: null,
   members: [],
   usage: null,
+  workspaceLimitInfo: null,
   isLoading: false,
   error: null,
 }
@@ -52,17 +63,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
           const { currentWorkspaceId } = get()
           
-          // If we have a currentWorkspaceId, update currentWorkspace
+          // If we have a currentWorkspaceId, verify it's still valid
           if (currentWorkspaceId) {
             const current = workspaces.find(w => w.id === currentWorkspaceId)
             if (current) {
               set({ currentWorkspace: current })
               return
             }
+            // Current workspace ID is invalid (user doesn't have access), clear it
+            console.warn('[Workspace] Stored workspace ID is invalid, selecting new default')
           }
           
-          // Auto-select first workspace if none selected and workspaces exist
-          if (!currentWorkspaceId && workspaces.length > 0) {
+          // Auto-select workspace if none selected or invalid
+          if (workspaces.length > 0) {
             // Prefer workspace where user is OWNER, otherwise first one
             const ownedWorkspace = workspaces.find(w => w.userRole === 'OWNER')
             const defaultWorkspace = ownedWorkspace || workspaces[0]
@@ -70,6 +83,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               currentWorkspaceId: defaultWorkspace.id, 
               currentWorkspace: defaultWorkspace 
             })
+          } else {
+            // No workspaces available, clear current
+            set({ currentWorkspaceId: null, currentWorkspace: null })
           }
         } catch (error: any) {
           set({ error: error.message, isLoading: false })
@@ -113,6 +129,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ currentWorkspaceId: workspaceId, currentWorkspace: workspace })
       },
 
+      checkCanCreateWorkspace: async () => {
+        try {
+          const limitInfo = await workspaceService.canCreateWorkspace()
+          set({ workspaceLimitInfo: limitInfo })
+          return limitInfo
+        } catch (error: any) {
+          console.error('Failed to check workspace limit:', error)
+          const fallback: WorkspaceLimitInfo = { allowed: false, reason: 'Error checking limits', currentCount: 0, maxAllowed: 0, plan: 'free' }
+          set({ workspaceLimitInfo: fallback })
+          return fallback
+        }
+      },
+
       createWorkspace: async (name: string, description?: string) => {
         set({ isLoading: true, error: null })
         try {
@@ -131,7 +160,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       updateWorkspace: async (id: string, data: Partial<Workspace>) => {
         set({ isLoading: true, error: null })
         try {
-          const workspace = await workspaceService.updateWorkspace(id, data)
+          // Filter out null values and convert to UpdateWorkspaceRequest
+          const updateData = {
+            ...(data.name && { name: data.name }),
+            ...(data.slug && { slug: data.slug }),
+            ...(data.description !== undefined && { description: data.description || undefined }),
+          }
+          const workspace = await workspaceService.updateWorkspace(id, updateData)
           set(state => ({
             workspaces: state.workspaces.map(w => w.id === id ? workspace : w),
             currentWorkspace: state.currentWorkspaceId === id ? workspace : state.currentWorkspace,

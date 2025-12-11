@@ -36,6 +36,19 @@ router.get(
 );
 
 /**
+ * GET /api/workspaces/can-create
+ * Check if user can create more workspaces
+ */
+router.get(
+  "/can-create",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const result = await WorkspaceService.canCreateWorkspace(req.user!.id);
+    res.json({ success: true, data: result });
+  })
+);
+
+/**
  * POST /api/workspaces
  * Create a new workspace
  */

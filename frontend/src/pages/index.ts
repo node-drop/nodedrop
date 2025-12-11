@@ -11,3 +11,4 @@ export * from "./ResetPasswordPage";
 export * from "./WebhookRequestsPage";
 export * from "./WorkflowEditorPage";
 export * from "./WorkflowsPage";
+export * from "./WorkspacePage";

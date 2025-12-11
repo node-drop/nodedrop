@@ -254,6 +254,11 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
           console.warn("Logout error:", error);
         } finally {
           apiClient.clearToken();
+          
+          // Reset workspace store to clear stale workspace data
+          const { useWorkspaceStore } = await import("./workspace");
+          useWorkspaceStore.getState().reset();
+          
           set({
             user: null,
             token: null,

@@ -9,7 +9,14 @@ import { ManageMembersDialog } from "@/components/team/ManageMembersDialog"
 import { TeamSettingsModal } from "@/components/team/TeamSettingsModal"
 import { TeamsList } from "@/components/team/TeamsList"
 import { TeamSwitcher } from "@/components/team/TeamSwitcher"
-import { WorkspaceSwitcher, CreateWorkspaceModal } from "@/components/workspace"
+import { 
+  WorkspaceSwitcher, 
+  CreateWorkspaceModal, 
+  WorkspacesList,
+  WorkspaceSettingsModal,
+  ManageMembersDialog as WorkspaceManageMembersDialog,
+  InviteMemberModal
+} from "@/components/workspace"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import {
@@ -33,6 +40,7 @@ import { useAuthStore, useReactFlowUIStore, useSystemStore, useWorkflowStore } f
 import {
   Activity,
   ArrowLeft,
+  Building2,
   CalendarClock,
   Database,
   Home,
@@ -103,6 +111,12 @@ const data = {
   ],
   bottomItems: [
     {
+      title: "Workspaces",
+      url: "#",
+      icon: Building2,
+      isActive: false,
+    },
+    {
       title: "Teams",
       url: "#",
       icon: Users,
@@ -159,6 +173,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Workspace modal state
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = React.useState(false)
+  const [isWorkspaceSettingsModalOpen, setIsWorkspaceSettingsModalOpen] = React.useState(false)
+  const [isWorkspaceManageMembersOpen, setIsWorkspaceManageMembersOpen] = React.useState(false)
+  const [isWorkspaceInviteMemberOpen, setIsWorkspaceInviteMemberOpen] = React.useState(false)
+  const [selectedWorkspace, setSelectedWorkspace] = React.useState<{ id: string; name: string; userRole: string } | null>(null)
 
   // Team modals state
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = React.useState(false)
@@ -421,6 +439,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <ExecutionsList />
                   )}
                   
+                  {activeWorkflowItem?.title === "Workspaces" && (
+                    <WorkspacesList 
+                      onWorkspaceSelect={(workspace) => {
+                        // Navigate to workspace page when selected
+                        navigate('/workspace')
+                      }}
+                      onCreateWorkspace={() => {
+                        setIsCreateWorkspaceModalOpen(true)
+                      }}
+                      onManageMembers={(workspace) => {
+                        setSelectedWorkspace({
+                          id: workspace.id,
+                          name: workspace.name,
+                          userRole: workspace.userRole || 'VIEWER'
+                        })
+                        setIsWorkspaceManageMembersOpen(true)
+                      }}
+                      onWorkspaceSettings={(workspace) => {
+                        setSelectedWorkspace({
+                          id: workspace.id,
+                          name: workspace.name,
+                          userRole: workspace.userRole || 'VIEWER'
+                        })
+                        setIsWorkspaceSettingsModalOpen(true)
+                      }}
+                    />
+                  )}
+                  
                   {activeWorkflowItem?.title === "Teams" && (
                     <TeamsList 
                       onTeamSelect={(team) => {
@@ -529,6 +575,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           console.log("Workspace created:", workspaceId)
         }}
       />
+      {selectedWorkspace && (
+        <>
+          <WorkspaceSettingsModal
+            open={isWorkspaceSettingsModalOpen}
+            onOpenChange={setIsWorkspaceSettingsModalOpen}
+            workspace={workspaces.find(w => w.id === selectedWorkspace.id)!}
+          />
+          <WorkspaceManageMembersDialog
+            open={isWorkspaceManageMembersOpen}
+            onOpenChange={setIsWorkspaceManageMembersOpen}
+            workspaceId={selectedWorkspace.id}
+            workspaceName={selectedWorkspace.name}
+            userRole={selectedWorkspace.userRole as any}
+            onAddMember={() => {
+              setIsWorkspaceManageMembersOpen(false)
+              setIsWorkspaceInviteMemberOpen(true)
+            }}
+          />
+          <InviteMemberModal
+            open={isWorkspaceInviteMemberOpen}
+            onOpenChange={setIsWorkspaceInviteMemberOpen}
+            workspaceId={selectedWorkspace.id}
+            workspaceName={selectedWorkspace.name}
+            onSuccess={() => {
+              setIsWorkspaceManageMembersOpen(true)
+            }}
+          />
+        </>
+      )}
       <CreateTeamModal 
         open={isCreateTeamModalOpen}
         onOpenChange={setIsCreateTeamModalOpen}

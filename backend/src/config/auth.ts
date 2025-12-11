@@ -11,6 +11,68 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin } from "better-auth/plugins/admin";
 import { prisma } from "./database";
+import { WorkspaceRole } from "@prisma/client";
+
+/**
+ * Generate a URL-friendly slug from a string
+ */
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .substring(0, 50);
+}
+
+/**
+ * Create a default workspace for a new user
+ */
+async function createDefaultWorkspace(userId: string, userName: string | null, userEmail: string): Promise<void> {
+  try {
+    const workspaceName = userName ? `${userName}'s Workspace` : "My Workspace";
+    let slug = generateSlug(workspaceName);
+    
+    // Ensure slug is unique by appending random suffix if needed
+    const existingWorkspace = await prisma.workspace.findUnique({ where: { slug } });
+    if (existingWorkspace) {
+      slug = `${slug}-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    // Create workspace
+    const workspace = await prisma.workspace.create({
+      data: {
+        name: workspaceName,
+        slug,
+        ownerId: userId,
+        plan: "free",
+        maxMembers: 1,
+        maxWorkflows: 5,
+        maxExecutionsPerMonth: 1000,
+        maxCredentials: 10,
+      },
+    });
+
+    // Add user as workspace member with OWNER role
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: workspace.id,
+        userId: userId,
+        role: WorkspaceRole.OWNER,
+      },
+    });
+
+    // Set as user's default workspace
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultWorkspaceId: workspace.id },
+    });
+
+    console.log(`[Auth] Created default workspace "${workspaceName}" for user ${userEmail}`);
+  } catch (error) {
+    console.error(`[Auth] Failed to create default workspace for user ${userEmail}:`, error);
+    // Don't throw - user creation should still succeed even if workspace creation fails
+  }
+}
 
 /**
  * Session expiration time in seconds (7 days)
@@ -122,7 +184,19 @@ export const auth = betterAuth({
   ],
   
   // Trust host header for proxy setups
-  trustedOrigins: process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : ["http://localhost:3000"]
+  trustedOrigins: process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : ["http://localhost:3000"],
+  
+  // Database hooks for user lifecycle events
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Create a default workspace for new users
+          await createDefaultWorkspace(user.id, user.name, user.email);
+        },
+      },
+    },
+  },
 });
 
 /**

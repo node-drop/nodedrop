@@ -14,7 +14,8 @@ import {
     RegisterPage,
     ResetPasswordPage,
     WebhookRequestsPage,
-    WorkflowEditorPage
+    WorkflowEditorPage,
+    WorkspacePage
 } from '@/pages'
 import { OAuthCallback } from '@/pages/OAuthCallback'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
@@ -124,6 +125,7 @@ function App() {
             }
           >
             <Route index element={<Navigate to="/workflows" replace />} />
+            <Route path="workspace" element={<WorkspacePage />} />
             <Route path="executions" element={<ExecutionsPage />} />
             <Route path="webhook-requests" element={<WebhookRequestsPage />} />
             <Route path="custom-nodes" element={<CustomNodesPage />} />

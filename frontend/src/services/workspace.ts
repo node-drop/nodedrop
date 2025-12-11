@@ -131,6 +131,26 @@ export class WorkspaceService {
       throw new Error('Failed to set default workspace')
     }
   }
+
+  async canCreateWorkspace(): Promise<{
+    allowed: boolean
+    reason?: string
+    currentCount: number
+    maxAllowed: number
+    plan: string
+  }> {
+    const response = await apiClient.get<{
+      allowed: boolean
+      reason?: string
+      currentCount: number
+      maxAllowed: number
+      plan: string
+    }>('/workspaces/can-create')
+    if (!response.success || !response.data) {
+      throw new Error('Failed to check workspace limit')
+    }
+    return response.data
+  }
 }
 
 export const workspaceService = new WorkspaceService()

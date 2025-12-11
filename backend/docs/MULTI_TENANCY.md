@@ -228,8 +228,10 @@ If not provided, the user's default workspace is used.
 
 ## Plan Limits
 
-| Plan | Members | Workflows | Executions/Month | Credentials |
-|------|---------|-----------|------------------|-------------|
-| Free | 1       | 5        | 1,000 | 10 |
-| Pro  | 10      | 50        | 10,000 | 100 |
-| Enterprise | Unlimited | Unlimited | Unlimited | Unlimited |
+| Plan | Workspaces | Members | Workflows | Executions/Month | Credentials |
+|------|------------|---------|-----------|------------------|-------------|
+| Free | 1          | 1       | 5         | 1,000            | 10          |
+| Pro  | 5          | 10      | 50        | 10,000           | 100         |
+| Enterprise | Unlimited | Unlimited | Unlimited | Unlimited    | Unlimited   |
+
+Note: Workspace limits are enforced per user (based on owned workspaces). Users can be members of unlimited workspaces owned by others.

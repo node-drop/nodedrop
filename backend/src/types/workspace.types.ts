@@ -17,6 +17,7 @@ export interface WorkspacePlan {
   maxWorkflows: number;
   maxExecutionsPerMonth: number;
   maxCredentials: number;
+  maxWorkspaces: number;
 }
 
 export const WORKSPACE_PLANS: Record<string, WorkspacePlan> = {
@@ -26,6 +27,7 @@ export const WORKSPACE_PLANS: Record<string, WorkspacePlan> = {
     maxWorkflows: 5,
     maxExecutionsPerMonth: 1000,
     maxCredentials: 10,
+    maxWorkspaces: 1,
   },
   pro: {
     name: "Pro",
@@ -33,6 +35,7 @@ export const WORKSPACE_PLANS: Record<string, WorkspacePlan> = {
     maxWorkflows: 50,
     maxExecutionsPerMonth: 10000,
     maxCredentials: 100,
+    maxWorkspaces: 5,
   },
   enterprise: {
     name: "Enterprise",
@@ -40,6 +43,7 @@ export const WORKSPACE_PLANS: Record<string, WorkspacePlan> = {
     maxWorkflows: -1,
     maxExecutionsPerMonth: -1,
     maxCredentials: -1,
+    maxWorkspaces: -1,
   },
 };
 
