@@ -19,21 +19,25 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useAuthStore, useSystemStore } from "@/stores"
+import { useAuthStore, useSystemStore, useWorkspaceStore } from "@/stores"
 import {
   Activity,
   BadgeCheck,
   Bell,
+  Building2,
   ChevronsUpDown,
   Database,
   Download,
   LogOut,
   RefreshCw,
+  Settings,
+  Users,
   Webhook,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { WorkspaceSettingsModal, ManageMembersDialog, InviteMemberModal } from "@/components/workspace"
 
 export function NavUser({
   user,
@@ -47,8 +51,14 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const { logout } = useAuthStore()
   const { systemInfo, loadSystemInfo, checkForUpdates, installUpdate, isCheckingUpdate, isUpdating } = useSystemStore()
+  const { currentWorkspace } = useWorkspaceStore()
   const navigate = useNavigate()
   const [showUpdateOption, setShowUpdateOption] = useState(false)
+  
+  // Workspace modals state
+  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false)
+  const [showManageMembers, setShowManageMembers] = useState(false)
+  const [showInviteMember, setShowInviteMember] = useState(false)
 
   useEffect(() => {
     loadSystemInfo()
@@ -230,6 +240,27 @@ export function NavUser({
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            {currentWorkspace && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Building2 className="h-3 w-3" />
+                  {currentWorkspace.name}
+                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => setShowManageMembers(true)}>
+                    <Users />
+                    Manage Members
+                  </DropdownMenuItem>
+                  {(currentWorkspace.userRole === "OWNER" || currentWorkspace.userRole === "ADMIN") && (
+                    <DropdownMenuItem onClick={() => setShowWorkspaceSettings(true)}>
+                      <Settings />
+                      Workspace Settings
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+              </>
+            )}
             {showUpdateOption && (
               <>
                 <DropdownMenuSeparator />
@@ -256,6 +287,37 @@ export function NavUser({
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
+      
+      {/* Workspace Modals */}
+      {currentWorkspace && (
+        <>
+          <WorkspaceSettingsModal
+            open={showWorkspaceSettings}
+            onOpenChange={setShowWorkspaceSettings}
+            workspace={currentWorkspace}
+          />
+          <ManageMembersDialog
+            open={showManageMembers}
+            onOpenChange={setShowManageMembers}
+            workspaceId={currentWorkspace.id}
+            workspaceName={currentWorkspace.name}
+            userRole={currentWorkspace.userRole || "VIEWER"}
+            onAddMember={() => {
+              setShowManageMembers(false)
+              setShowInviteMember(true)
+            }}
+          />
+          <InviteMemberModal
+            open={showInviteMember}
+            onOpenChange={setShowInviteMember}
+            workspaceId={currentWorkspace.id}
+            workspaceName={currentWorkspace.name}
+            onSuccess={() => {
+              setShowManageMembers(true)
+            }}
+          />
+        </>
+      )}
     </SidebarMenu>
   )
 }

@@ -9,6 +9,7 @@ import { ManageMembersDialog } from "@/components/team/ManageMembersDialog"
 import { TeamSettingsModal } from "@/components/team/TeamSettingsModal"
 import { TeamsList } from "@/components/team/TeamsList"
 import { TeamSwitcher } from "@/components/team/TeamSwitcher"
+import { WorkspaceSwitcher, CreateWorkspaceModal } from "@/components/workspace"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import {
@@ -27,7 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { VariablesList } from "@/components/variable/VariablesList"
 import { WorkflowsList } from "@/components/workflow/WorkflowsList"
-import { useSidebarContext, useTeam, useTheme } from "@/contexts"
+import { useSidebarContext, useTeam, useTheme, useWorkspace } from "@/contexts"
 import { useAuthStore, useReactFlowUIStore, useSystemStore, useWorkflowStore } from "@/stores"
 import {
   Activity,
@@ -148,10 +149,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   
   // Team hook
   const { teams } = useTeam()
+  
+  // Workspace hook
+  const { workspaces } = useWorkspace()
 
   // Get workflow state to check for unsaved changes
   const { isDirty, isTitleDirty } = useWorkflowStore()
   const { showConfirm, ConfirmDialog } = useConfirmDialog()
+
+  // Workspace modal state
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = React.useState(false)
 
   // Team modals state
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = React.useState(false)
@@ -355,6 +362,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarHeader>
         ) : (
           <SidebarHeader className="gap-3.5 border-b p-4">
+            {/* Workspace Switcher - Show when user has workspaces */}
+            {workspaces.length > 0 && (
+              <WorkspaceSwitcher 
+                onWorkspaceChange={(workspaceId) => {
+                  console.log("Workspace changed to:", workspaceId)
+                }}
+                onCreateWorkspace={() => setIsCreateWorkspaceModalOpen(true)}
+              />
+            )}
+            
             {/* Team Switcher - Only show for context-aware views and when user has teams */}
             {teams.length > 0 && (activeWorkflowItem?.title === "All Workflows" || 
               activeWorkflowItem?.title === "All Credentials") && (
@@ -505,6 +522,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </Sidebar>
       </div>
       <ConfirmDialog />
+      <CreateWorkspaceModal
+        open={isCreateWorkspaceModalOpen}
+        onOpenChange={setIsCreateWorkspaceModalOpen}
+        onSuccess={(workspaceId) => {
+          console.log("Workspace created:", workspaceId)
+        }}
+      />
       <CreateTeamModal 
         open={isCreateTeamModalOpen}
         onOpenChange={setIsCreateTeamModalOpen}

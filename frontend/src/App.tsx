@@ -2,8 +2,9 @@ import { Layout, ProtectedRoute, WorkflowEditorLayout } from '@/components'
 import { GlobalToastProvider } from '@/components/providers/GlobalToastProvider'
 import { Toaster } from '@/components/ui/sonner'
 
-import { AuthProvider, SidebarContextProvider, TeamProvider, ThemeProvider } from '@/contexts'
+import { AuthProvider, SidebarContextProvider, TeamProvider, ThemeProvider, WorkspaceProvider } from '@/contexts'
 import {
+    AcceptInvitationPage,
     CustomNodesPage,
     ExecutionsPage,
     ForgotPasswordPage,
@@ -25,6 +26,7 @@ function App() {
         <ThemeProvider>
           <AuthProvider>
             <SidebarContextProvider>
+              <WorkspaceProvider>
               <TeamProvider>
               <Routes>
           {/* Public routes */}
@@ -70,6 +72,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <OAuthCallback />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Workspace invitation acceptance route - requires auth */}
+          <Route
+            path="/workspaces/invitations/:token/accept"
+            element={
+              <ProtectedRoute>
+                <AcceptInvitationPage />
               </ProtectedRoute>
             }
           />
@@ -125,6 +137,7 @@ function App() {
                 <Toaster />
                 <GlobalToastProvider />
               </TeamProvider>
+              </WorkspaceProvider>
             </SidebarContextProvider>
           </AuthProvider>
         </ThemeProvider>

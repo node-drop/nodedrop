@@ -12,3 +12,4 @@ export * from "./system";
 export * from "./team";
 export * from "./workflow";
 export * from "./workflowToolbar";
+export * from "./workspace";

@@ -7,3 +7,4 @@ export * from "./execution";
 export * from "./team";
 export * from "./variable";
 export * from "./workflow";
+export * from "./workspace";

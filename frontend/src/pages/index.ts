@@ -1,3 +1,4 @@
+export * from "./AcceptInvitationPage";
 export * from "./CustomNodesPage";
 export * from "./ExecutionDetailPage";
 export * from "./ExecutionsPage";

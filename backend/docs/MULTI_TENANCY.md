@@ -189,13 +189,26 @@ Services updated with workspace options:
 - [x] `VariableService` - Added workspace options to getVariable, updateVariable, deleteVariable, bulkUpsertVariables, replaceVariablesInText
 - [x] `TriggerService` - Added workspace options to createTrigger, updateTrigger, deleteTrigger, handleManualTrigger, getTriggerEvents, getTriggerStats
 
-### Phase 4: Frontend Changes
+### Phase 4: Frontend Changes ✅ COMPLETED
 
-- [ ] Workspace switcher component
-- [ ] Workspace settings page
-- [ ] Member management UI
-- [ ] Invitation flow
-- [ ] Usage dashboard
+- [x] Workspace switcher component (`WorkspaceSwitcher.tsx`)
+- [x] Create workspace modal (`CreateWorkspaceModal.tsx`)
+- [x] Workspace usage card (`WorkspaceUsageCard.tsx`)
+- [x] Workspace context and provider (`WorkspaceContext.tsx`)
+- [x] Workspace store with Zustand (`workspace.ts`)
+- [x] Workspace service for API calls (`workspace.ts`)
+- [x] Workspace types (`workspace.ts`)
+- [x] API client updated to include `x-workspace-id` header
+- [x] App.tsx updated with WorkspaceProvider
+- [x] App sidebar updated with WorkspaceSwitcher
+
+Additional components implemented:
+- [x] Workspace settings modal (`WorkspaceSettingsModal.tsx`)
+- [x] Invite member modal (`InviteMemberModal.tsx`)
+- [x] Manage members dialog (`ManageMembersDialog.tsx`)
+- [x] Workspaces list component (`WorkspacesList.tsx`)
+- [x] Accept invitation page (`AcceptInvitationPage.tsx`)
+- [x] Route for invitation acceptance (`/workspaces/invitations/:token/accept`)
 
 ### Phase 5: Billing Integration
 
@@ -217,6 +230,6 @@ If not provided, the user's default workspace is used.
 
 | Plan | Members | Workflows | Executions/Month | Credentials |
 |------|---------|-----------|------------------|-------------|
-| Free | 1 | 5 | 1,000 | 10 |
-| Pro | 10 | 50 | 10,000 | 100 |
+| Free | 1       | 5        | 1,000 | 10 |
+| Pro  | 10      | 50        | 10,000 | 100 |
 | Enterprise | Unlimited | Unlimited | Unlimited | Unlimited |

@@ -31,7 +31,7 @@ router.get(
   requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const workspaces = await WorkspaceService.getUserWorkspaces(req.user!.id);
-    res.json({ workspaces });
+    res.json({ success: true, data: workspaces });
   })
 );
 
@@ -55,7 +55,7 @@ router.post(
       description,
     });
 
-    res.status(201).json({ workspace });
+    res.status(201).json({ success: true, data: workspace });
   })
 );
 
@@ -71,7 +71,7 @@ router.get(
       req.params.workspaceId,
       req.user!.id
     );
-    res.json({ workspace });
+    res.json({ success: true, data: workspace });
   })
 );
 
@@ -91,7 +91,7 @@ router.patch(
       { name, slug, description, settings }
     );
 
-    res.json({ workspace });
+    res.json({ success: true, data: workspace });
   })
 );
 
@@ -124,7 +124,7 @@ router.get(
       req.params.workspaceId,
       req.user!.id
     );
-    res.json({ members });
+    res.json({ success: true, data: members });
   })
 );
 
@@ -152,7 +152,7 @@ router.post(
       memberRole
     );
 
-    res.status(201).json({ invitation });
+    res.status(201).json({ success: true, data: invitation });
   })
 );
 
@@ -168,7 +168,7 @@ router.post(
       req.params.token,
       req.user!.id
     );
-    res.json({ workspace });
+    res.json({ success: true, data: workspace });
   })
 );
 
@@ -198,7 +198,7 @@ router.patch(
       role
     );
 
-    res.json({ member });
+    res.json({ success: true, data: member });
   })
 );
 
@@ -235,7 +235,7 @@ router.get(
       req.params.workspaceId,
       req.user!.id
     );
-    res.json({ usage });
+    res.json({ success: true, data: usage });
   })
 );
 
@@ -252,7 +252,7 @@ router.get(
   requireAuth,
   requireWorkspace,
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
-    res.json({ workspace: req.workspace });
+    res.json({ success: true, data: req.workspace });
   })
 );
 
