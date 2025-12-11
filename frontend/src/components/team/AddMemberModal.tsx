@@ -121,7 +121,7 @@ export function AddMemberModal({
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                The user must have an account to be added to the team
+                The user must be a workspace member to join this team
               </p>
             </div>
 

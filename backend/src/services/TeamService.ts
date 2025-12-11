@@ -273,6 +273,7 @@ export class TeamService {
 
   /**
    * Add member to team
+   * Note: Only workspace members can be added to teams within that workspace
    */
   static async addMember(teamId: string, userId: string, data: AddMemberData) {
     try {
@@ -280,6 +281,16 @@ export class TeamService {
       const canManage = await this.canManageMembers(teamId, userId);
       if (!canManage) {
         throw new AppError("Only team owner can add members", 403);
+      }
+
+      // Get the team to find its workspace
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { workspaceId: true },
+      });
+
+      if (!team) {
+        throw new AppError("Team not found", 404);
       }
 
       // Find user by email
@@ -291,7 +302,27 @@ export class TeamService {
         throw new AppError("User not found", 404);
       }
 
-      // Check if already a member
+      // Check if target user is a member of the workspace
+      if (team.workspaceId) {
+        const workspaceMembership = await prisma.workspaceMember.findUnique({
+          where: {
+            workspaceId_userId: {
+              workspaceId: team.workspaceId,
+              userId: targetUser.id,
+            },
+          },
+        });
+
+        if (!workspaceMembership) {
+          throw new AppError(
+            "User must be a workspace member before joining a team. Invite them to the workspace first.",
+            400,
+            "NOT_WORKSPACE_MEMBER"
+          );
+        }
+      }
+
+      // Check if already a team member
       const existingMember = await prisma.teamMember.findUnique({
         where: {
           teamId_userId: {

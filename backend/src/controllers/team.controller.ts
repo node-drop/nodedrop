@@ -39,6 +39,16 @@ export const createTeam = asyncHandler(
     }
     const workspaceId = req.workspace?.workspaceId;
 
+    // Check if workspace plan allows teams (Pro+ only)
+    const workspacePlan = req.workspace?.plan;
+    if (workspacePlan === "free") {
+      throw new AppError(
+        "Teams are available on Pro and Enterprise plans. Upgrade to collaborate with your team.",
+        403,
+        "PLAN_UPGRADE_REQUIRED"
+      );
+    }
+
     const { name, slug, description, color } = req.body;
 
     if (!name) {
