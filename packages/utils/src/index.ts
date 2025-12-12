@@ -113,3 +113,31 @@ export {
   parseCronExpression,
   createCronExpression,
 } from "./cron";
+
+// Expression utilities
+export {
+  // Data utilities
+  extractJsonData,
+  wrapJsonData,
+  normalizeInputItems,
+  // DateTime helper
+  DateTime,
+  // Node helper functions
+  createNodeHelperFunctions,
+  // Context building
+  type WorkflowNodeForContext,
+  type ConnectionForContext,
+  type BuildNodeOutputsOptions,
+  buildNodeIdToNameMap,
+  buildNodeOutputsMap,
+  buildExpressionContext,
+  // Expression resolution
+  resolvePath,
+  safeEvaluateExpression,
+  resolveValue,
+  // Expression validation
+  type ExpressionValidationError,
+  type ExpressionValidationResult,
+  validateExpression,
+  getExpressionBlocks,
+} from "./expressions";

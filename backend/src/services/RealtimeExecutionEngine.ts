@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ExecutionStatus, NodeExecutionStatus } from "../types/database";
 import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
 import { logger } from "../utils/logger";
-import { buildNodeIdToNameMap } from "../utils/nodeHelpers";
+import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { NodeService } from "./NodeService";
 
 interface WorkflowNode {

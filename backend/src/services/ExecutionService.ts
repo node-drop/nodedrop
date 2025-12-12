@@ -16,7 +16,7 @@ import {
   NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
-import { buildExpressionContext } from "../utils/nodeHelpers";
+import { buildExpressionContext } from "@nodedrop/utils";
 import { ExecutionEngine } from "./ExecutionEngine";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import {

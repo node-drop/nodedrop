@@ -24,7 +24,7 @@ import {
   resolvePath,
   resolveValue,
   wrapJsonData,
-} from "../utils/nodeHelpers";
+} from "@nodedrop/utils";
 import {
   SecureExecutionOptions,
   SecureExecutionService,
