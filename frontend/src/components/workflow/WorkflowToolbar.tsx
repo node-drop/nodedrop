@@ -408,7 +408,7 @@ export function WorkflowToolbar({
               className="text-xs"
             >
               <PackagePlus className="mr-2 h-3.5 w-3.5" />
-              Create Template
+              Create Custom Node
               {selectedNodesCount === 0 && (
                 <span className="ml-auto text-[10px] text-muted-foreground">(no selection)</span>
               )}

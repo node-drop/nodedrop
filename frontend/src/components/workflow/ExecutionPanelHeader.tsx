@@ -80,7 +80,7 @@ export function ExecutionPanelHeader({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{hasSelectedNodes ? `Create template from ${selectedNodesCount} selected node${selectedNodesCount !== 1 ? 's' : ''}` : 'Select nodes to create template'}</p>
+            <p>{hasSelectedNodes ? `Create custom node from ${selectedNodesCount} selected node${selectedNodesCount !== 1 ? 's' : ''}` : 'Select nodes to create custom node'}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>

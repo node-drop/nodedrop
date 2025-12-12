@@ -250,14 +250,14 @@ export function BaseNodeWrapper({
   // AND (current node can be grouped OR there are selected nodes that can be grouped)
   const canGroup = !isInGroup && (currentNodeCanBeGrouped || selectedNodesForGrouping.length >= 1)
 
-  // Check if we can create template (need at least 1 selected node, including groups)
+  // Check if we can create custom node (need at least 1 selected node, including groups)
   const selectedNodesForTemplate = getNodes().filter(node => node.selected)
   const canCreateTemplate = selectedNodesForTemplate.length >= 1
 
-  // Get template dialog action from store
+  // Get template dialog action from store (opens custom node creation)
   const openTemplateDialog = useWorkflowStore(state => state.openTemplateDialog)
   
-  // Handle create template
+  // Handle create custom node
   const handleCreateTemplate = useCallback(() => {
     openTemplateDialog()
   }, [openTemplateDialog])

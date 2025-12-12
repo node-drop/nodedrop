@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react'
-import { Bot, Code2, Settings, X, Sliders } from 'lucide-react'
+import { memo, useMemo, useCallback } from 'react'
+import { Bot, Code2, Settings, X, Sliders, PackagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
@@ -8,6 +8,7 @@ import { QuickSettingsPanel } from './sidebar-panels/QuickSettingsPanel'
 import { CopilotPanel } from './sidebar-panels/CopilotPanel'
 import { CodePanel } from './sidebar-panels/CodePanel'
 import { WorkflowSettingsPanel } from './sidebar-panels/WorkflowSettingsPanel'
+import { CreateCustomNodePanel } from './sidebar-panels/CreateCustomNodePanel'
 
 interface RightSidebarProps {
   selectedNodes: { id: string }[]
@@ -38,6 +39,41 @@ export const RightSidebar = memo(function RightSidebar({
     if (!selectedNode) return null
     return activeNodeTypes.find(nt => nt.identifier === selectedNode.type) || null
   }, [selectedNode, activeNodeTypes])
+
+  // Get selected nodes and connections for template creation
+  const selectedNodesData = useMemo(() => {
+    if (!workflow) return []
+    return workflow.nodes.filter(n => selectedNodes.some(sn => sn.id === n.id))
+  }, [workflow, selectedNodes])
+
+  const selectedConnections = useMemo(() => {
+    if (!workflow) return []
+    return workflow.connections.filter(conn =>
+      selectedNodes.some(n => n.id === conn.sourceNodeId) &&
+      selectedNodes.some(n => n.id === conn.targetNodeId)
+    )
+  }, [workflow, selectedNodes])
+
+  // Handle custom node creation
+  const handleCreateCustomNode = useCallback(async (data: {
+    name: string
+    displayName: string
+    description: string
+    icon?: string
+    color?: string
+    group?: string[]
+  }) => {
+    // Import template service (creates custom node types)
+    const { templateService } = await import('@/services/template')
+    
+    await templateService.createTemplate({
+      ...data,
+      nodes: selectedNodesData,
+      connections: selectedConnections,
+    })
+    
+    closeRightSidebar()
+  }, [selectedNodesData, selectedConnections, closeRightSidebar])
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background border-l">
@@ -73,6 +109,14 @@ export const RightSidebar = memo(function RightSidebar({
             >
               <Sliders className="h-3.5 w-3.5" />
             </TabsTrigger>
+            <TabsTrigger 
+              value="template" 
+              className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
+              title="Create Custom Node"
+              disabled={selectedNodes.length === 0}
+            >
+              <PackagePlus className="h-3.5 w-3.5" />
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <Button 
@@ -106,6 +150,14 @@ export const RightSidebar = memo(function RightSidebar({
         {rightSidebarTab === 'workflow' && (
           <WorkflowSettingsPanel 
             readOnly={readOnly}
+          />
+        )}
+        {rightSidebarTab === 'template' && (
+          <CreateCustomNodePanel 
+            nodes={selectedNodesData}
+            connections={selectedConnections}
+            onCreateCustomNode={handleCreateCustomNode}
+            onClose={closeRightSidebar}
           />
         )}
       </div>

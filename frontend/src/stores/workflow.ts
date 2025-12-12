@@ -3669,17 +3669,17 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
         });
       },
 
-      // Template dialog actions
+      // Template dialog actions (creates custom node from selection)
       openTemplateDialog: () => {
-        set({
-          showTemplateDialog: true,
-        });
+        // Open right sidebar with custom node creation tab
+        const { openRightSidebar } = useReactFlowUIStore.getState()
+        openRightSidebar('template')
       },
 
       closeTemplateDialog: () => {
-        set({
-          showTemplateDialog: false,
-        });
+        // Close right sidebar
+        const { closeRightSidebar } = useReactFlowUIStore.getState()
+        closeRightSidebar()
       },
 
       // Template variable dialog actions

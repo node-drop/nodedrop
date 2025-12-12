@@ -404,7 +404,7 @@ export const ${nodeName}Node: NodeDefinition = {
       "  npm run nodes:list              - List all registered nodes"
     );
     console.log(
-      "  npm run nodes:create <name>     - Create a new node template"
+      "  npm run nodes:create <name>     - Create a new node package (scaffolding)"
     );
     console.log(
       "  npm run nodes:discover          - Discover and register all nodes"
