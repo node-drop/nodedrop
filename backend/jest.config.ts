@@ -45,6 +45,9 @@ const config: Config = {
     "^@services/(.*)$": "<rootDir>/src/services/$1",
     "^@utils/(.*)$": "<rootDir>/src/utils/$1",
     "^@types/(.*)$": "<rootDir>/src/types/$1",
+    // Map @nodedrop packages to their TypeScript source files for Jest
+    "^@nodedrop/utils$": "<rootDir>/../packages/utils/src/index.ts",
+    "^@nodedrop/types$": "<rootDir>/../packages/types/src/index.ts",
     // Mock better-auth modules to avoid ESM issues in tests
     "^better-auth$": "<rootDir>/src/__tests__/__mocks__/better-auth.ts",
     "^better-auth/node$": "<rootDir>/src/__tests__/__mocks__/better-auth-node.ts",
@@ -80,9 +83,9 @@ const config: Config = {
   // Ignore patterns
   testPathIgnorePatterns: ["/node_modules/", "/dist/", "/coverage/"],
 
-  // Transform ESM modules from better-auth
+  // Transform ESM modules from better-auth and @nodedrop packages
   transformIgnorePatterns: [
-    "/node_modules/(?!(better-auth)/)"
+    "/node_modules/(?!(better-auth|@nodedrop)/)"
   ],
 
 

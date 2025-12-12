@@ -13,8 +13,8 @@ import { ExecutionState, WorkflowExecutionResult } from "@/types";
 import {
   getUserFriendlyErrorMessage,
   validateImportFile,
-  ValidationError,
-} from "@/utils/errorHandling";
+  type ValidationError,
+} from "@nodedrop/utils";
 import { devtools } from "zustand/middleware";
 import { createWithEqualityFn } from "zustand/traditional";
 

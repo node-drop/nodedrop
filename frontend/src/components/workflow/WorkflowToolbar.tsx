@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
 import { useEnvironmentStore } from '@/stores/environment'
 import { getEnvironmentLabel } from '@/types/environment'
-import { validateImportFile } from '@/utils/errorHandling'
+import { validateImportFile } from '@nodedrop/utils'
 import { useSelectedNodes } from '@/hooks/workflow'
 import {
   ChevronDown,
