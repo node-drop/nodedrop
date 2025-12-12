@@ -59,7 +59,7 @@ import {
   ZoomOut,
 } from "lucide-react"
 import * as React from "react"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams } from "react-router"
 
 // This is sample data for the workflow editor
 const data = {

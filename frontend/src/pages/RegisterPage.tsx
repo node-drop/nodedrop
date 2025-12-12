@@ -8,7 +8,7 @@
  * Requirements: 11.3 - Detailed field-level error messages
  */
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { Eye, EyeOff, Loader2, Workflow } from 'lucide-react'
 

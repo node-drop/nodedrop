@@ -28,7 +28,7 @@ import {
   Workflow as WorkflowIcon
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 
 interface WorkflowsListProps { }
 

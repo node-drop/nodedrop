@@ -14,7 +14,7 @@ import { useAuthStore, useNodeTypes, useWorkflowStore } from '@/stores'
 import { Workflow } from '@/types'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 export function WorkflowEditorPage() {

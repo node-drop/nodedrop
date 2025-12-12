@@ -35,7 +35,7 @@ import {
   Users,
   Webhook,
 } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { WorkspaceSettingsModal, ManageMembersDialog, InviteMemberModal } from "@/components/workspace"

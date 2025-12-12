@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router"
 import { Building2, CheckCircle, Loader2, XCircle } from "lucide-react"
 import { toast } from "sonner"
 

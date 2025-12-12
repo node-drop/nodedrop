@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import axios from 'axios'
 import { CheckCircle, ExternalLink, Key, Loader2, Lock, XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 
 interface FormConfig {
   formTitle: string

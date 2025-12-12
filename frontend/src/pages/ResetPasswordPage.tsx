@@ -8,7 +8,7 @@
  * Requirements: 6.4 - Expired reset tokens are rejected
  */
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, CheckCircle, Eye, EyeOff, Loader2, Workflow, XCircle } from 'lucide-react'
 

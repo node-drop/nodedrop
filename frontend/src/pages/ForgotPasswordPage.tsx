@@ -8,7 +8,7 @@
  * Requirements: 14.3 - Rate limiting for password reset requests
  */
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, CheckCircle, Loader2, Workflow } from 'lucide-react'
 

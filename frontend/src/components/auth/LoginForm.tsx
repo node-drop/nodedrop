@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { CheckCircle, Eye, EyeOff, Loader2, Workflow } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 /**
  * Maps better-auth error codes to user-friendly messages

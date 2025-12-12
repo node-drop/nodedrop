@@ -14,7 +14,7 @@ import {
     X
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router'
 
 export const Header: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuthStore()
