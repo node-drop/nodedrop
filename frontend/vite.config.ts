@@ -26,11 +26,89 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router", "zustand", "@tanstack/react-query"],
-          ui: ["@radix-ui/react-alert-dialog", "@radix-ui/react-avatar", "@radix-ui/react-checkbox", "@radix-ui/react-collapsible", "@radix-ui/react-context-menu", "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-hover-card", "@radix-ui/react-icons", "@radix-ui/react-label", "@radix-ui/react-popover", "@radix-ui/react-radio-group", "@radix-ui/react-scroll-area", "@radix-ui/react-select", "@radix-ui/react-separator", "@radix-ui/react-slot", "@radix-ui/react-switch", "@radix-ui/react-tabs", "@radix-ui/react-tooltip", "@radix-ui/react-visually-hidden", "lucide-react", "sonner"],
-          flow: ["@xyflow/react", "@dagrejs/dagre"],
-          utils: ["date-fns", "uuid", "clsx", "tailwind-merge"],
+        manualChunks(id) {
+          // Core React ecosystem - cached long-term
+          if (id.includes("node_modules/react/") || 
+              id.includes("node_modules/react-dom/") ||
+              id.includes("node_modules/scheduler/")) {
+            return "vendor-react";
+          }
+          
+          // Router - separate for route-based caching
+          if (id.includes("node_modules/react-router")) {
+            return "vendor-router";
+          }
+          
+          // State management
+          if (id.includes("node_modules/zustand") || 
+              id.includes("node_modules/@tanstack/react-query")) {
+            return "vendor-state";
+          }
+          
+          // Flow/canvas - heavy, only needed in workflow editor
+          if (id.includes("node_modules/@xyflow") || 
+              id.includes("node_modules/@dagrejs") ||
+              id.includes("node_modules/d3-")) {
+            return "vendor-flow";
+          }
+          
+          // Radix UI primitives
+          if (id.includes("node_modules/@radix-ui")) {
+            return "vendor-radix";
+          }
+          
+          // Icons - large but compressible
+          if (id.includes("node_modules/lucide-react")) {
+            return "vendor-icons";
+          }
+          
+          // Forms
+          if (id.includes("node_modules/react-hook-form") || 
+              id.includes("node_modules/@hookform") ||
+              id.includes("node_modules/zod")) {
+            return "vendor-forms";
+          }
+          
+          // Markdown rendering
+          if (id.includes("node_modules/react-markdown") || 
+              id.includes("node_modules/remark") ||
+              id.includes("node_modules/rehype") ||
+              id.includes("node_modules/unified") ||
+              id.includes("node_modules/mdast") ||
+              id.includes("node_modules/hast") ||
+              id.includes("node_modules/micromark")) {
+            return "vendor-markdown";
+          }
+          
+          // HTTP/Socket
+          if (id.includes("node_modules/axios") || 
+              id.includes("node_modules/socket.io-client")) {
+            return "vendor-network";
+          }
+          
+          // Auth
+          if (id.includes("node_modules/better-auth")) {
+            return "vendor-auth";
+          }
+          
+          // Utilities
+          if (id.includes("node_modules/date-fns") ||
+              id.includes("node_modules/uuid") ||
+              id.includes("node_modules/clsx") ||
+              id.includes("node_modules/tailwind-merge") ||
+              id.includes("node_modules/class-variance-authority")) {
+            return "vendor-utils";
+          }
+          
+          // Sonner/toast
+          if (id.includes("node_modules/sonner")) {
+            return "vendor-toast";
+          }
+          
+          // Command palette
+          if (id.includes("node_modules/cmdk")) {
+            return "vendor-cmdk";
+          }
         },
       },
     },
