@@ -1,4 +1,4 @@
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { ReactNode } from 'react'
 

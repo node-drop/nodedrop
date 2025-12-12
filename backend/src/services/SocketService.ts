@@ -1,9 +1,9 @@
 import { Server as HTTPServer } from "http";
 import { Socket, Server as SocketIOServer } from "socket.io";
-import { NodeExecutionStatus } from "../types/database";
 import {
   ExecutionEventData,
   ExecutionProgress,
+  NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
 import { prisma } from "../config/database";

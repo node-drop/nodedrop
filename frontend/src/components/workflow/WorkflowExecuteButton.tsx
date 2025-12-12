@@ -12,7 +12,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { useWorkflowStore, useNodeTypes } from '@/stores'
-import { WorkflowNode } from '@/types/workflow'
+import { WorkflowNode } from '@nodedrop/types'
 import { getTriggerNodes, getTriggerType } from '@/utils/triggerUtils'
 import {
   ChevronDown,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ExecutionStateManager } from '@/services/ExecutionStateManager'
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 
 // Mock the ExecutionWebSocket
 vi.mock('@/services/ExecutionWebSocket', () => ({

@@ -1,7 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { validateQuery } from "../middleware/validation";
 import { WorkflowEnvironmentService } from "../services/WorkflowEnvironmentService";
+import { DeploymentHistoryQuerySchema } from "../types/api";
 import { EnvironmentType } from "../types/environment";
 import { AppError } from "../utils/errors";
 
@@ -326,12 +328,12 @@ router.post(
 router.get(
   "/workflows/:workflowId/environments/:environment/deployments",
   requireAuth,
+  validateQuery(DeploymentHistoryQuerySchema),
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { workflowId, environment } = req.params;
       const userId = req.user!.id;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
+      const { page, limit } = req.query as unknown as { page: number; limit: number };
 
       if (
         !Object.values(EnvironmentType).includes(environment as EnvironmentType)

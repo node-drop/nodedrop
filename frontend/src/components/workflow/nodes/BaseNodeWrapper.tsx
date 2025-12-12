@@ -1,7 +1,7 @@
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useReactFlowUIStore, useWorkflowStore, useNodeTypes } from '@/stores'
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 import { useReactFlow, useStore } from '@xyflow/react'
 import { LucideIcon } from 'lucide-react'
 import React, { ReactNode, useCallback, useMemo } from 'react'

@@ -19,6 +19,7 @@ import {
   ApiResponse,
   CreateWorkflowSchema,
   IdParamSchema,
+  LimitQuerySchema,
   UpdateWorkflowSchema,
   WorkflowQuerySchema,
 } from "../types/api";
@@ -123,6 +124,7 @@ router.get(
   requireAuth,
   requireWorkspace,
   validateParams(IdParamSchema),
+  validateQuery(LimitQuerySchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const workspaceId = req.workspace?.workspaceId;
     const workflow = await workflowService.getWorkflow(
@@ -131,7 +133,7 @@ router.get(
       { workspaceId }
     );
 
-    const limit = parseInt(req.query.limit as string) || 10;
+    const { limit } = req.query as unknown as { limit: number };
     const upcomingExecutions = await workflowService.getUpcomingExecutions(
       workflow,
       limit
@@ -288,8 +290,7 @@ router.put(
     const workflow = await workflowService.updateWorkflow(
       req.params.id,
       req.user!.id,
-      req.body,
-      { workspaceId }
+      req.body
     );
 
     const response: ApiResponse = {
@@ -309,7 +310,7 @@ router.delete(
   validateParams(IdParamSchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const workspaceId = req.workspace?.workspaceId;
-    await workflowService.deleteWorkflow(req.params.id, req.user!.id, { workspaceId });
+    await workflowService.deleteWorkflow(req.params.id, req.user!.id);
 
     const response: ApiResponse = {
       success: true,
@@ -333,8 +334,7 @@ router.post(
     const workflow = await workflowService.duplicateWorkflow(
       req.params.id,
       req.user!.id,
-      name,
-      { workspaceId }
+      name
     );
 
     const response: ApiResponse = {

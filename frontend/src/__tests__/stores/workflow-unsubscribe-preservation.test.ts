@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/stores/workflow";
 import { Workflow } from "@/types";
-import { NodeExecutionStatus } from "@/types/execution";
+import { NodeExecutionStatus } from "@nodedrop/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the execution websocket

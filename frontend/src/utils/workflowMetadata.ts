@@ -3,7 +3,7 @@
  * Handles creation, validation, migration, and persistence of workflow metadata
  */
 
-import { Workflow, WorkflowMetadata } from "@/types/workflow";
+import { Workflow, WorkflowMetadata } from "@nodedrop/types";
 import { ErrorCodes, ValidationError } from "./errorHandling";
 
 /**

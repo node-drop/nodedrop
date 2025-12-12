@@ -5,6 +5,8 @@ import { createServer } from "http";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { validateQuery } from "../middleware/validation";
+import { TriggerEventsQuerySchema } from "../types/api";
 import {
   WorkspaceRequest,
   requireWorkspace,
@@ -237,36 +239,20 @@ router.get(
   "/workflows/:workflowId/triggers/events",
   requireAuth,
   requireWorkspace,
-  [
-    param("workflowId").isUUID().withMessage("Invalid workflow ID"),
-    query("type")
-      .optional()
-      .isIn(["webhook", "schedule", "manual"])
-      .withMessage("Invalid trigger type"),
-    query("status")
-      .optional()
-      .isIn(["pending", "processing", "completed", "failed"])
-      .withMessage("Invalid status"),
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage("Limit must be between 1 and 100"),
-    query("offset")
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage("Offset must be non-negative"),
-  ],
+  [param("workflowId").isUUID().withMessage("Invalid workflow ID")],
   validateRequest,
+  validateQuery(TriggerEventsQuerySchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.params;
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
-    const filters = {
-      type: req.query.type as string,
-      status: req.query.status as string,
-      limit: parseInt(req.query.limit as string) || 50,
-      offset: parseInt(req.query.offset as string) || 0,
+    const { type, status, limit, offset } = req.query as unknown as {
+      type?: string;
+      status?: string;
+      limit: number;
+      offset: number;
     };
+    const filters = { type, status, limit, offset };
 
     const events = await getTriggerService().getTriggerEvents(
       workflowId,

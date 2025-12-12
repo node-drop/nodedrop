@@ -5,7 +5,7 @@ import {
   ExecutionFlowStatus, 
   NodeVisualState,
   FlowExecutionState 
-} from '@/types/execution'
+} from '@nodedrop/types'
 
 /**
  * ExecutionStateManager integrates ProgressTracker with ExecutionWebSocket

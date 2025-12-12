@@ -4,7 +4,7 @@ import type {
   ExecutionProgress,
   ExecutionLogEntry,
   NodeExecutionEvent,
-} from '@/types/execution';
+} from '@nodedrop/types';
 
 // Re-export types for convenience
 export type {

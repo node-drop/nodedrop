@@ -13,6 +13,7 @@ import {
   ExecutionProgress,
   ExecutionStats,
   QueueConfig,
+  NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
 import { buildExpressionContext } from "../utils/nodeHelpers";
@@ -1103,7 +1104,7 @@ export class ExecutionService {
             executionId: nodeEventData.executionId,
             type: "node-started",
             nodeId: nodeEventData.nodeId,
-            status: "RUNNING",
+            status: NodeExecutionStatus.RUNNING,
             data: nodeEventData.node,
             timestamp: new Date(),
           }

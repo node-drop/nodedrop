@@ -2,7 +2,8 @@
  * Utility functions for working with trigger nodes in the frontend
  */
 
-import { NodeType, WorkflowNode } from '../types/workflow'
+import { WorkflowNode } from '@nodedrop/types'
+import { NodeType } from '../types/workflow'
 
 /**
  * Check if a node type is a trigger

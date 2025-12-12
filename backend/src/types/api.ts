@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  WorkflowNodeSchema,
+  WorkflowConnectionSchema,
+  WorkflowSettingsSchema,
+  WorkflowTriggerSchema,
+} from "@nodedrop/types";
 
 // Common schemas
 export const IdParamSchema = z.object({
@@ -12,19 +18,45 @@ export const IdParamSchema = z.object({
 });
 
 export const PaginationQuerySchema = z.object({
-  page: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 1)),
-  limit: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 50)),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(50),
   sortBy: z.string().optional(),
-  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
-// Workflow schemas
+// Simple limit-only query schema for endpoints that don't need full pagination
+export const LimitQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(10),
+});
+
+// Scheduled executions query schema
+export const ScheduledExecutionsQuerySchema = LimitQuerySchema.extend({
+  workflowId: z.string().cuid().optional(),
+});
+
+// Trigger events query schema
+export const TriggerEventsQuerySchema = z.object({
+  type: z.string().optional(),
+  status: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+
+// Deployment history query schema
+export const DeploymentHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+// =============================================================================
+// Workflow API Schemas (using @nodedrop/types schemas)
+// =============================================================================
+
+/**
+ * Schema for creating a new workflow via POST /api/workflows
+ * Uses schemas from @nodedrop/types for consistency with the shared types package.
+ * Omits server-generated fields (id, userId, createdAt, updatedAt).
+ */
 export const CreateWorkflowSchema = z.object({
   name: z.string().min(1, "Workflow name is required").max(255),
   description: z.string().optional(),
@@ -34,92 +66,36 @@ export const CreateWorkflowSchema = z.object({
     .transform((val) => val || undefined),
   tags: z.array(z.string()).default([]),
   teamId: z.string().nullable().optional(),
+  // Use WorkflowNodeSchema from @nodedrop/types with default for disabled
   nodes: z
     .array(
-      z.object({
-        id: z.string(),
-        type: z.string(),
-        name: z.string(),
-        description: z.string().optional(),
-        parameters: z.record(z.any()),
-        position: z.object({
-          x: z.number(),
-          y: z.number(),
-        }),
-        credentials: z.array(z.string()).optional(),
+      WorkflowNodeSchema.extend({
         disabled: z.boolean().default(false),
-        mockData: z.any().optional(),
-        mockDataPinned: z.boolean().optional(),
-        locked: z.boolean().optional(),
-        settings: z.record(z.any()).optional(), // Node-level settings
-        // Group node properties
-        parentId: z.string().optional(),
-        extent: z
-          .union([
-            z.literal("parent"),
-            z.tuple([z.number(), z.number(), z.number(), z.number()]),
-          ])
-          .optional(),
-        style: z
-          .object({
-            width: z.number().optional(),
-            height: z.number().optional(),
-            backgroundColor: z.string().optional(),
-          })
-          .passthrough() // Allow additional style properties
-          .optional(),
       })
     )
     .default([]),
-  connections: z
-    .array(
-      z.object({
-        id: z.string(),
-        sourceNodeId: z.string(),
-        sourceOutput: z.string(),
-        targetNodeId: z.string(),
-        targetInput: z.string(),
-        // Edge algorithm type (Step, Linear, CatmullRom, BezierCatmullRom)
-        algorithm: z.string().optional(),
-        // Control points for editable edges (visual routing)
-        controlPoints: z
-          .array(
-            z.object({
-              id: z.string(),
-              x: z.number(),
-              y: z.number(),
-              active: z.boolean().optional(),
-            })
-          )
-          .optional(),
-      })
-    )
-    .default([]),
-  triggers: z
-    .array(
-      z.object({
-        id: z.string(),
-        type: z.string(),
-        nodeId: z.string(),
-        settings: z.record(z.any()),
-      })
-    )
-    .default([]),
-  settings: z
-    .object({
-      timezone: z.string().optional(),
-      saveExecutionProgress: z.boolean().default(true),
-      saveDataErrorExecution: z.enum(["all", "none"]).default("all"),
-      saveDataSuccessExecution: z.enum(["all", "none"]).default("all"),
-      saveExecutionToDatabase: z.boolean().default(true), // Skip saving executions to database
-      callerPolicy: z
-        .enum(["workflowsFromSameOwner", "workflowsFromAList", "any"])
-        .default("workflowsFromSameOwner"),
-    })
-    .default({}),
+  // Use WorkflowConnectionSchema from @nodedrop/types
+  connections: z.array(WorkflowConnectionSchema).default([]),
+  // Use WorkflowTriggerSchema from @nodedrop/types
+  triggers: z.array(WorkflowTriggerSchema).default([]),
+  // Use WorkflowSettingsSchema from @nodedrop/types with API-specific defaults
+  settings: WorkflowSettingsSchema.extend({
+    saveExecutionProgress: z.boolean().default(true),
+    saveDataErrorExecution: z.enum(["all", "none"]).default("all"),
+    saveDataSuccessExecution: z.enum(["all", "none"]).default("all"),
+    saveExecutionToDatabase: z.boolean().default(true),
+    callerPolicy: z
+      .enum(["workflowsFromSameOwner", "workflowsFromAList", "any"])
+      .default("workflowsFromSameOwner"),
+  }).default({}),
   active: z.boolean().default(false),
 });
 
+/**
+ * Schema for updating a workflow via PUT/PATCH /api/workflows/:id
+ * All fields are optional to support partial updates.
+ * Uses CreateWorkflowSchema.partial() as specified in Requirements 3.3.
+ */
 export const UpdateWorkflowSchema = CreateWorkflowSchema.partial();
 
 export const WorkflowQuerySchema = PaginationQuerySchema.extend({
@@ -202,3 +178,7 @@ export type NodeQueryRequest = z.infer<typeof NodeQuerySchema>;
 export type LoginRequest = z.infer<typeof LoginSchema>;
 export type RegisterRequest = z.infer<typeof RegisterSchema>;
 export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordSchema>;
+export type LimitQueryRequest = z.infer<typeof LimitQuerySchema>;
+export type ScheduledExecutionsQueryRequest = z.infer<typeof ScheduledExecutionsQuerySchema>;
+export type TriggerEventsQueryRequest = z.infer<typeof TriggerEventsQuerySchema>;
+export type DeploymentHistoryQueryRequest = z.infer<typeof DeploymentHistoryQuerySchema>;

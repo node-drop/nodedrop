@@ -3,7 +3,7 @@
  * Extends the base error handling with workflow operation specific logic
  */
 
-import { Workflow, WorkflowConnection, WorkflowNode } from "@/types/workflow";
+import { Workflow, WorkflowConnection, WorkflowNode } from "@nodedrop/types";
 import {
   ErrorCodes,
   createOperationError,

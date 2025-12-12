@@ -7,7 +7,7 @@ import {
   CreateWorkspaceRequest,
   UpdateWorkspaceRequest,
   InviteMemberRequest,
-  UpdateMemberRoleRequest,
+  UpdateWorkspaceMemberRoleRequest,
 } from '@/types/workspace'
 
 export class WorkspaceService {
@@ -85,7 +85,7 @@ export class WorkspaceService {
   async updateMemberRole(
     workspaceId: string,
     userId: string,
-    data: UpdateMemberRoleRequest
+    data: UpdateWorkspaceMemberRoleRequest
   ): Promise<WorkspaceMember> {
     const response = await apiClient.patch<WorkspaceMember>(
       `/workspaces/${workspaceId}/members/${userId}`,

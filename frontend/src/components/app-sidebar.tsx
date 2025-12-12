@@ -454,7 +454,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   
                   {activeWorkflowItem?.title === "Workspaces" && (
                     <WorkspacesList 
-                      onWorkspaceSelect={(workspace) => {
+                      onWorkspaceSelect={() => {
                         // Navigate to workspace page when selected
                         navigate('/workspace')
                       }}

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { ValidationError, formatZodErrors } from './validation';
 
 export interface ApiError extends Error {
   statusCode?: number;
@@ -22,7 +23,7 @@ export class AppError extends Error implements ApiError {
 }
 
 export const errorHandler = (
-  error: Error | ApiError | ZodError,
+  error: Error | ApiError | ZodError | ValidationError,
   req: Request,
   res: Response,
   next: NextFunction
@@ -31,10 +32,22 @@ export const errorHandler = (
   let message = 'Internal Server Error';
   let code = 'INTERNAL_ERROR';
 
-  // Handle Zod validation errors
+  // Handle ValidationError (from validation middleware)
+  if (error instanceof ValidationError) {
+    return res.status(error.statusCode).json({
+      success: false,
+      error: {
+        code: error.code,
+        message: error.message,
+        errors: error.errors
+      }
+    });
+  }
+
+  // Handle raw Zod validation errors (for backward compatibility)
   if (error instanceof ZodError) {
     statusCode = 400;
-    message = 'Validation Error';
+    message = 'Request validation failed';
     code = 'VALIDATION_ERROR';
     
     return res.status(statusCode).json({
@@ -42,10 +55,7 @@ export const errorHandler = (
       error: {
         code,
         message,
-        details: error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message
-        }))
+        errors: formatZodErrors(error)
       }
     });
   }

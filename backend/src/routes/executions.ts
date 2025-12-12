@@ -9,7 +9,7 @@ import {
 } from "../middleware/workspace";
 import { ExecutionService } from "../services";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { ApiResponse, ExecutionQuerySchema, IdParamSchema } from "../types/api";
+import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQuerySchema } from "../types/api";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -92,8 +92,7 @@ router.post(
         inputData,
         parameters,
         mode,
-        workflowData, // Pass the optional workflow data
-        { workspaceId }
+        workflowData // Pass the optional workflow data
       );
     } else {
       // Handle regular workflow execution
@@ -103,8 +102,7 @@ router.post(
         triggerData,
         options,
         triggerNodeId, // Pass the specific trigger node ID
-        workflowData, // Pass the optional workflow data
-        { workspaceId }
+        workflowData // Pass the optional workflow data
       );
     }
 
@@ -133,9 +131,9 @@ router.get(
   "/scheduled",
   requireAuth,
   requireWorkspace,
+  validateQuery(ScheduledExecutionsQuerySchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
-    const limit = parseInt(req.query.limit as string) || 10;
-    const workflowId = req.query.workflowId as string;
+    const { limit, workflowId } = req.query as unknown as { limit: number; workflowId?: string };
     const workspaceId = req.workspace?.workspaceId;
 
     // Import WorkflowService
@@ -303,8 +301,7 @@ router.get(
     const workspaceId = req.workspace?.workspaceId;
     const progress = await getExecutionService().getExecutionProgress(
       req.params.id,
-      req.user!.id,
-      { workspaceId }
+      req.user!.id
     );
 
     if (!progress) {
@@ -330,8 +327,7 @@ router.delete(
     const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().deleteExecution(
       req.params.id,
-      req.user!.id,
-      { workspaceId }
+      req.user!.id
     );
 
     if (!result.success) {
@@ -360,8 +356,7 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().cancelExecution(
       req.params.id,
-      req.user!.id,
-      { workspaceId }
+      req.user!.id
     );
 
     if (!result.success) {
@@ -390,8 +385,7 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().retryExecution(
       req.params.id,
-      req.user!.id,
-      { workspaceId }
+      req.user!.id
     );
 
     if (!result.success) {

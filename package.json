@@ -21,6 +21,7 @@
     "no-code"
   ],
   "workspaces": [
+    "packages/types",
     "frontend",
     "backend",
     "cli",

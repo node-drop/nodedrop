@@ -8,7 +8,6 @@ import {
   triggerSchema,
   validateWorkflowStructure,
 } from '../../utils/validation'
-import { UserRole } from '../../types/database'
 
 describe('User Validation', () => {
   describe('userCreateSchema', () => {
@@ -17,7 +16,7 @@ describe('User Validation', () => {
         email: 'test@example.com',
         password: 'password123',
         name: 'Test User',
-        role: UserRole.USER,
+        role: 'user' as const,
       }
 
       const result = userCreateSchema.safeParse(validUser)

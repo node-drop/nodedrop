@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { workflowService } from '@/services/workflow'
-import { TriggerOption, WorkflowOption } from '@/types/workflow'
+import { TriggerOption, WorkflowOption } from '@nodedrop/types'
 import { RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 

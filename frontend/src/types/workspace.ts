@@ -99,7 +99,7 @@ export interface InviteMemberRequest {
   role?: WorkspaceRole
 }
 
-export interface UpdateMemberRoleRequest {
+export interface UpdateWorkspaceMemberRoleRequest {
   role: WorkspaceRole
 }
 

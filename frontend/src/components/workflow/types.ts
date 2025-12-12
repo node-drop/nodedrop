@@ -2,10 +2,13 @@
  * Types for toolbar button components
  */
 
-import type { NodeExecutionError } from '@/types/execution';
+import type { NodeExecutionError, ExecutionCapability } from '@nodedrop/types';
 
 // Re-export for convenience
 export type { NodeExecutionError };
+
+// Re-export ExecutionCapability as NodeExecutionCapability for backward compatibility
+export type NodeExecutionCapability = ExecutionCapability;
 
 export interface ToolbarButtonBaseProps {
   nodeId: string
@@ -29,12 +32,14 @@ export interface DisableToggleToolbarButtonProps extends ToolbarButtonBaseProps 
   onToggle: (nodeId: string, disabled: boolean) => void
 }
 
-export type NodeExecutionCapability = 'trigger' | 'action' | 'transform' | 'condition'
-
+/**
+ * Metadata about a node type for execution control and UI display
+ * This extends the core node properties with frontend-specific metadata
+ */
 export interface NodeTypeMetadata {
   type: string
   group: string[]
-  executionCapability: NodeExecutionCapability
+  executionCapability: ExecutionCapability
   canExecuteIndividually: boolean
   canBeDisabled: boolean
 }

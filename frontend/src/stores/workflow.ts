@@ -42,8 +42,8 @@ import {
 import { devtools } from "zustand/middleware";
 import { createWithEqualityFn } from "zustand/traditional";
 
-// Import execution types from central location
-import type { ExecutionLogEntry } from "@/types/execution";
+// Import execution types from shared package
+import type { ExecutionLogEntry } from "@nodedrop/types";
 
 interface WorkflowStore extends WorkflowEditorState {
   // Title management state

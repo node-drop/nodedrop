@@ -6,7 +6,7 @@ import type {
   ExecutionDetails,
   SingleNodeExecutionRequest,
   SingleNodeExecutionResult,
-} from "@/types/execution";
+} from "@nodedrop/types";
 
 // Re-export types for convenience
 export type {

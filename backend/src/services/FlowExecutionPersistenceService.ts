@@ -1,8 +1,9 @@
-import { NodeExecutionStatus, PrismaClient } from "@prisma/client";
+import { NodeExecutionStatus as PrismaNodeExecutionStatus, PrismaClient } from "@prisma/client";
 import {
   ExecutionHistoryEntry,
-  ExecutionMetricsData,
+  ExecutionMetrics,
   NodeExecutionState,
+  NodeExecutionStatus,
 } from "../types";
 
 export interface FlowExecutionPersistenceService {
@@ -225,9 +226,9 @@ export class FlowExecutionPersistenceServiceImpl
   /**
    * Helper to safely convert metrics
    */
-  private safeMetrics(metrics: any): ExecutionMetricsData {
+  private safeMetrics(metrics: any): ExecutionMetrics {
     if (metrics && typeof metrics === 'object') {
-      return metrics as ExecutionMetricsData;
+      return metrics as ExecutionMetrics;
     }
     return {
       totalNodes: 0,
@@ -363,18 +364,40 @@ export class FlowExecutionPersistenceServiceImpl
 
   /**
    * Map NodeExecutionStatus enum to string for database storage
+   * The shared types use lowercase values like "running", "completed"
+   * Prisma expects uppercase values like "RUNNING", "SUCCESS"
    */
   private mapStatusToString(status: NodeExecutionStatus): string {
-    return NodeExecutionStatus[status].toLowerCase();
+    // Map from shared types enum values to Prisma enum values
+    const statusMap: Record<string, string> = {
+      [NodeExecutionStatus.IDLE]: "IDLE",
+      [NodeExecutionStatus.QUEUED]: "QUEUED",
+      [NodeExecutionStatus.RUNNING]: "RUNNING",
+      [NodeExecutionStatus.COMPLETED]: "SUCCESS",
+      [NodeExecutionStatus.FAILED]: "ERROR",
+      [NodeExecutionStatus.CANCELLED]: "CANCELLED",
+      [NodeExecutionStatus.SKIPPED]: "SKIPPED",
+    };
+    return statusMap[status] || "IDLE";
   }
 
   /**
    * Map string from database back to NodeExecutionStatus enum
+   * Prisma stores uppercase values like "RUNNING", "SUCCESS"
+   * We need to convert to shared types enum values like "running", "completed"
    */
   private mapStringToStatus(status: string): NodeExecutionStatus {
-    const upperStatus =
-      status.toUpperCase() as keyof typeof NodeExecutionStatus;
-    return NodeExecutionStatus[upperStatus] || NodeExecutionStatus.IDLE;
+    // Map from Prisma enum values to shared types enum values
+    const statusMap: Record<string, NodeExecutionStatus> = {
+      "IDLE": NodeExecutionStatus.IDLE,
+      "QUEUED": NodeExecutionStatus.QUEUED,
+      "RUNNING": NodeExecutionStatus.RUNNING,
+      "SUCCESS": NodeExecutionStatus.COMPLETED,
+      "ERROR": NodeExecutionStatus.FAILED,
+      "CANCELLED": NodeExecutionStatus.CANCELLED,
+      "SKIPPED": NodeExecutionStatus.SKIPPED,
+    };
+    return statusMap[status] || NodeExecutionStatus.IDLE;
   }
 }
 

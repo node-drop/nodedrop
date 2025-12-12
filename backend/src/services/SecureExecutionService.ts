@@ -181,8 +181,7 @@ export class SecureExecutionService {
         try {
           let resolvedValue = await this.variableService.replaceVariablesInText(
             value,
-            userId,
-            workflowId
+            userId
           );
 
           // Unwrap simple {{value}} patterns
