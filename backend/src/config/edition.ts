@@ -1,56 +1,34 @@
 /**
- * Edition Configuration
+ * Edition Configuration for Backend
  * 
- * Controls which features are available based on deployment type:
- * - "community" = Open source self-hosted (free, single workspace)
- * - "cloud" = NodeDrop Cloud SaaS (multi-tenant, paid plans)
- * 
+ * Uses shared edition config from @nodedrop/types
  * Set via NODEDROP_EDITION environment variable
  */
 
-export type Edition = 'community' | 'cloud';
+import {
+  type Edition,
+  type EditionFeatures,
+  type IEditionConfig,
+  parseEdition,
+  getEditionFeatures,
+  EDITION_FEATURES,
+} from "@nodedrop/types";
 
-export interface EditionFeatures {
-  multiWorkspace: boolean;
-  teamCollaboration: boolean;
-  memberInvitations: boolean;
-  planLimits: boolean;
-  billing: boolean;
-  sso: boolean;
-  auditLogs: boolean;
-  customBranding: boolean;
-}
+// Re-export types for backward compatibility
+export type { Edition, EditionFeatures };
+export { EDITION_FEATURES };
 
-const EDITION_FEATURES: Record<Edition, EditionFeatures> = {
-  community: {
-    multiWorkspace: false,
-    teamCollaboration: false,
-    memberInvitations: false,
-    planLimits: false,
-    billing: false,
-    sso: false,
-    auditLogs: false,
-    customBranding: false,
-  },
-  cloud: {
-    multiWorkspace: true,
-    teamCollaboration: true,
-    memberInvitations: true,
-    planLimits: true,
-    billing: true,
-    sso: true,
-    auditLogs: true,
-    customBranding: true,
-  },
-};
-
-class EditionConfig {
+/**
+ * Backend-specific edition config class
+ * Extends the shared config with backend-specific functionality
+ */
+class EditionConfig implements IEditionConfig {
   private edition: Edition;
   private features: EditionFeatures;
 
   constructor() {
-    this.edition = (process.env.NODEDROP_EDITION as Edition) || 'community';
-    this.features = EDITION_FEATURES[this.edition];
+    this.edition = parseEdition(process.env.NODEDROP_EDITION);
+    this.features = getEditionFeatures(this.edition);
   }
 
   getEdition(): Edition {
@@ -76,6 +54,7 @@ class EditionConfig {
   /**
    * Check if a specific feature is available
    * Use this in routes/services to gate cloud-only features
+   * Throws an error if the feature is not available
    */
   requireFeature(feature: keyof EditionFeatures): void {
     if (!this.features[feature]) {

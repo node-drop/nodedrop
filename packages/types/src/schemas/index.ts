@@ -14,5 +14,8 @@ export * from './workflow.schemas';
 // Common utility schemas
 export * from './common.schemas';
 
+// API request schemas
+export * from './api.schemas';
+
 // Validation utilities
 export * from './validation';

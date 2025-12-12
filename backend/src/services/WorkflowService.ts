@@ -628,7 +628,7 @@ export class WorkflowService {
   async getUpcomingExecutions(workflow: any, limit: number = 10) {
     try {
       const { getNextExecutionTimes, describeCronExpression } = await import(
-        "../utils/cronUtils"
+        "@nodedrop/utils"
       );
 
       const triggers = (workflow.triggers as any[]) || [];

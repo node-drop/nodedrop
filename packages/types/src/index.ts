@@ -42,6 +42,57 @@ export * from "./credential";
 // Environment types and schemas
 export * from "./environment";
 
+// Edition configuration
+export * from "./edition";
+
+// =============================================================================
+// API Request Schemas Export
+// =============================================================================
+
+export {
+  // ID schemas
+  IdParamSchema,
+  type IdParam,
+  
+  // Pagination schemas
+  PaginationQuerySchema,
+  type PaginationQuery,
+  LimitQuerySchema,
+  type LimitQuery,
+  ScheduledExecutionsQuerySchema,
+  type ScheduledExecutionsQuery,
+  TriggerEventsQuerySchema,
+  type TriggerEventsQuery,
+  DeploymentHistoryQuerySchema,
+  type DeploymentHistoryQuery,
+  
+  // Auth schemas
+  LoginSchema,
+  type LoginRequest,
+  RegisterSchema,
+  type RegisterRequest,
+  ForgotPasswordSchema,
+  type ForgotPasswordRequest,
+  
+  // Workflow API schemas
+  CreateWorkflowSchema,
+  type CreateWorkflowRequest,
+  UpdateWorkflowSchema,
+  type UpdateWorkflowRequest,
+  WorkflowQuerySchema,
+  type WorkflowQuery,
+  
+  // Execution API schemas
+  ExecuteWorkflowSchema,
+  type ExecuteWorkflowRequest,
+  ExecutionQuerySchema,
+  type ExecutionQuery,
+  
+  // Node API schemas
+  NodeQuerySchema,
+  type NodeQuery,
+} from "./schemas/api.schemas";
+
 // =============================================================================
 // Validation Utilities Export
 // =============================================================================

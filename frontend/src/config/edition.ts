@@ -1,54 +1,29 @@
 /**
  * Edition Configuration for Frontend
  * 
- * Controls UI visibility based on deployment type:
- * - "community" = Open source self-hosted (free, single workspace)
- * - "cloud" = NodeDrop Cloud SaaS (multi-tenant, paid plans)
+ * Uses shared edition config from @nodedrop/types
  * 
  * Edition is determined by:
  * 1. VITE_NODEDROP_EDITION env var (build time)
  * 2. API response from /api/edition (runtime, cached)
  */
 
-export type Edition = 'community' | 'cloud';
+import {
+  type Edition,
+  type EditionFeatures,
+  type IEditionConfig,
+  parseEdition,
+  getEditionFeatures,
+  EDITION_FEATURES,
+} from "@nodedrop/types";
 
-export interface EditionFeatures {
-  multiWorkspace: boolean;
-  teamCollaboration: boolean;
-  memberInvitations: boolean;
-  planLimits: boolean;
-  billing: boolean;
-  sso: boolean;
-  auditLogs: boolean;
-  customBranding: boolean;
-}
+// Re-export types for backward compatibility
+export type { Edition, EditionFeatures };
+export { EDITION_FEATURES };
 
-const EDITION_FEATURES: Record<Edition, EditionFeatures> = {
-  community: {
-    multiWorkspace: false,
-    teamCollaboration: false,
-    memberInvitations: false,
-    planLimits: false,
-    billing: false,
-    sso: false,
-    auditLogs: false,
-    customBranding: false,
-  },
-  cloud: {
-    multiWorkspace: true,
-    teamCollaboration: true,
-    memberInvitations: true,
-    planLimits: true,
-    billing: true,
-    sso: true,
-    auditLogs: true,
-    customBranding: true,
-  },
-};
-
-// Default to env var or community
-let currentEdition: Edition = (import.meta.env.VITE_NODEDROP_EDITION as Edition) || 'community';
-let currentFeatures: EditionFeatures = EDITION_FEATURES[currentEdition];
+// State
+let currentEdition: Edition = parseEdition(import.meta.env.VITE_NODEDROP_EDITION);
+let currentFeatures: EditionFeatures = getEditionFeatures(currentEdition);
 let initialized = false;
 
 /**
@@ -62,8 +37,8 @@ export async function initializeEdition(): Promise<void> {
     if (response.ok) {
       const data = await response.json();
       if (data.success && data.data) {
-        currentEdition = data.data.edition;
-        currentFeatures = data.data.features;
+        currentEdition = parseEdition(data.data.edition);
+        currentFeatures = data.data.features || getEditionFeatures(currentEdition);
       }
     }
   } catch (error) {
@@ -74,7 +49,13 @@ export async function initializeEdition(): Promise<void> {
   initialized = true;
 }
 
-export const editionConfig = {
+/**
+ * Frontend edition config object
+ * Implements IEditionConfig interface from shared package
+ */
+export const editionConfig: IEditionConfig & {
+  isInitialized: () => boolean;
+} = {
   getEdition: () => currentEdition,
   getFeatures: () => currentFeatures,
   isCloud: () => currentEdition === 'cloud',
