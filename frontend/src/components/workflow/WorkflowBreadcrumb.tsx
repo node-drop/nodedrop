@@ -24,6 +24,7 @@ import { EnvironmentSelector } from '../environment/EnvironmentSelector'
 import { CreateCategoryModal } from './CreateCategoryModal'
 import { TeamSelectorBreadcrumb } from '../team/TeamSelectorBreadcrumb'
 import { useTeam } from '@/contexts/TeamContext'
+import { editionConfig } from '@/config/edition'
 
 interface WorkflowBreadcrumbProps {
   category?: string
@@ -61,7 +62,9 @@ export function WorkflowBreadcrumb({
   const [isDeletingCategory, setIsDeletingCategory] = useState(false)
   const { showSuccess, showError } = useGlobalToast()
   const { teams } = useTeam()
-  const hasTeams = teams.length > 0 || teamId // Show if there are teams OR if workflow is already assigned to a team
+  const isTeamFeatureEnabled = editionConfig.isFeatureEnabled('teamCollaboration')
+  // Only show team selector if feature is enabled AND (there are teams OR workflow is already assigned to a team)
+  const hasTeams = isTeamFeatureEnabled && (teams.length > 0 || teamId)
 
   // Load available categories on mount
   useEffect(() => {
