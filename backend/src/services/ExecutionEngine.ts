@@ -104,6 +104,7 @@ export class ExecutionEngine extends EventEmitter {
       const execution = await this.prisma.execution.create({
         data: {
           workflowId,
+          workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
           status: ExecutionStatus.RUNNING,
           startedAt: new Date(),
           triggerData: triggerData || {},

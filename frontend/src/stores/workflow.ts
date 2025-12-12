@@ -370,6 +370,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
               "webhook-trigger",
               "schedule-trigger",
               "workflow-called",
+              "error-trigger",
               "webhook",
             ];
 
@@ -3436,6 +3437,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             "webhook-trigger",
             "schedule-trigger",
             "workflow-called",
+            "error-trigger",
             "webhook",
           ];
           if (triggerTypes.includes(targetNode.type)) {

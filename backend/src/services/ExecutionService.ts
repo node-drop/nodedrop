@@ -262,7 +262,8 @@ export class ExecutionService {
             settings: parsedWorkflow.settings,
           }
           : undefined,
-        options // Pass options to check saveToDatabase
+        options, // Pass options to check saveToDatabase
+        parsedWorkflow.workspaceId // Pass workspaceId for denormalization
       );
 
       // Collect error information from failed nodes
@@ -402,7 +403,8 @@ export class ExecutionService {
             settings: parsedWorkflow.settings,
           }
           : undefined,
-        options // Pass options to check saveToDatabase
+        options, // Pass options to check saveToDatabase
+        parsedWorkflow.workspaceId // Pass workspaceId for denormalization
       );
 
       // Collect error information from failed nodes
@@ -1037,7 +1039,7 @@ export class ExecutionService {
     });
 
     // FlowExecutionEngine events
-    this.flowExecutionEngine.on("flowExecutionCompleted", (flowResult) => {
+    this.flowExecutionEngine.on("flowExecutionCompleted", async (flowResult) => {
 
 
       // Broadcast flow completion event to BOTH execution room and workflow room
@@ -1057,6 +1059,72 @@ export class ExecutionService {
           },
           flowResult.workflowId // Pass workflowId to broadcast to workflow room
         );
+      }
+
+      // Fire error triggers if the flow failed or had partial failures
+      if (flowResult.status === "failed" || flowResult.status === "partial") {
+        try {
+          if (global.errorTriggerService) {
+            // Get workflow details for error trigger
+            let workflowName = "Unknown Workflow";
+            let userId = "";
+            let failedNodeName: string | undefined;
+            let failedNodeType: string | undefined;
+            
+            try {
+              const workflow = await this.prisma.workflow.findUnique({
+                where: { id: flowResult.workflowId },
+                select: { name: true, userId: true, nodes: true },
+              });
+              if (workflow) {
+                workflowName = workflow.name;
+                userId = workflow.userId;
+                
+                // Get first failed node details
+                if (flowResult.failedNodes.length > 0) {
+                  const nodes = workflow.nodes as any[];
+                  const failedNode = nodes?.find((n: any) => n.id === flowResult.failedNodes[0]);
+                  if (failedNode) {
+                    failedNodeName = failedNode.name;
+                    failedNodeType = failedNode.type;
+                  }
+                }
+              }
+            } catch (e) {
+              logger.warn("Could not fetch workflow details for error trigger", { error: e });
+            }
+
+            // Get error message from node results
+            let errorMessage = "Workflow execution failed";
+            if (flowResult.failedNodes.length > 0) {
+              const failedNodeResult = flowResult.nodeResults.get(flowResult.failedNodes[0]);
+              if (failedNodeResult?.error) {
+                errorMessage = failedNodeResult.error.message || failedNodeResult.error;
+              }
+            }
+
+            await global.errorTriggerService.onWorkflowExecutionFailed({
+              executionId: flowResult.executionId,
+              workflowId: flowResult.workflowId,
+              workflowName,
+              failedNodeId: flowResult.failedNodes[0],
+              failedNodeName,
+              failedNodeType,
+              errorMessage,
+              errorTimestamp: new Date().toISOString(),
+              executionStartedAt: new Date().toISOString(),
+              executionMode: "flow",
+              userId,
+              errorContext: {
+                isPartialFailure: flowResult.status === "partial",
+                failedNodes: flowResult.failedNodes,
+                executedNodes: flowResult.executedNodes,
+              },
+            });
+          }
+        } catch (errorTriggerError) {
+          logger.error("Failed to fire error triggers for flow execution:", errorTriggerError);
+        }
       }
     });
 
@@ -1437,7 +1505,8 @@ export class ExecutionService {
             userId,
             nodeInputData,
             undefined, // No workflow snapshot for single node execution
-            undefined // No options - always save single node executions
+            undefined, // No options - always save single node executions
+            parsedWorkflow.workspaceId // Pass workspaceId for denormalization
           );
 
 
@@ -1668,7 +1737,8 @@ export class ExecutionService {
     userId: string,
     triggerData?: any,
     workflowSnapshot?: { nodes: any[]; connections: any[]; settings?: any },
-    options?: ExecutionOptions
+    options?: ExecutionOptions,
+    workspaceId?: string | null
   ): Promise<any> {
     try {
       // Skip database save if configured
@@ -1731,6 +1801,7 @@ export class ExecutionService {
         data: {
           id: flowResult.executionId,
           workflowId: actualWorkflowId,
+          workspaceId: workspaceId || undefined, // Denormalized for efficient workspace-level queries
           status: executionStatus,
           startedAt: new Date(Date.now() - flowResult.totalDuration),
           finishedAt: new Date(),

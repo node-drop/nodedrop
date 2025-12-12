@@ -12,9 +12,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Workflow } from '@nodedrop/types'
-import { Save, Tag, X, Database, AlertTriangle } from 'lucide-react'
+import { Save, Tag, X, Database, AlertTriangle, Bug } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { CategorySelect } from './CategorySelect'
+import { WorkflowAutocomplete } from './node-config/custom-fields/WorkflowAutocomplete'
 
 interface WorkflowSettingsModalProps {
   isOpen: boolean
@@ -38,6 +39,9 @@ export function WorkflowSettingsModal({
     workflow.settings?.saveExecutionToDatabase !== false // Default to true
   )
   const [active, setActive] = useState(workflow.active || false)
+  const [errorWorkflowId, setErrorWorkflowId] = useState(
+    (workflow.settings as any)?.errorWorkflowId || ''
+  )
 
   // Reset form when workflow changes
   useEffect(() => {
@@ -47,6 +51,7 @@ export function WorkflowSettingsModal({
     setTags(workflow.tags || [])
     setSaveExecutionToDatabase(workflow.settings?.saveExecutionToDatabase !== false)
     setActive(workflow.active || false)
+    setErrorWorkflowId((workflow.settings as any)?.errorWorkflowId || '')
   }, [workflow])
 
   const handleAddTag = () => {
@@ -69,7 +74,8 @@ export function WorkflowSettingsModal({
       active,
       settings: {
         ...(workflow.settings || {}), // Ensure settings is an object
-        saveExecutionToDatabase
+        saveExecutionToDatabase,
+        errorWorkflowId: errorWorkflowId || undefined,
       }
     }
     console.log('Updating workflow settings:', updates)
@@ -207,6 +213,33 @@ export function WorkflowSettingsModal({
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
                 <div className="text-amber-800 dark:text-amber-200">
                   <p className="font-medium">No execution history will be saved</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Error Workflow Settings */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 font-medium">
+                <Bug className="w-4 h-4 flex-shrink-0" />
+                <span>Error Workflow</span>
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Select a workflow to execute when this workflow fails. The error workflow will receive details about the failure.
+              </p>
+              <WorkflowAutocomplete
+                value={errorWorkflowId}
+                onChange={setErrorWorkflowId}
+              />
+            </div>
+
+            {errorWorkflowId && (
+              <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded text-xs">
+                <Bug className="w-3.5 h-3.5 text-blue-600 dark:text-blue-500 mt-0.5 flex-shrink-0" />
+                <div className="text-blue-800 dark:text-blue-200">
+                  <p className="font-medium">Error handling enabled</p>
+                  <p className="mt-0.5">When this workflow fails, the selected workflow will be triggered with error details.</p>
                 </div>
               </div>
             )}

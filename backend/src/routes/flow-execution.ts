@@ -50,6 +50,7 @@ router.post(
     const execution = await prisma.execution.create({
       data: {
         workflowId,
+        workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
         triggerData: triggerData || {},
       },
     });

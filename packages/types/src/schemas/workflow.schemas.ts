@@ -116,6 +116,8 @@ export const WorkflowSettingsSchema = z.object({
   executionTimeout: z.number().optional(),
   /** Whether to save execution progress (backend only) */
   saveExecutionProgress: z.boolean().optional(),
+  /** ID of workflow to execute when this workflow fails (n8n-style error handling) */
+  errorWorkflowId: z.string().optional(),
 });
 export type WorkflowSettings = z.infer<typeof WorkflowSettingsSchema>;
 
@@ -305,9 +307,11 @@ export type { TriggerType } from "./node.schemas";
 /**
  * Represents a trigger configuration for a workflow
  */
+import { TriggerTypeSchema as NodeTriggerTypeSchema } from "./node.schemas";
+
 export const WorkflowTriggerSchema = z.object({
   id: z.string(),
-  type: z.enum(["webhook", "schedule", "manual", "polling", "workflow-called"]),
+  type: NodeTriggerTypeSchema,
   settings: z.record(z.any()),
   active: z.boolean(),
   nodeId: z.string().optional(),
@@ -320,7 +324,7 @@ export type WorkflowTrigger = z.infer<typeof WorkflowTriggerSchema>;
  */
 export const TriggerOptionSchema = z.object({
   id: z.string(),
-  type: z.enum(["webhook", "schedule", "manual", "polling", "workflow-called"]),
+  type: NodeTriggerTypeSchema,
   nodeId: z.string(),
   description: z.string().optional(),
   settings: z.record(z.any()).optional(),

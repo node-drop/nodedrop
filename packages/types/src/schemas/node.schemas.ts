@@ -44,6 +44,7 @@ export const TriggerTypeSchema = z.enum([
   "manual",
   "polling",
   "workflow-called",
+  "error",
 ]);
 export type TriggerType = z.infer<typeof TriggerTypeSchema>;
 

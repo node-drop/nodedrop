@@ -119,7 +119,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
         triggerData: any,
         nodes: WorkflowNode[],
         connections: WorkflowConnection[],
-        options?: { saveToDatabase?: boolean }
+        options?: { saveToDatabase?: boolean; workspaceId?: string | null }
     ): Promise<string> {
         // Check limit before creating new execution to prevent memory leaks
         if (this.activeExecutions.size >= this.MAX_ACTIVE_EXECUTIONS) {
@@ -177,7 +177,8 @@ export class RealtimeExecutionEngine extends EventEmitter {
             await this.prisma.execution.create({
                 data: {
                     id: executionId,
-                    workflow: { connect: { id: workflowId } },
+                    workflowId, // Direct field assignment instead of connect
+                    workspaceId: options?.workspaceId || undefined, // Denormalized for efficient workspace-level queries
                     status: ExecutionStatus.RUNNING,
                     startedAt: new Date(),
                     triggerData: triggerData || {},
@@ -1324,11 +1325,39 @@ export class RealtimeExecutionEngine extends EventEmitter {
     /**
      * Fail execution
      */
-    private async failExecution(executionId: string, error: any): Promise<void> {
+    private async failExecution(executionId: string, error: any, failedNodeId?: string): Promise<void> {
         const context = this.activeExecutions.get(executionId);
         if (!context) return;
 
         context.status = "failed";
+
+        // Get workflow name for error trigger
+        let workflowName = "Unknown Workflow";
+        let failedNodeName: string | undefined;
+        let failedNodeType: string | undefined;
+        
+        try {
+            const workflow = await this.prisma.workflow.findUnique({
+                where: { id: context.workflowId },
+                select: { name: true, nodes: true },
+            });
+            if (workflow) {
+                workflowName = workflow.name;
+                
+                // Find the failed node details
+                const nodeId = failedNodeId || context.currentNodeId;
+                if (nodeId && workflow.nodes) {
+                    const nodes = workflow.nodes as any[];
+                    const failedNode = nodes.find((n: any) => n.id === nodeId);
+                    if (failedNode) {
+                        failedNodeName = failedNode.name;
+                        failedNodeType = failedNode.type;
+                    }
+                }
+            }
+        } catch (e) {
+            logger.warn(`[RealtimeExecution] Could not fetch workflow name for error trigger`, { error: e });
+        }
 
         if (context.saveToDatabase !== false) {
             await this.prisma.execution.update({
@@ -1344,13 +1373,25 @@ export class RealtimeExecutionEngine extends EventEmitter {
             });
         }
 
+        // Emit detailed execution-failed event for error triggers
         this.emit("execution-failed", {
             executionId,
+            workflowId: context.workflowId,
+            workflowName,
+            userId: context.userId,
+            failedNodeId: failedNodeId || context.currentNodeId,
+            failedNodeName,
+            failedNodeType,
             error: {
                 message: error.message,
                 stack: error.stack,
             },
             timestamp: new Date(),
+            executionStartedAt: new Date(context.startTime).toISOString(),
+            executionMode: context.triggerData?._executionMode || "unknown",
+            errorContext: {
+                isPartialFailure: false,
+            },
         });
 
         logger.error(`[RealtimeExecution] Execution ${executionId} failed:`, error);

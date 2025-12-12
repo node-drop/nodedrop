@@ -44,6 +44,11 @@ export const NODE_ICON_MAP: Record<string, NodeIconConfig> = {
     color: "#0084FF",
     description: "Chat interface trigger",
   },
+  "error-trigger": {
+    icon: "lucide:bug",
+    color: "#EF4444",
+    description: "Triggers when workflows fail",
+  },
 
   // ===== AI NODES =====
   openai: {
@@ -210,6 +215,7 @@ export function getIconsByCategory(
       "schedule-trigger",
       "workflow-called",
       "chat-trigger",
+      "error-trigger",
       "google-sheets-trigger",
     ],
     action: ["http-request", "workflow-trigger"],

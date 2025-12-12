@@ -376,7 +376,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       const { executeNode } = useWorkflowStore.getState()
       await executeNode(triggerNodeId || workflow.nodes.find(n => 
         n.type.includes('trigger') || 
-        ['manual-trigger', 'webhook-trigger', 'schedule-trigger', 'workflow-called'].includes(n.type)
+        ['manual-trigger', 'webhook-trigger', 'schedule-trigger', 'workflow-called', 'error-trigger'].includes(n.type)
       )?.id || '', undefined, 'workflow')
     } catch (error) {
       console.error('Failed to execute workflow:', error)

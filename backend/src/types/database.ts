@@ -29,6 +29,7 @@ export interface Workflow {
   name: string;
   description?: string;
   userId: string;
+  workspaceId?: string | null;
   nodes: Node[];
   connections: Connection[];
   triggers: Trigger[];
@@ -79,6 +80,8 @@ export interface WorkflowSettings {
   saveDataSuccessExecution?: "all" | "none";
   callerPolicy?: "workflowsFromSameOwner" | "workflowsFromAList" | "any";
   executionTimeout?: number;
+  /** ID of workflow to execute when this workflow fails (n8n-style error handling) */
+  errorWorkflowId?: string;
 }
 
 export interface Execution {

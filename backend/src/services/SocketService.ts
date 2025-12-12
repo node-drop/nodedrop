@@ -732,6 +732,16 @@ export class SocketService {
         throw new Error("Trigger node ID is required");
       }
 
+      // Get workspaceId from workflow if it exists (for saved workflows)
+      let workspaceId: string | null = null;
+      if (data.workflowId && data.workflowId !== "new") {
+        const workflow = await prisma.workflow.findUnique({
+          where: { id: data.workflowId },
+          select: { workspaceId: true },
+        });
+        workspaceId = workflow?.workspaceId || null;
+      }
+
       // Start execution (returns immediately with execution ID)
       const executionId = await globalAny.realtimeExecutionEngine.startExecution(
         data.workflowId,
@@ -740,7 +750,7 @@ export class SocketService {
         data.triggerData,
         data.workflowData.nodes,
         data.workflowData.connections,
-        data.options // Pass options including saveToDatabase
+        { ...data.options, workspaceId } // Pass options including saveToDatabase and workspaceId
       );
 
       // Return execution ID immediately
