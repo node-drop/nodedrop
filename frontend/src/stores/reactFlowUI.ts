@@ -58,12 +58,12 @@ interface ReactFlowUIState {
 
   // Right sidebar state
   showRightSidebar: boolean;
-  rightSidebarTab: 'settings' | 'copilot' | 'code';
+  rightSidebarTab: 'settings' | 'copilot' | 'code' | 'workflow';
   rightSidebarSize: number;
   toggleRightSidebar: () => void;
-  setRightSidebarTab: (tab: 'settings' | 'copilot' | 'code') => void;
+  setRightSidebarTab: (tab: 'settings' | 'copilot' | 'code' | 'workflow') => void;
   setRightSidebarSize: (size: number) => void;
-  openRightSidebar: (tab?: 'settings' | 'copilot' | 'code') => void;
+  openRightSidebar: (tab?: 'settings' | 'copilot' | 'code' | 'workflow') => void;
   closeRightSidebar: () => void;
 
   // Toggle functions
@@ -206,6 +206,7 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
       // Right sidebar actions
       toggleRightSidebar: () => {
         set((state) => ({ showRightSidebar: !state.showRightSidebar }));
+        get().savePreferences();
       },
       setRightSidebarTab: (tab) => {
         set({ rightSidebarTab: tab, showRightSidebar: true });
@@ -294,6 +295,9 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
           if (preferences.canvas.canvasBoundaryY !== undefined) {
             updates.canvasBoundaryY = preferences.canvas.canvasBoundaryY;
           }
+          if (preferences.canvas.showRightSidebar !== undefined) {
+            updates.showRightSidebar = preferences.canvas.showRightSidebar;
+          }
           set(updates);
         }
       },
@@ -321,6 +325,8 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
                 preferences.canvas.canvasBoundaryX ?? get().canvasBoundaryX,
               canvasBoundaryY:
                 preferences.canvas.canvasBoundaryY ?? get().canvasBoundaryY,
+              showRightSidebar:
+                preferences.canvas.showRightSidebar ?? get().showRightSidebar,
             });
           }
         } catch (error) {
@@ -347,6 +353,7 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
               zoomOnScroll: state.zoomOnScroll,
               canvasBoundaryX: state.canvasBoundaryX,
               canvasBoundaryY: state.canvasBoundaryY,
+              showRightSidebar: state.showRightSidebar,
             },
           });
           // Note: localStorage is automatically updated by persist middleware
@@ -392,6 +399,8 @@ export const useReactFlowUIStore = createWithEqualityFn<ReactFlowUIState>()(
         canvasBoundaryX: state.canvasBoundaryX,
         canvasBoundaryY: state.canvasBoundaryY,
         executionPanelSize: state.executionPanelSize,
+        showRightSidebar: state.showRightSidebar,
+        rightSidebarSize: state.rightSidebarSize,
       }),
     }
   ),

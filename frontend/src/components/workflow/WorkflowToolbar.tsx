@@ -40,7 +40,6 @@ import { toast } from 'sonner'
 import { ManualDeploymentDialog } from '../environment/ManualDeploymentDialog'
 import { UpdateEnvironmentDialog } from '../environment/UpdateEnvironmentDialog'
 import { WorkflowBreadcrumb } from './WorkflowBreadcrumb'
-import { WorkflowSettingsModal } from './WorkflowSettingsModal'
 
 interface WorkflowToolbarProps {
   // Minimal props - mainly for workflow operations that need main workflow store
@@ -52,13 +51,12 @@ export function WorkflowToolbar({
   onSave,
 }: WorkflowToolbarProps) {
   const { showConfirm, ConfirmDialog } = useConfirmDialog()
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const { selectedEnvironment, summaries } = useEnvironmentStore()
   
   // Sidebar from ReactFlowUI store
-  const { showRightSidebar, toggleRightSidebar } = useReactFlowUIStore()
+  const { showRightSidebar, toggleRightSidebar, openRightSidebar } = useReactFlowUIStore()
   
   // Add Node Dialog store
   const { openDialog } = useAddNodeDialogStore()
@@ -214,25 +212,9 @@ export function WorkflowToolbar({
     }
   }
 
-  const handleWorkflowSettingsSave = async (updates: { name?: string; description?: string; category?: string; tags?: string[] }) => {
-    if (workflow) {
-      updateWorkflow(updates)
-      setDirty(true)
-      // The actual save will happen when the user clicks the main Save button
-    }
-  }
-
   return (
     <TooltipProvider>
       <ConfirmDialog />
-      {workflow && (
-        <WorkflowSettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          workflow={workflow}
-          onSave={handleWorkflowSettingsSave}
-        />
-      )}
       <header className="flex items-center px-3 py-1.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 shadow-sm min-h-[48px]">
         {/* Left section - Sidebar trigger, Home, Breadcrumb and Edit actions */}
         <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -408,7 +390,7 @@ export function WorkflowToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => setShowSettingsModal(true)} className="text-xs">
+            <DropdownMenuItem onClick={() => openRightSidebar('workflow')} className="text-xs">
               <Settings className="mr-2 h-3.5 w-3.5" />
               Workflow Settings
             </DropdownMenuItem>
@@ -503,24 +485,6 @@ export function WorkflowToolbar({
       
       {/* Confirm Dialog */}
       <ConfirmDialog />
-      
-      {/* Workflow Settings Modal */}
-      {workflow && (
-        <WorkflowSettingsModal
-          isOpen={showSettingsModal}
-          workflow={workflow}
-          onClose={() => setShowSettingsModal(false)}
-          onSave={(updates) => {
-            updateWorkflow(updates)
-            // If name was updated, also update the title state
-            if (updates.name && updates.name !== mainWorkflowTitle) {
-              updateWorkflowTitle(updates.name)
-            }
-            setDirty(true)
-            setShowSettingsModal(false)
-          }}
-        />
-      )}
     </TooltipProvider>
   )
 }

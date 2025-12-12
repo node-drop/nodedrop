@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { Bot, Code2, Settings, X } from 'lucide-react'
+import { Bot, Code2, Settings, X, Sliders } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
@@ -7,6 +7,7 @@ import { useNodeTypes } from '@/stores/nodeTypes'
 import { QuickSettingsPanel } from './sidebar-panels/QuickSettingsPanel'
 import { CopilotPanel } from './sidebar-panels/CopilotPanel'
 import { CodePanel } from './sidebar-panels/CodePanel'
+import { WorkflowSettingsPanel } from './sidebar-panels/WorkflowSettingsPanel'
 
 interface RightSidebarProps {
   selectedNodes: { id: string }[]
@@ -65,6 +66,13 @@ export const RightSidebar = memo(function RightSidebar({
             >
               <Code2 className="h-3.5 w-3.5" />
             </TabsTrigger>
+            <TabsTrigger 
+              value="workflow" 
+              className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
+              title="Workflow Settings"
+            >
+              <Sliders className="h-3.5 w-3.5" />
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <Button 
@@ -92,6 +100,11 @@ export const RightSidebar = memo(function RightSidebar({
         {rightSidebarTab === 'code' && (
           <CodePanel 
             selectedNodes={selectedNodes}
+            readOnly={readOnly}
+          />
+        )}
+        {rightSidebarTab === 'workflow' && (
+          <WorkflowSettingsPanel 
             readOnly={readOnly}
           />
         )}

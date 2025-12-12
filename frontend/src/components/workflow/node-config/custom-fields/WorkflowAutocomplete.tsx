@@ -15,6 +15,7 @@ interface WorkflowAutocompleteProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   error?: string;
+  refreshable?: boolean;
 }
 
 export function WorkflowAutocomplete({
@@ -22,6 +23,7 @@ export function WorkflowAutocomplete({
   onChange,
   disabled = false,
   error,
+  refreshable = true,
 }: WorkflowAutocompleteProps) {
   // Fetch workflows from API
   const fetchWorkflows = async (): Promise<AutoCompleteOption<string>[]> => {
@@ -81,7 +83,7 @@ export function WorkflowAutocomplete({
         error={error}
         icon={<Workflow className="w-4 h-4 text-blue-600" />}
         clearable={false}
-        refreshable={true}
+        refreshable={refreshable}
         searchable={true}
         maxHeight={300}
       />
