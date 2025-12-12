@@ -16,7 +16,7 @@ import {
   WorkspaceWithRole,
   WorkspaceMemberResponse,
   WorkspaceUsage,
-  WORKSPACE_PLANS,
+  getWorkspacePlan,
 } from "../types/workspace.types";
 
 const prisma = new PrismaClient();
@@ -77,7 +77,7 @@ export class WorkspaceService {
         }
       }
 
-      const planLimits = WORKSPACE_PLANS[effectivePlan] || WORKSPACE_PLANS.free;
+      const planLimits = getWorkspacePlan(effectivePlan);
       const ownedWorkspaceCount = userWorkspaces.length;
 
       // Check if user can create more workspaces
@@ -101,7 +101,7 @@ export class WorkspaceService {
       }
 
       // Get default plan limits for new workspace (always starts as free)
-      const newWorkspacePlanLimits = WORKSPACE_PLANS.free;
+      const newWorkspacePlanLimits = getWorkspacePlan("free");
 
       // Create workspace with owner as member
       const workspace = await prisma.workspace.create({
@@ -284,7 +284,7 @@ export class WorkspaceService {
         }
       }
 
-      const planLimits = WORKSPACE_PLANS[effectivePlan] || WORKSPACE_PLANS.free;
+      const planLimits = getWorkspacePlan(effectivePlan);
       const currentCount = ownedWorkspaces.length;
       const maxAllowed = planLimits.maxWorkspaces;
 

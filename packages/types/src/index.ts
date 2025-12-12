@@ -27,6 +27,21 @@ export * from "./api";
 // Common utility types and schemas
 export * from "./common";
 
+// Workspace types and schemas
+export * from "./workspace";
+
+// Team types and schemas
+export * from "./team";
+
+// Variable types and schemas
+export * from "./variable";
+
+// Credential types and schemas
+export * from "./credential";
+
+// Environment types and schemas
+export * from "./environment";
+
 // =============================================================================
 // Validation Utilities Export
 // =============================================================================

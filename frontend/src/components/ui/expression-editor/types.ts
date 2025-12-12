@@ -1,29 +1,12 @@
-import type { VariableCategoryItem as BaseVariableCategoryItem } from '@nodedrop/types';
+// Import and re-export shared types from @nodedrop/types
+import type { 
+  VariableCategoryItem,
+  VariableCategory,
+  ExpressionResult,
+} from '@nodedrop/types';
 
-/**
- * Extended autocomplete item for expression editor
- * Extends the base VariableCategoryItem with additional UI-specific types
- */
-export interface AutocompleteItem extends Omit<BaseVariableCategoryItem, 'type'> {
-  type: "variable" | "method" | "property" | "object" | "array" | "function"
-}
-
-/**
- * Variable category for expression editor autocomplete
- * Uses the extended AutocompleteItem for richer UI suggestions
- */
-export interface VariableCategory {
-  name: string
-  icon: string
-  items: AutocompleteItem[]
-}
-
-export interface ExpressionResult {
-  success: boolean
-  value: string
-  type: string
-  error?: string
-}
+export type { VariableCategory, ExpressionResult };
+export type AutocompleteItem = VariableCategoryItem;
 
 export interface ExpressionEditorProps {
   /** Initial expression value */

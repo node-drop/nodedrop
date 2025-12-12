@@ -1,140 +1,41 @@
 /**
- * Workflow Environment Types (Frontend)
+ * Environment Types - Re-exported from @nodedrop/types
+ * 
+ * This file re-exports shared environment types from the types package.
+ * Helper functions for UI display are defined below.
  */
 
-export enum EnvironmentType {
-  DEVELOPMENT = "DEVELOPMENT",
-  STAGING = "STAGING",
-  PRODUCTION = "PRODUCTION",
-}
+// Re-export all environment types from shared package
+export type {
+  WorkflowEnvironment,
+  WorkflowEnvironmentDeployment,
+  EnvironmentSummary,
+  EnvironmentComparison,
+  CreateEnvironmentInput,
+  DeployEnvironmentInput,
+  UpdateEnvironmentInput,
+  PromoteEnvironmentInput,
+  RollbackEnvironmentInput,
+} from "@nodedrop/types";
 
-export enum EnvironmentStatus {
-  DRAFT = "DRAFT",
-  ACTIVE = "ACTIVE",
-  INACTIVE = "INACTIVE",
-  ARCHIVED = "ARCHIVED",
-}
+// Re-export enums
+export { EnvironmentType, EnvironmentStatus, DeploymentStatus } from "@nodedrop/types";
 
-export enum DeploymentStatus {
-  SUCCESS = "SUCCESS",
-  FAILED = "FAILED",
-  ROLLBACK = "ROLLBACK",
-}
+// Re-export schemas for validation
+export {
+  WorkflowEnvironmentSchema,
+  WorkflowEnvironmentDeploymentSchema,
+  EnvironmentSummarySchema,
+  EnvironmentComparisonSchema,
+  CreateEnvironmentInputSchema,
+  DeployEnvironmentInputSchema,
+  UpdateEnvironmentInputSchema,
+  PromoteEnvironmentInputSchema,
+  RollbackEnvironmentInputSchema,
+} from "@nodedrop/types";
 
-export interface WorkflowEnvironment {
-  id: string;
-  workflowId: string;
-  environment: EnvironmentType;
-  version: string;
-  nodes: any[];
-  connections: any[];
-  triggers: any[];
-  settings: Record<string, any>;
-  variables: Record<string, any>;
-  active: boolean;
-  deployedAt?: string;
-  deployedBy?: string;
-  deploymentNote?: string;
-  status: EnvironmentStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WorkflowEnvironmentDeployment {
-  id: string;
-  environmentId: string;
-  version: string;
-  deployedBy: string;
-  deployedAt: string;
-  sourceEnvironment?: EnvironmentType;
-  deploymentNote?: string;
-  snapshot: any;
-  status: DeploymentStatus;
-  rollbackFrom?: string;
-  createdAt: string;
-}
-
-export interface EnvironmentSummary {
-  environment: EnvironmentType;
-  version: string;
-  status: EnvironmentStatus;
-  active: boolean;
-  nodeCount: number;
-  lastDeployment?: {
-    deployedAt: string;
-    deployedBy: string;
-    note?: string;
-  };
-}
-
-export interface EnvironmentComparison {
-  workflowId: string;
-  sourceEnvironment: EnvironmentType;
-  targetEnvironment: EnvironmentType;
-  differences: {
-    nodes: {
-      added: any[];
-      removed: any[];
-      modified: any[];
-    };
-    connections: {
-      added: any[];
-      removed: any[];
-    };
-    triggers: {
-      added: any[];
-      removed: any[];
-      modified: any[];
-    };
-    settings: {
-      changed: Array<{
-        key: string;
-        sourceValue: any;
-        targetValue: any;
-      }>;
-    };
-    variables: {
-      added: string[];
-      removed: string[];
-      modified: string[];
-    };
-  };
-  sourceVersion: string;
-  targetVersion: string;
-}
-
-export interface CreateEnvironmentInput {
-  environment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-}
-
-export interface DeployEnvironmentInput {
-  sourceEnvironment: EnvironmentType;
-  targetEnvironment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-  copyVariables?: boolean;
-  activateAfterDeploy?: boolean;
-}
-
-export interface UpdateEnvironmentInput {
-  environment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-  copyVariables?: boolean;
-}
-
-export interface PromoteEnvironmentInput {
-  version?: string;
-  deploymentNote?: string;
-  activateAfterDeploy?: boolean;
-}
-
-export interface RollbackEnvironmentInput {
-  deploymentId: string;
-  deploymentNote?: string;
-}
+// Import enums for use in helper functions
+import { EnvironmentType, EnvironmentStatus } from "@nodedrop/types";
 
 // Helper functions
 export const getEnvironmentColor = (environment: EnvironmentType): string => {

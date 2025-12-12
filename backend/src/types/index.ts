@@ -1,17 +1,35 @@
-// Core type definitions for the node drop backend
+/**
+ * Backend Type Definitions
+ * 
+ * This module exports all backend types, combining:
+ * - Database types (Prisma-compatible with Date objects)
+ * - API validation schemas
+ * - Execution engine types
+ * - Node system types
+ * - Workspace types
+ * 
+ * For shared types between frontend and backend, see @nodedrop/types
+ */
+
+// API validation schemas
 export * from "./api";
+
+// Database types (Prisma-compatible)
 export * from "./database";
-// Re-export execution types but exclude duplicates that are already in database.ts
+
+// Execution types - re-export from @nodedrop/types via execution.types
+// Note: ExecutionError from execution.types is for API responses (string timestamps)
+// while ExecutionError from database.ts is for database records (Date objects)
 export {
-  // Enums - use the ones from @nodedrop/types
+  // Enums
   NodeExecutionStatus,
   
   // Status types
   ExecutionStatus as ExecutionStatusType,
   FlowOverallStatus,
   
-  // Error types - ExecutionError is already in database.ts, so rename
-  ExecutionError as ExecutionErrorType,
+  // Error types (API response format)
+  ExecutionError as ApiExecutionError,
   ExecutionEngineError,
   NodeExecutionError,
   
@@ -51,5 +69,12 @@ export {
   // Execution statistics
   ExecutionStats,
 } from "./execution.types";
+
+// Node system types
 export * from "./node.types";
+
+// Workspace types (multi-tenancy)
 export * from "./workspace.types";
+
+// Variable types
+export * from "./variable.types";

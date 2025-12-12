@@ -27,6 +27,8 @@ import {
   VariableTypeSchema,
   VariableCategoryItemSchema,
   VariableCategorySchema,
+  // Expression result schema
+  ExpressionResultSchema,
   // ID and reference type schemas
   IDSchema,
   UserIdSchema,
@@ -62,6 +64,7 @@ export {
   VariableTypeSchema,
   VariableCategoryItemSchema,
   VariableCategorySchema,
+  ExpressionResultSchema,
   IDSchema,
   UserIdSchema,
   WorkflowIdSchema,
@@ -176,7 +179,7 @@ export enum DeploymentStatus {
 }
 
 // =============================================================================
-// Role and Permission Types (string literals - not schema-based)
+// User Role Types (string literals - not schema-based)
 // =============================================================================
 
 /**
@@ -184,29 +187,8 @@ export enum DeploymentStatus {
  */
 export type UserRole = "user" | "admin";
 
-/**
- * Role within a team
- */
-export type TeamRole = "OWNER" | "MEMBER" | "VIEWER";
-
-/**
- * Role within a workspace
- */
-export type WorkspaceRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
-
-/**
- * Permission level for shared resources
- */
-export type SharePermission = "USE" | "VIEW" | "EDIT";
-
-// =============================================================================
-// Workspace Plan Types
-// =============================================================================
-
-/**
- * Available workspace subscription plans
- */
-export type WorkspacePlan = "free" | "pro" | "enterprise";
+// Note: TeamRole, WorkspaceRole, SharePermission, and WorkspacePlan are now
+// defined in their respective modules (team.ts, workspace.ts) with Zod schemas.
 
 // =============================================================================
 // Sort and Filter Types
@@ -371,6 +353,11 @@ export type VariableCategoryItem = z.infer<typeof VariableCategoryItemSchema>;
  * Variable category for grouping autocomplete suggestions
  */
 export type VariableCategory = z.infer<typeof VariableCategorySchema>;
+
+/**
+ * Result of expression evaluation
+ */
+export type ExpressionResult = z.infer<typeof ExpressionResultSchema>;
 
 // =============================================================================
 // Validation Types (inferred from schemas)

@@ -3,6 +3,7 @@ export * from "./api";
 export * from "./auth";
 export * from "./credential";
 export * from "./customNode";
+export * from "./environment";
 export * from "./team";
 export * from "./variable";
 export * from "./workspace";
@@ -82,8 +83,6 @@ export { NodeExecutionStatus, BuiltInNodeTypes } from "@nodedrop/types";
 export type { 
   NodeProperty as SharedNodeProperty,
   CredentialDefinition as SharedCredentialDefinition,
-  ApiError as SharedApiError,
-  ApiResponse as SharedApiResponse,
 } from "@nodedrop/types";
 
 // Re-export frontend-specific workflow types

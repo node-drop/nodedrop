@@ -1,65 +1,55 @@
 /**
  * Workspace Types for Multi-tenancy
  * 
- * These types define the workspace-related data structures used throughout
- * the application for multi-tenant SaaS functionality.
+ * Re-exports shared types from @nodedrop/types and defines backend-specific types.
  */
 
-import { WorkspaceRole } from "@prisma/client";
+import { WorkspaceRole as PrismaWorkspaceRole } from "@prisma/client";
 
-// ============================================
-// WORKSPACE TYPES
-// ============================================
+// =============================================================================
+// Re-export shared types from @nodedrop/types
+// =============================================================================
+export {
+  // Types (excluding WorkspaceWithRole - we define a backend-specific version)
+  type WorkspaceRole,
+  type WorkspacePlanName,
+  type Workspace,
+  type WorkspaceMember,
+  type WorkspaceInvitation,
+  type WorkspaceUsage,
+  type WorkspacePlanConfig,
+  type CreateWorkspaceRequest,
+  type UpdateWorkspaceRequest,
+  type InviteMemberRequest,
+  type UpdateMemberRoleRequest,
+  type WorkspaceContext,
+  // Schemas
+  WorkspaceRoleSchema,
+  WorkspacePlanNameSchema,
+  WorkspaceSchema,
+  WorkspaceMemberSchema,
+  WorkspaceInvitationSchema,
+  WorkspaceUsageSchema,
+  CreateWorkspaceRequestSchema,
+  UpdateWorkspaceRequestSchema,
+  InviteMemberRequestSchema,
+  UpdateMemberRoleRequestSchema,
+  WorkspaceContextSchema,
+  // Constants and helpers
+  WORKSPACE_PLANS,
+  getWorkspacePlan,
+  isWorkspacePlanName,
+} from "@nodedrop/types";
 
-export interface WorkspacePlan {
-  name: string;
-  maxMembers: number;
-  maxWorkflows: number;
-  maxExecutionsPerMonth: number;
-  maxCredentials: number;
-  maxWorkspaces: number;
-}
+// =============================================================================
+// Backend-specific types (using Prisma types)
+// =============================================================================
 
-export const WORKSPACE_PLANS: Record<string, WorkspacePlan> = {
-  free: {
-    name: "Free",
-    maxMembers: 1,
-    maxWorkflows: 5,
-    maxExecutionsPerMonth: 1000,
-    maxCredentials: 10,
-    maxWorkspaces: 1,
-  },
-  pro: {
-    name: "Pro",
-    maxMembers: 10,
-    maxWorkflows: 50,
-    maxExecutionsPerMonth: 10000,
-    maxCredentials: 100,
-    maxWorkspaces: 5,
-  },
-  enterprise: {
-    name: "Enterprise",
-    maxMembers: -1, // unlimited
-    maxWorkflows: -1,
-    maxExecutionsPerMonth: -1,
-    maxCredentials: -1,
-    maxWorkspaces: -1,
-  },
-};
-
-export interface CreateWorkspaceRequest {
-  name: string;
-  slug?: string;
-  description?: string;
-}
-
-export interface UpdateWorkspaceRequest {
-  name?: string;
-  slug?: string;
-  description?: string;
-  settings?: Record<string, any>;
-}
-
+/**
+ * Workspace response type for API responses
+ * Uses Prisma's WorkspaceRole for compatibility with database queries
+ * Note: plan is string to match Prisma's return type
+ */
 export interface WorkspaceResponse {
   id: string;
   name: string;
@@ -81,19 +71,23 @@ export interface WorkspaceResponse {
   };
 }
 
+/**
+ * Backend-specific WorkspaceWithRole that uses string for plan
+ * to match Prisma's return type
+ */
 export interface WorkspaceWithRole extends WorkspaceResponse {
-  userRole: WorkspaceRole;
+  userRole: PrismaWorkspaceRole;
 }
 
-// ============================================
-// WORKSPACE MEMBER TYPES
-// ============================================
-
+/**
+ * Workspace member response for API responses
+ * Uses Prisma's WorkspaceRole for compatibility with database queries
+ */
 export interface WorkspaceMemberResponse {
   id: string;
   workspaceId: string;
   userId: string;
-  role: WorkspaceRole;
+  role: PrismaWorkspaceRole;
   joinedAt: Date;
   user: {
     id: string;
@@ -103,24 +97,14 @@ export interface WorkspaceMemberResponse {
   };
 }
 
-export interface InviteMemberRequest {
-  email: string;
-  role?: WorkspaceRole;
-}
-
-export interface UpdateMemberRoleRequest {
-  role: WorkspaceRole;
-}
-
-// ============================================
-// WORKSPACE INVITATION TYPES
-// ============================================
-
+/**
+ * Workspace invitation response for API responses
+ */
 export interface WorkspaceInvitationResponse {
   id: string;
   workspaceId: string;
   email: string;
-  role: WorkspaceRole;
+  role: PrismaWorkspaceRole;
   expiresAt: Date;
   createdAt: Date;
   workspace?: {
@@ -130,46 +114,4 @@ export interface WorkspaceInvitationResponse {
   };
 }
 
-// ============================================
-// WORKSPACE CONTEXT (for middleware)
-// ============================================
 
-export interface WorkspaceContext {
-  workspaceId: string;
-  workspaceSlug: string;
-  workspaceName: string;
-  userRole: WorkspaceRole;
-  plan: string;
-  limits: {
-    maxMembers: number;
-    maxWorkflows: number;
-    maxExecutionsPerMonth: number;
-    maxCredentials: number;
-  };
-  usage: {
-    currentMonthExecutions: number;
-  };
-}
-
-// ============================================
-// WORKSPACE USAGE TYPES
-// ============================================
-
-export interface WorkspaceUsage {
-  workflowCount: number;
-  credentialCount: number;
-  memberCount: number;
-  executionsThisMonth: number;
-  limits: {
-    maxWorkflows: number;
-    maxCredentials: number;
-    maxMembers: number;
-    maxExecutionsPerMonth: number;
-  };
-  percentages: {
-    workflows: number;
-    credentials: number;
-    members: number;
-    executions: number;
-  };
-}

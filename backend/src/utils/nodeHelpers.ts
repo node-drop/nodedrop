@@ -5,17 +5,10 @@
  * These helpers provide reusable functionality for data manipulation and processing.
  */
 
-/**
- * Context object for expression resolution containing all available data sources
- */
-export interface ExpressionContext {
-  $json?: any; // Immediate input data
-  $node?: Record<string, any>; // Node outputs by ID/name: $node["nodeId"].field or $node["Name"].field
-  $vars?: Record<string, string>; // Variables
-  $workflow?: { id: string; name: string; active: boolean };
-  $execution?: { id: string; mode: string };
-  $itemIndex?: number; // Current item index when processing multiple items (0-based)
-}
+import type { ExpressionContext } from "@nodedrop/types";
+
+// Re-export ExpressionContext for backward compatibility
+export type { ExpressionContext };
 
 /**
  * Create helper functions for expression evaluation

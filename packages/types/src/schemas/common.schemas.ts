@@ -95,22 +95,23 @@ export type ExpressionExecutionContext = z.infer<typeof ExpressionExecutionConte
 /**
  * Expression context for workflow expression evaluation
  * This is the data structure available to expressions like $json, $node, etc.
+ * All fields are optional to support partial contexts during execution.
  * Includes index signature for compatibility with Record<string, unknown>
  */
 export const ExpressionContextSchema = z
   .object({
     /** Direct access to immediate input data */
-    $json: z.union([JsonObjectSchema, JsonArraySchema]),
+    $json: z.union([JsonObjectSchema, JsonArraySchema]).optional(),
     /** Access to specific node outputs by name or ID */
-    $node: z.record(JsonObjectSchema),
+    $node: z.record(z.any()).optional(),
     /** Workflow metadata */
-    $workflow: ExpressionWorkflowContextSchema,
+    $workflow: ExpressionWorkflowContextSchema.optional(),
     /** Execution metadata */
-    $execution: ExpressionExecutionContextSchema,
+    $execution: ExpressionExecutionContextSchema.optional(),
     /** Workflow variables */
-    $vars: z.record(z.string()),
+    $vars: z.record(z.string()).optional(),
     /** Current item index (0-based) */
-    $itemIndex: z.number(),
+    $itemIndex: z.number().optional(),
     /** Current timestamp (ISO string) */
     $now: z.string().optional(),
     /** Current date (YYYY-MM-DD) */
@@ -125,8 +126,16 @@ export type ExpressionContext = z.infer<typeof ExpressionContextSchema>;
 
 /**
  * Variable type for autocomplete suggestions
+ * Includes all types used in expression editor autocomplete
  */
-export const VariableTypeSchema = z.enum(["variable", "property"]);
+export const VariableTypeSchema = z.enum([
+  "variable",
+  "property",
+  "method",
+  "object",
+  "array",
+  "function",
+]);
 export type VariableType = z.infer<typeof VariableTypeSchema>;
 
 /**
@@ -135,7 +144,7 @@ export type VariableType = z.infer<typeof VariableTypeSchema>;
 export const VariableCategoryItemSchema = z.object({
   label: z.string(),
   type: VariableTypeSchema,
-  description: z.string(),
+  description: z.string().optional(),
   insertText: z.string(),
 });
 export type VariableCategoryItem = z.infer<typeof VariableCategoryItemSchema>;
@@ -277,3 +286,19 @@ export const ValidationResultSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
     data: dataSchema.optional(),
     errors: z.array(ValidationErrorSchema).optional(),
   });
+
+
+// =============================================================================
+// Expression Result Schema
+// =============================================================================
+
+/**
+ * Result of expression evaluation
+ */
+export const ExpressionResultSchema = z.object({
+  success: z.boolean(),
+  value: z.string(),
+  type: z.string(),
+  error: z.string().optional(),
+});
+export type ExpressionResult = z.infer<typeof ExpressionResultSchema>;
