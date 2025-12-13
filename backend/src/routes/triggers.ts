@@ -3,8 +3,14 @@ import { Request, Response, Router } from "express";
 import { body, param, query, validationResult } from "express-validator";
 import { createServer } from "http";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { validateQuery } from "../middleware/validation";
+import { TriggerEventsQuerySchema } from "../types/api";
+import {
+  WorkspaceRequest,
+  requireWorkspace,
+} from "../middleware/workspace";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
 import { ExecutionService } from "../services/ExecutionService";
@@ -76,7 +82,8 @@ const validateRequest = (req: Request, res: Response, next: any) => {
 // Create trigger
 router.post(
   "/workflows/:workflowId/triggers",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     body("type")
@@ -90,10 +97,11 @@ router.post(
       .withMessage("Active must be a boolean"),
   ],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.params;
     const userId = req.user!.id;
     const triggerData = req.body;
+    const workspaceId = req.workspace?.workspaceId;
 
     const trigger = await getTriggerService().createTrigger(
       workflowId,
@@ -102,7 +110,8 @@ router.post(
         ...triggerData,
         workflowId,
         active: triggerData.active ?? true,
-      }
+      },
+      { workspaceId }
     );
 
     res.status(201).json({
@@ -115,7 +124,8 @@ router.post(
 // Update trigger
 router.put(
   "/workflows/:workflowId/triggers/:triggerId",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
@@ -138,16 +148,18 @@ router.put(
       .withMessage("Active must be a boolean"),
   ],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId, triggerId } = req.params;
     const userId = req.user!.id;
     const updates = req.body;
+    const workspaceId = req.workspace?.workspaceId;
 
     const trigger = await getTriggerService().updateTrigger(
       workflowId,
       triggerId,
       userId,
-      updates
+      updates,
+      { workspaceId }
     );
 
     res.json({
@@ -160,17 +172,19 @@ router.put(
 // Delete trigger
 router.delete(
   "/workflows/:workflowId/triggers/:triggerId",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
   ],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId, triggerId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
-    await getTriggerService().deleteTrigger(workflowId, triggerId, userId);
+    await getTriggerService().deleteTrigger(workflowId, triggerId, userId, { workspaceId });
 
     res.json({
       success: true,
@@ -182,23 +196,26 @@ router.delete(
 // Execute manual trigger
 router.post(
   "/workflows/:workflowId/triggers/:triggerId/execute",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   [
     param("workflowId").isUUID().withMessage("Invalid workflow ID"),
     param("triggerId").isUUID().withMessage("Invalid trigger ID"),
     body("data").optional().isObject().withMessage("Data must be an object"),
   ],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId, triggerId } = req.params;
     const userId = req.user!.id;
     const { data } = req.body;
+    const workspaceId = req.workspace?.workspaceId;
 
     const result = await getTriggerService().handleManualTrigger(
       workflowId,
       triggerId,
       userId,
-      data
+      data,
+      { workspaceId }
     );
 
     if (result.success) {
@@ -220,41 +237,28 @@ router.post(
 // Get trigger events
 router.get(
   "/workflows/:workflowId/triggers/events",
-  authenticateToken,
-  [
-    param("workflowId").isUUID().withMessage("Invalid workflow ID"),
-    query("type")
-      .optional()
-      .isIn(["webhook", "schedule", "manual"])
-      .withMessage("Invalid trigger type"),
-    query("status")
-      .optional()
-      .isIn(["pending", "processing", "completed", "failed"])
-      .withMessage("Invalid status"),
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 100 })
-      .withMessage("Limit must be between 1 and 100"),
-    query("offset")
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage("Offset must be non-negative"),
-  ],
+  requireAuth,
+  requireWorkspace,
+  [param("workflowId").isUUID().withMessage("Invalid workflow ID")],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  validateQuery(TriggerEventsQuerySchema),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.params;
     const userId = req.user!.id;
-    const filters = {
-      type: req.query.type as string,
-      status: req.query.status as string,
-      limit: parseInt(req.query.limit as string) || 50,
-      offset: parseInt(req.query.offset as string) || 0,
+    const workspaceId = req.workspace?.workspaceId;
+    const { type, status, limit, offset } = req.query as unknown as {
+      type?: string;
+      status?: string;
+      limit: number;
+      offset: number;
     };
+    const filters = { type, status, limit, offset };
 
     const events = await getTriggerService().getTriggerEvents(
       workflowId,
       userId,
-      filters
+      filters,
+      { workspaceId }
     );
 
     res.json({
@@ -267,14 +271,16 @@ router.get(
 // Get trigger statistics
 router.get(
   "/workflows/:workflowId/triggers/stats",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   [param("workflowId").isUUID().withMessage("Invalid workflow ID")],
   validateRequest,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
-    const stats = await getTriggerService().getTriggerStats(workflowId, userId);
+    const stats = await getTriggerService().getTriggerStats(workflowId, userId, { workspaceId });
 
     res.json({
       success: true,
@@ -286,11 +292,13 @@ router.get(
 // Get all active triggers (schedule + polling) for user
 router.get(
   "/active-triggers",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
-    const triggers = await getTriggerService().getAllActiveTriggers(userId);
+    const triggers = await getTriggerService().getAllActiveTriggers(userId, { workspaceId });
 
     res.json({
       success: true,
@@ -304,13 +312,15 @@ router.get(
 // Delete an active trigger (schedule or polling)
 router.delete(
   "/active-triggers/:triggerId",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { triggerId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Get the trigger to verify ownership
-    const triggers = await getTriggerService().getAllActiveTriggers(userId);
+    const triggers = await getTriggerService().getAllActiveTriggers(userId, { workspaceId });
     const trigger = triggers.find(t => t.triggerId === triggerId || t.id === triggerId);
 
     if (!trigger) {

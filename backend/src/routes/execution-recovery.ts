@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { Router, Response } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { authenticateToken, AuthenticatedRequest } from "../middleware/auth";
+import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
 import ExecutionRecoveryService from "../services/ExecutionRecoveryService";
 
@@ -22,7 +22,7 @@ const recoveryService = new ExecutionRecoveryService(
  */
 router.post(
   "/analyze",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId, error } = req.body;
 
@@ -61,7 +61,7 @@ router.post(
  */
 router.post(
   "/recover",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId, strategy } = req.body;
 
@@ -108,7 +108,7 @@ router.post(
  */
 router.post(
   "/auto-recover",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId, error } = req.body;
 
@@ -147,7 +147,7 @@ router.post(
  */
 router.post(
   "/checkpoint",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId, nodeId, state } = req.body;
 
@@ -187,7 +187,7 @@ router.post(
  */
 router.get(
   "/checkpoints/:executionId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
 
@@ -224,7 +224,7 @@ router.get(
  */
 router.delete(
   "/cleanup/:executionId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
 
@@ -260,7 +260,7 @@ router.delete(
  */
 router.get(
   "/error-patterns",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { days = 7, limit = 10 } = req.query;
 
@@ -358,7 +358,7 @@ router.get(
  */
 router.get(
   "/statistics",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { days = 30 } = req.query;
 

@@ -163,7 +163,7 @@ export function VariablesList({ currentWorkflowId }: VariablesListProps) {
     // Filter by scope
     if (scopeFilter !== 'all') {
       filtered = filtered.filter(variable => 
-        variable.scope.toLowerCase() === scopeFilter
+        variable.scope?.toLowerCase() === scopeFilter
       )
     }
     

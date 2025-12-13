@@ -1,6 +1,6 @@
 import express from 'express';
 import { spawn } from 'child_process';
-import { authenticateToken } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -36,7 +36,7 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 // Check for updates
-router.get('/updates/check', authenticateToken, async (_req, res) => {
+router.get('/updates/check', requireAuth, async (_req, res) => {
   try {
     // Check if running in Docker
     const isDocker = process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
@@ -117,13 +117,8 @@ router.get('/updates/check', authenticateToken, async (_req, res) => {
 });
 
 // Trigger update (admin only)
-router.post('/updates/install', authenticateToken, async (req, res) => {
+router.post('/updates/install', requireAuth, requireRole(["admin"]), async (req, res) => {
   try {
-    // Check if user is admin
-    const user = (req as any).user;
-    if (user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only administrators can update the system' });
-    }
 
     // Check if running in Docker
     const isDocker = process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
@@ -229,7 +224,7 @@ router.post('/updates/install', authenticateToken, async (req, res) => {
 });
 
 // Get system info
-router.get('/info', authenticateToken, async (_req, res) => {
+router.get('/info', requireAuth, async (_req, res) => {
   try {
     const info = {
       version: process.env.APP_VERSION || process.env.npm_package_version || '1.0.0-alpha',

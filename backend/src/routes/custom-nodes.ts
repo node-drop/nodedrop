@@ -1,5 +1,5 @@
 import { Request, Response, Router } from "express";
-import { authenticateToken } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { NodeLoader } from "../services/NodeLoader";
 import { NodeMarketplace } from "../services/NodeMarketplace";
 import { NodeTemplateGenerator } from "../services/NodeTemplateGenerator";
@@ -8,7 +8,7 @@ import { logger } from "../utils/logger";
 const router = Router();
 
 // Apply authentication middleware to all routes
-router.use(authenticateToken);
+router.use(requireAuth);
 
 /**
  * GET /api/custom-nodes/packages

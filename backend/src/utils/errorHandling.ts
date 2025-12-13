@@ -1,15 +1,39 @@
 /**
  * Comprehensive error handling utilities for workflow execution
+ * 
+ * This module provides backend-specific error handling classes that extend
+ * the shared utilities from @nodedrop/utils.
  */
 
+// Re-export shared error utilities from @nodedrop/utils
+export {
+  ErrorCodes,
+  type ErrorCode,
+  type ErrorCategory,
+  type OperationError,
+  type ValidationError,
+  type ErrorDetails,
+  createOperationError,
+  extractErrorDetails,
+  getUserFriendlyErrorMessage,
+  classifyError,
+  isRecoverableError,
+  getRecoverySuggestions,
+  logError,
+  sanitizeErrorForLogging,
+  retryOperation,
+  createAsyncErrorHandler,
+} from "@nodedrop/utils";
+
+import type { ErrorCategory, RetryOptions as SharedRetryOptions } from "@nodedrop/utils";
+
+/**
+ * Backend-specific ErrorInfo interface
+ * Extends the shared ErrorCategory type
+ */
 export interface ErrorInfo {
   type: string;
-  category:
-    | "transient"
-    | "permanent"
-    | "configuration"
-    | "timeout"
-    | "resource";
+  category: ErrorCategory | "resource";
   code?: string;
   message: string;
   context?: Record<string, any>;
@@ -17,6 +41,10 @@ export interface ErrorInfo {
   timestamp: Date;
 }
 
+/**
+ * Backend-specific RetryOptions interface
+ * Compatible with shared RetryOptions
+ */
 export interface RetryOptions {
   maxRetries: number;
   baseDelay: number;

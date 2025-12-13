@@ -5,7 +5,7 @@ import { Workflow } from "../types/database";
 import { NodeInputData, StandardizedNodeOutput } from "../types/node.types";
 import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
 import { logger } from "../utils/logger";
-import { buildNodeIdToNameMap } from "../utils/nodeHelpers";
+import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { DependencyResolver } from "./DependencyResolver";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import { NodeService } from "./NodeService";

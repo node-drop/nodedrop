@@ -1,6 +1,10 @@
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import {
+  WorkspaceRequest,
+  requireWorkspace,
+} from "../middleware/workspace";
 import { VariableService } from "../services/VariableService";
 import { AppError } from "../utils/errors";
 import {
@@ -16,15 +20,18 @@ const variableService = new VariableService();
 // Get all variables for the authenticated user
 router.get(
   "/",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { search, scope, workflowId } = req.query;
+    const workspaceId = req.workspace?.workspaceId;
 
     const variables = await variableService.getVariables(
       req.user!.id,
       search as string,
       scope as "GLOBAL" | "LOCAL" | undefined,
-      workflowId as string | undefined
+      workflowId as string | undefined,
+      { workspaceId }
     );
 
     res.json({
@@ -37,9 +44,11 @@ router.get(
 // Get variable statistics
 router.get(
   "/stats",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const stats = await variableService.getVariableStats(req.user!.id);
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
+    const stats = await variableService.getVariableStats(req.user!.id, { workspaceId });
 
     res.json({
       success: true,
@@ -51,13 +60,16 @@ router.get(
 // Get variables for execution (internal endpoint)
 router.get(
   "/execution",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.query;
+    const workspaceId = req.workspace?.workspaceId;
 
     const variableMap = await variableService.getVariablesForExecution(
       req.user!.id,
-      workflowId as string | undefined
+      workflowId as string | undefined,
+      { workspaceId }
     );
 
     res.json({
@@ -70,11 +82,13 @@ router.get(
 // Get a specific variable
 router.get(
   "/:id",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
+    const workspaceId = req.workspace?.workspaceId;
 
-    const variable = await variableService.getVariable(id, req.user!.id);
+    const variable = await variableService.getVariable(id, req.user!.id, { workspaceId });
 
     if (!variable) {
       throw new AppError("Variable not found", 404);
@@ -90,9 +104,11 @@ router.get(
 // Create a new variable
 router.post(
   "/",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const validatedData = variableCreateSchema.parse(req.body);
+    const workspaceId = req.workspace?.workspaceId;
 
     const variable = await variableService.createVariable(
       req.user!.id,
@@ -100,7 +116,8 @@ router.post(
       validatedData.value,
       validatedData.description,
       validatedData.scope,
-      validatedData.workflowId
+      validatedData.workflowId,
+      { workspaceId }
     );
 
     res.status(201).json({
@@ -113,15 +130,18 @@ router.post(
 // Update a variable
 router.put(
   "/:id",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
     const validatedData = variableUpdateSchema.parse(req.body);
+    const workspaceId = req.workspace?.workspaceId;
 
     const variable = await variableService.updateVariable(
       id,
       req.user!.id,
-      validatedData
+      validatedData,
+      { workspaceId }
     );
 
     res.json({
@@ -134,11 +154,13 @@ router.put(
 // Delete a variable
 router.delete(
   "/:id",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { id } = req.params;
+    const workspaceId = req.workspace?.workspaceId;
 
-    await variableService.deleteVariable(id, req.user!.id);
+    await variableService.deleteVariable(id, req.user!.id, { workspaceId });
 
     res.json({
       success: true,
@@ -150,13 +172,16 @@ router.delete(
 // Bulk create or update variables
 router.post(
   "/bulk",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const validatedData = variableBulkUpsertSchema.parse(req.body);
+    const workspaceId = req.workspace?.workspaceId;
 
     const variables = await variableService.bulkUpsertVariables(
       req.user!.id,
-      validatedData.variables
+      validatedData.variables,
+      { workspaceId }
     );
 
     res.json({
@@ -170,13 +195,16 @@ router.post(
 // Replace variables in text
 router.post(
   "/replace",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const validatedData = variableReplaceSchema.parse(req.body);
+    const workspaceId = req.workspace?.workspaceId;
 
     const replacedText = await variableService.replaceVariablesInText(
       validatedData.text,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
 
     // Find which variables were used

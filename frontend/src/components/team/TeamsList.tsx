@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Users, Plus, Settings, Crown, Eye, Search, MoreVertical, UserPlus, RefreshCw } from "lucide-react"
+import { Users, Plus, Settings, Crown, Eye, Search, MoreVertical, UserPlus, RefreshCw, Sparkles, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useTeam } from "@/contexts/TeamContext"
+import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useSidebarContext } from "@/contexts"
 import { Team, TeamRole } from "@/types"
 
@@ -27,7 +28,10 @@ export function TeamsList({ onTeamSelect, onCreateTeam, onTeamSettings }: TeamsL
   const [searchQuery, setSearchQuery] = React.useState("")
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const { teams, isLoading, refreshTeams } = useTeam()
+  const { currentWorkspace } = useWorkspace()
   const { setHeaderSlot } = useSidebarContext()
+
+  const isFreePlan = currentWorkspace?.plan === "free"
 
   const handleRefresh = React.useCallback(async () => {
     setIsRefreshing(true)
@@ -75,6 +79,7 @@ export function TeamsList({ onTeamSelect, onCreateTeam, onTeamSettings }: TeamsL
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs text-muted-foreground">
             {teams.length} team{teams.length !== 1 ? 's' : ''}
+            {isFreePlan && <span className="ml-1 text-yellow-600">(Pro)</span>}
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -87,30 +92,43 @@ export function TeamsList({ onTeamSelect, onCreateTeam, onTeamSettings }: TeamsL
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 gap-1 px-2"
-              onClick={handleCreateTeam}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="text-xs">New</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 gap-1 px-2"
+                    onClick={handleCreateTeam}
+                  >
+                    {isFreePlan ? <Lock className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                    <span className="text-xs">New</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isFreePlan && (
+                <TooltipContent>
+                  <p>Teams require Pro plan</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search teams..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm"
-          />
-        </div>
+        {!isFreePlan && (
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search teams..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+        )}
       </div>
     )
     return () => setHeaderSlot(null)
-  }, [teams.length, searchQuery, isRefreshing, setHeaderSlot, handleCreateTeam, handleRefresh])
+  }, [teams.length, searchQuery, isRefreshing, setHeaderSlot, handleCreateTeam, handleRefresh, isFreePlan])
 
   if (isLoading) {
     return (
@@ -171,20 +189,38 @@ export function TeamsList({ onTeamSelect, onCreateTeam, onTeamSettings }: TeamsL
           {/* Empty State */}
           {filteredOwnedTeams.length === 0 && filteredMemberTeams.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-sm font-medium mb-1">
-                {searchQuery ? "No teams found" : "No teams yet"}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-[250px]">
-                {searchQuery
-                  ? "Try a different search term"
-                  : "Create your first team to collaborate with others"}
-              </p>
-              {!searchQuery && (
-                <Button size="sm" onClick={onCreateTeam}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Team
-                </Button>
+              {isFreePlan ? (
+                <>
+                  <div className="h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center mb-4">
+                    <Sparkles className="h-6 w-6 text-yellow-600 dark:text-yellow-500" />
+                  </div>
+                  <h3 className="text-sm font-medium mb-1">Teams - Pro Feature</h3>
+                  <p className="text-sm text-muted-foreground mb-4 max-w-[250px]">
+                    Upgrade to Pro to create teams and collaborate with your colleagues on workflows and credentials.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={onCreateTeam}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Learn More
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <h3 className="text-sm font-medium mb-1">
+                    {searchQuery ? "No teams found" : "No teams yet"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 max-w-[250px]">
+                    {searchQuery
+                      ? "Try a different search term"
+                      : "Create your first team to collaborate with others"}
+                  </p>
+                  {!searchQuery && (
+                    <Button size="sm" onClick={onCreateTeam}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Team
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}

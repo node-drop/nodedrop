@@ -1,214 +1,50 @@
-export interface WorkflowNode {
-  id: string;
-  type: string;
-  name: string;
-  description?: string;
-  parameters: Record<string, any>;
-  position: { x: number; y: number };
-  credentials?: string[];
-  disabled: boolean;
-  locked?: boolean;
-  mockData?: any;
-  mockDataPinned?: boolean;
-  // Settings configuration
-  settings?: NodeSettingsConfig;
-  // Visual properties
-  icon?: string;
-  color?: string;
-  // Group node properties
-  parentId?: string;
-  extent?: "parent" | [number, number, number, number];
-  style?: {
-    width?: number;
-    height?: number;
-    backgroundColor?: string;
-    [key: string]: any;
-  };
-}
+/**
+ * Frontend-specific workflow types
+ * 
+ * Shared types (Workflow, WorkflowNode, WorkflowConnection, etc.) are imported from @nodedrop/types.
+ * This file contains only frontend-specific types that extend or complement the shared types.
+ */
 
-// Settings are stored as a flat object with key-value pairs
-export type NodeSettingsConfig = Record<string, any>;
+import {
+  WorkflowNode,
+  WorkflowConnection,
+  NodeSetting,
+  NodeProperty as SharedNodeProperty,
+  NodeTypeInfo,
+  CredentialSelectorConfig,
+  NodeInputConfig,
+} from "@nodedrop/types";
 
-export interface NodeSetting {
-  displayName: string;
-  name: string;
-  type: "string" | "number" | "boolean" | "options" | "json";
-  default: any;
-  description: string;
-  placeholder?: string;
-  required?: boolean;
-  disabled?: boolean;
-  hidden?: boolean;
-  options?: Array<{ name: string; value: any; description?: string }>;
-  displayOptions?: {
-    show?: Record<string, any[]>;
-    hide?: Record<string, any[]>;
-  };
-}
+// Re-export shared types for backward compatibility
+export type { 
+  WorkflowNode, 
+  WorkflowConnection, 
+  NodeSetting,
+  TriggerType,
+  NodeCategory,
+  ExecutionCapability,
+  NodePropertyType,
+  NodeDisplayOptions,
+  NodeTypeOptions,
+  NodePropertyOption,
+  CredentialDefinition,
+} from "@nodedrop/types";
 
-export interface WorkflowConnection {
-  id: string;
-  sourceNodeId: string;
-  sourceOutput: string;
-  targetNodeId: string;
-  targetInput: string;
-  // Edge algorithm type (Step, Linear, CatmullRom, BezierCatmullRom)
-  algorithm?: string;
-  // Control points for editable edges
-  controlPoints?: Array<{
-    id: string;
-    x: number;
-    y: number;
-    active?: boolean;
-  }>;
-}
+// =============================================================================
+// Frontend-specific Node Types (extending shared types)
+// =============================================================================
 
-export interface WorkflowSettings {
-  timezone?: string;
-  saveDataErrorExecution?: "all" | "none";
-  saveDataSuccessExecution?: "all" | "none";
-  saveManualExecutions?: boolean;
-  saveExecutionToDatabase?: boolean; // Skip saving executions to database (for high-traffic APIs)
-  callerPolicy?: "workflowsFromSameOwner" | "workflowsFromAList" | "any";
-}
+/**
+ * Frontend node property - uses shared NodeProperty directly
+ * The shared type includes all property types: string, number, boolean, options,
+ * multiOptions, json, dateTime, collection, autocomplete, credential, custom,
+ * conditionRow, columnsMap, expression
+ */
+export type NodeProperty = SharedNodeProperty;
 
-export interface WorkflowMetadata {
-  title: string;
-  lastTitleUpdate: string;
-  exportVersion: string;
-  importSource?: string;
-  createdBy?: string;
-  lastModifiedBy?: string;
-  version?: number;
-  schemaVersion?: string;
-  tags?: string[];
-  customProperties?: Record<string, any>;
-}
-
-export interface Workflow {
-  id: string;
-  name: string;
-  description?: string;
-  userId: string;
-  teamId?: string | null;
-  nodes: WorkflowNode[];
-  connections: WorkflowConnection[];
-  settings: WorkflowSettings;
-  active: boolean;
-  tags?: string[];
-  category?: string;
-  isTemplate?: boolean;
-  isPublic?: boolean;
-  sharedWith?: WorkflowShare[];
-  analytics?: WorkflowAnalytics;
-  metadata?: WorkflowMetadata;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WorkflowShare {
-  userId: string;
-  userEmail: string;
-  permission: "view" | "edit" | "admin";
-  sharedAt: string;
-}
-
-export interface WorkflowAnalytics {
-  totalExecutions: number;
-  successfulExecutions: number;
-  failedExecutions: number;
-  averageExecutionTime: number;
-  lastExecutedAt?: string;
-  popularityScore: number;
-}
-
-export interface WorkflowTemplate {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  tags: string[];
-  nodes: WorkflowNode[];
-  connections: WorkflowConnection[];
-  settings: WorkflowSettings;
-  author: string;
-  downloads: number;
-  rating: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WorkflowFilters {
-  search?: string;
-  tags?: string[];
-  category?: string;
-  isTemplate?: boolean;
-  isPublic?: boolean;
-  sortBy?: "name" | "createdAt" | "updatedAt" | "popularity" | "executions";
-  sortOrder?: "asc" | "desc";
-  page?: number;
-  limit?: number;
-}
-
-export interface WorkflowImportExport {
-  workflow: Omit<Workflow, "id" | "userId" | "createdAt" | "updatedAt">;
-  version: string;
-  exportedAt: string;
-  exportedBy: string;
-}
-
-export interface NodeType {
-  identifier: string; // Unique identifier for the node type (was 'type')
-  displayName: string;
-  name: string;
-  group: string[];
-  version: number;
-  description: string;
-  defaults: Record<string, any>;
-  inputs: string[];
-  outputs: string[];
-  inputNames?: string[]; // Optional names for each input
-  outputNames?: string[]; // Optional names for each output
-  inputsConfig?: Record<string, {
-    position?: 'left' | 'right' | 'top' | 'bottom';
-    displayName?: string;
-    required?: boolean;
-  }>;
-  icon?: string;
-  color?: string;
-  outputComponent?: string; // Optional custom output component identifier
-  properties: NodeProperty[];
-  credentials?: CredentialDefinition[];
-  credentialSelector?: {
-    displayName: string;
-    description?: string;
-    placeholder?: string;
-    allowedTypes: string[]; // Array of credential type names that can be selected
-    required?: boolean;
-  };
-  active?: boolean; // Added for activation/deactivation functionality
-  id?: string; // Optional database ID for custom nodes
-  createdAt?: string; // Optional timestamp for custom nodes
-  updatedAt?: string; // Optional timestamp for custom nodes
-  // Node category for high-level organization and execution control
-  nodeCategory?: 'trigger' | 'action' | 'service' | 'tool' | 'condition' | 'transform';
-  // Trigger-specific metadata (only for trigger nodes)
-  triggerType?: "manual" | "webhook" | "schedule" | "polling" | "workflow-called";
-  // Execution metadata from backend
-  executionCapability?: "trigger" | "action" | "transform" | "condition";
-  canExecuteIndividually?: boolean;
-  canBeDisabled?: boolean;
-  // Custom settings specific to this node type (flat object)
-  settings?: Record<string, NodeSetting>;
-  // Template fields
-  isTemplate?: boolean;
-  templateData?: {
-    nodes: WorkflowNode[];
-    connections: WorkflowConnection[];
-    variables?: TemplateVariable[];
-  };
-}
-
+/**
+ * Template variable for workflow templates
+ */
 export interface TemplateVariable {
   name: string;
   displayName: string;
@@ -216,7 +52,7 @@ export interface TemplateVariable {
   type: 'string' | 'text' | 'number' | 'boolean' | 'options' | 'multiOptions' | 'json' | 'dateTime' | 'textarea' | 'password' | 'email' | 'url' | 'switch' | 'credential';
   default?: any;
   required?: boolean;
-  options?: Array<{ name: string; value: any; description?: string }>; // For options type
+  options?: Array<{ name: string; value: any; description?: string }>;
   placeholder?: string;
   tooltip?: string;
   validation?: {
@@ -226,72 +62,49 @@ export interface TemplateVariable {
     minLength?: number;
     maxLength?: number;
   };
-  allowedTypes?: string[]; // For credential type - array of credential type names
+  allowedTypes?: string[];
 }
 
-export interface CredentialDefinition {
-  name: string;
-  displayName: string;
-  description?: string;
-  required?: boolean;
-}
-
-export interface NodeProperty {
-  displayName: string;
-  name: string;
-  type:
-    | "string"
-    | "number"
-    | "boolean"
-    | "options"
-    | "multiOptions"
-    | "json"
-    | "dateTime"
-    | "collection"
-    | "credential" // New: Support for credential selector
-    | "custom"; // New: Support for custom components
-  required?: boolean;
-  default?: any;
-  description?: string;
-  tooltip?: string; // Tooltip text shown as help icon next to label
-  placeholder?: string;
-  options?: Array<{ name: string; value: any }>;
-  displayOptions?: {
-    show?: Record<string, any[]>;
-    hide?: Record<string, any[]>;
+/**
+ * Frontend NodeType - extends shared NodeTypeInfo with frontend-specific fields
+ * This is the type used by the frontend for node type definitions
+ * 
+ * Note: The database table is named "NodeType", so we keep this name for consistency.
+ * The shared package uses "NodeTypeInfo" for the same concept.
+ */
+export interface NodeType extends NodeTypeInfo {
+  // Override credentialSelector to ensure type compatibility
+  credentialSelector?: CredentialSelectorConfig;
+  // Override inputsConfig to ensure type compatibility
+  inputsConfig?: Record<string, NodeInputConfig>;
+  // Frontend-specific fields (not in shared types)
+  active?: boolean;
+  id?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  settings?: Record<string, NodeSetting>;
+  // Template fields (frontend-only)
+  isTemplate?: boolean;
+  templateData?: {
+    nodes: WorkflowNode[];
+    connections: WorkflowConnection[];
+    variables?: TemplateVariable[];
   };
-  typeOptions?: {
-    multipleValues?: boolean;
-    multipleValueButtonText?: string;
-  };
-  // New: Custom component configuration
-  component?: string; // Component identifier/name to be registered
-  componentProps?: Record<string, any>; // Additional props to pass to custom component (e.g., nested fields for collection)
-  // New: For credential type
-  allowedTypes?: string[]; // Array of credential type names that can be selected
 }
 
-export interface WorkflowEditorState {
-  workflow: Workflow | null;
-  selectedNodeId: string | null;
-  isLoading: boolean;
-  isDirty: boolean;
-  history: WorkflowHistoryEntry[];
-  historyIndex: number;
-}
-
-export interface WorkflowHistoryEntry {
-  workflow: Workflow;
-  timestamp: number;
-  action: string;
-}
+// =============================================================================
+// Node Palette Types
+// =============================================================================
 
 export interface NodePaletteCategory {
   name: string;
   nodes: NodeType[];
 }
 
-// React Flow specific types
+// =============================================================================
+// React Flow Types
+// =============================================================================
+
 export interface ReactFlowNode {
   id: string;
   type: string;
@@ -312,7 +125,13 @@ export interface ReactFlowEdge {
   targetHandle?: string;
 }
 
-// Execution-related types
+// =============================================================================
+// Execution Types (Frontend-specific)
+// =============================================================================
+
+/**
+ * Frontend execution state for UI
+ */
 export interface ExecutionState {
   status: "idle" | "running" | "success" | "error" | "cancelled" | "paused";
   progress?: number;
@@ -322,6 +141,9 @@ export interface ExecutionState {
   executionId?: string;
 }
 
+/**
+ * Frontend workflow execution result
+ */
 export interface WorkflowExecutionResult {
   executionId: string;
   workflowId: string;
@@ -331,9 +153,12 @@ export interface WorkflowExecutionResult {
   duration: number;
   nodeResults: NodeExecutionResult[];
   error?: string;
-  triggerNodeId?: string; // The node ID that triggered this execution
+  triggerNodeId?: string;
 }
 
+/**
+ * Frontend node execution result
+ */
 export interface NodeExecutionResult {
   nodeId: string;
   nodeName: string;
@@ -342,23 +167,5 @@ export interface NodeExecutionResult {
   endTime: number;
   duration: number;
   data?: any;
-  /** Error message or serialized error object as string */
   error?: string;
-}
-
-// Types for WorkflowTrigger node
-export interface TriggerOption {
-  id: string;
-  type: "webhook" | "schedule" | "manual";
-  nodeId: string;
-  description?: string;
-  settings?: Record<string, any>;
-}
-
-export interface WorkflowOption {
-  id: string;
-  name: string;
-  description?: string;
-  active: boolean;
-  triggers: TriggerOption[];
 }

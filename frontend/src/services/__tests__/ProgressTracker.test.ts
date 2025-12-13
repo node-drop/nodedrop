@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ProgressTracker } from '../ProgressTracker'
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 
 describe('ProgressTracker', () => {
   let progressTracker: ProgressTracker

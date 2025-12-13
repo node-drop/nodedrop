@@ -424,9 +424,9 @@ class WorkflowService {
 
   // WorkflowTrigger node specific methods
   async getWorkflowsForTrigger(): Promise<
-    ApiResponse<import("@/types/workflow").WorkflowOption[]>
+    ApiResponse<import("@nodedrop/types").WorkflowOption[]>
   > {
-    const response = await api.get<import("@/types/workflow").WorkflowOption[]>(
+    const response = await api.get<import("@nodedrop/types").WorkflowOption[]>(
       "/workflows/for-trigger"
     );
     return response;
@@ -434,8 +434,8 @@ class WorkflowService {
 
   async getWorkflowTriggers(
     workflowId: string
-  ): Promise<ApiResponse<import("@/types/workflow").TriggerOption[]>> {
-    const response = await api.get<import("@/types/workflow").TriggerOption[]>(
+  ): Promise<ApiResponse<import("@nodedrop/types").TriggerOption[]>> {
+    const response = await api.get<import("@nodedrop/types").TriggerOption[]>(
       `/workflows/${workflowId}/triggers`
     );
     return response;

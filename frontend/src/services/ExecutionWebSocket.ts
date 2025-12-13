@@ -1,4 +1,4 @@
-import { NodeExecutionStatus } from "@/types/execution";
+import { NodeExecutionStatus } from "@nodedrop/types";
 import { io, Socket } from "socket.io-client";
 
 export interface ExecutionEventData {

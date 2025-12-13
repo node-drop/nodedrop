@@ -11,7 +11,7 @@
  * - Perfect isolation between concurrent trigger executions
  */
 
-import { NodeExecutionStatus } from "@/types/execution";
+import { NodeExecutionStatus } from "@nodedrop/types";
 
 export { NodeExecutionStatus };
 

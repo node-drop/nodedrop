@@ -1,12 +1,12 @@
 import { Server as HTTPServer } from "http";
-import jwt from "jsonwebtoken";
 import { Socket, Server as SocketIOServer } from "socket.io";
-import { NodeExecutionStatus } from "../types/database";
 import {
   ExecutionEventData,
   ExecutionProgress,
+  NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
+import { prisma } from "../config/database";
 
 export interface AuthenticatedSocket extends Socket {
   userId: string;
@@ -68,6 +68,7 @@ export class SocketService {
 
   /**
    * Setup Socket.io authentication middleware
+   * Uses better-auth session tokens (stored in database) instead of JWT
    */
   private setupAuthentication(): void {
     this.io.use(async (socket: any, next) => {
@@ -81,15 +82,41 @@ export class SocketService {
           return next(new Error("Authentication token required"));
         }
 
-        const decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET!
-        ) as SocketAuthPayload;
+        // Validate session token from database (better-auth uses session tokens, not JWT)
+        const session = await prisma.session.findUnique({
+          where: { token },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                active: true,
+              },
+            },
+          },
+        });
 
-        socket.userId = decoded.id;
+        if (!session) {
+          logger.warn("Socket connection with invalid session token");
+          return next(new Error("Invalid authentication token"));
+        }
+
+        // Check if session is expired
+        if (session.expiresAt < new Date()) {
+          logger.warn("Socket connection with expired session token");
+          return next(new Error("Session expired"));
+        }
+
+        // Check if user is active
+        if (!session.user.active) {
+          logger.warn("Socket connection from deactivated user");
+          return next(new Error("User account is deactivated"));
+        }
+
+        socket.userId = session.user.id;
         socket.user = {
-          id: decoded.id,
-          email: decoded.email,
+          id: session.user.id,
+          email: session.user.email,
         };
 
         // Socket authenticated silently
@@ -705,6 +732,16 @@ export class SocketService {
         throw new Error("Trigger node ID is required");
       }
 
+      // Get workspaceId from workflow if it exists (for saved workflows)
+      let workspaceId: string | null = null;
+      if (data.workflowId && data.workflowId !== "new") {
+        const workflow = await prisma.workflow.findUnique({
+          where: { id: data.workflowId },
+          select: { workspaceId: true },
+        });
+        workspaceId = workflow?.workspaceId || null;
+      }
+
       // Start execution (returns immediately with execution ID)
       const executionId = await globalAny.realtimeExecutionEngine.startExecution(
         data.workflowId,
@@ -713,7 +750,7 @@ export class SocketService {
         data.triggerData,
         data.workflowData.nodes,
         data.workflowData.connections,
-        data.options // Pass options including saveToDatabase
+        { ...data.options, workspaceId } // Pass options including saveToDatabase and workspaceId
       );
 
       // Return execution ID immediately

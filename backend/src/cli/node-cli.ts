@@ -19,10 +19,10 @@ program
   .description("CLI tool for nodeDrop custom node development")
   .version("1.0.0");
 
-// Create command
+// Create command - scaffolds a new node package from template
 program
   .command("create")
-  .description("Create a new node from template")
+  .description("Create a new node package from template (scaffolding)")
   .option(
     "-t, --type <type>",
     "Node type (action, trigger, transform)",

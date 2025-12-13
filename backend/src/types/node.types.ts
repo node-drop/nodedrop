@@ -1,138 +1,89 @@
 // Node system type definitions
+// Re-exports shared types from @nodedrop/types and defines backend-specific types
 
-import { NodeSettings, NodeSettingsConfig } from "./settings.types";
+import { NodeSettingsConfig } from "./settings.types";
 
-export interface CredentialSelectorConfig {
-  displayName: string;
-  description?: string;
-  placeholder?: string;
-  allowedTypes: string[]; // Array of credential type names that can be selected
-  required?: boolean;
-}
+// =============================================================================
+// Re-export shared types from @nodedrop/types
+// =============================================================================
+export {
+  // Node category and capability types
+  NodeCategory,
+  ExecutionCapability,
+  
+  // Node property types
+  NodePropertyType,
+  NodeDisplayOptions,
+  NodeTypeOptions,
+  NodePropertyOption,
+  NodeProperty,
+  
+  // Credential types
+  CredentialSelectorConfig,
+  CredentialAuthentication,
+  CredentialDefinition,
+  
+  // Node input/output configuration types
+  NodeInputConfig,
+  ServiceInput,
+  
+  // Node definition types (excluding execute function - backend adds that)
+  NodeHooks,
+  NodeSettings,
+  NodeSchema,
+  NodeTypeInfo,
+  
+  // Node validation types
+  NodeValidationError,
+  NodeValidationResult,
+  
+  // Node registration types
+  NodeRegistrationResult,
+  
+  // Built-in node types
+  BuiltInNodeTypes,
+  
+  // Re-export TriggerType from workflow types
+  TriggerType,
+} from "@nodedrop/types";
 
-export interface NodeDefinition {
-  identifier: string; // Unique identifier for the node type (was 'type')
-  nodeCategory?: 'trigger' | 'action' | 'service' | 'tool' | 'condition' | 'transform'; // High-level category for organization and execution control
-  displayName: string;
-  name: string;
-  group: string[];
-  version: number;
-  description: string;
-  defaults: Record<string, any>;
-  inputs: string[];
-  outputs: string[];
-  inputNames?: string[]; // Optional names for each input
-  outputNames?: string[]; // Optional names for each output
-  serviceInputs?: Array<{
-    name: string;
-    displayName: string;
-    required?: boolean;
-    description?: string;
-  }>; // Service connections (rendered at bottom-right with labels)
-  inputsConfig?: Record<string, {
-    position?: 'left' | 'right' | 'top' | 'bottom';
-    displayName?: string;
-    required?: boolean;
-  }>; // Optional input configuration
-  credentials?: CredentialDefinition[];
-  credentialSelector?: CredentialSelectorConfig;
-  properties: NodeProperty[] | (() => NodeProperty[]); // Support both static and dynamic properties
-  execute: NodeExecuteFunction;
-  hooks?: NodeHooks;
-  icon?: string;
-  color?: string;
-  outputComponent?: string; // Optional custom output component identifier
-  // Trigger-specific metadata (only for trigger nodes)
-  triggerType?: "manual" | "webhook" | "schedule" | "polling" | "workflow-called";
-  // Execution metadata (optional - will be computed from group if not provided)
-  executionCapability?: "trigger" | "action" | "transform" | "condition";
-  canExecuteIndividually?: boolean;
-  canBeDisabled?: boolean;
-  // Dynamic options loading
-  loadOptions?: Record<
-    string,
-    (
-      this: NodeExecutionContext
-    ) => Promise<Array<{ name: string; value: any; description?: string }>>
-  >;
-  // Custom settings specific to this node type (flat object)
-  settings?: NodeSettings;
-}
+// Import types we need to extend
+import type {
+  NodeProperty,
+  NodeHooks,
+  NodeSettings,
+  CredentialDefinition,
+  CredentialSelectorConfig,
+  NodeInputConfig,
+  ServiceInput,
+  NodeCategory,
+  ExecutionCapability,
+  TriggerType,
+} from "@nodedrop/types";
 
-export interface NodePropertyOption {
-  name: string;
-  value: any;
-  description?: string;
-}
+// =============================================================================
+// Backend-specific types (execution-related)
+// =============================================================================
 
-export interface NodeProperty {
-  displayName: string;
-  name: string;
-  type:
-    | "string"
-    | "number"
-    | "boolean"
-    | "options"
-    | "multiOptions"
-    | "json"
-    | "dateTime"
-    | "collection"
-    | "autocomplete"
-    | "credential" // New: Support for credential selector
-    | "custom" // New: Support for custom components
-    | "conditionRow" // New: Support for condition row (key-expression-value)
-    | "columnsMap" // New: Support for columns map (dynamic column-to-value mapping)
-    | "expression";
-  required?: boolean;
-  default?: any;
-  description?: string;
-  tooltip?: string; // Tooltip text shown as help icon next to label
-  placeholder?: string; // Placeholder text for input fields
-  options?: NodePropertyOption[];
-  displayOptions?: {
-    show?: Record<string, any[]>;
-    hide?: Record<string, any[]>;
-  };
-  typeOptions?: {
-    multipleValues?: boolean;
-    multipleValueButtonText?: string;
-    loadOptionsMethod?: string; // Method name for dynamic options loading
-    loadOptionsDependsOn?: string[]; // Fields that this field depends on for loading options
-  };
-  // New: Custom component configuration
-  component?: string; // Component identifier/name
-  componentProps?: Record<string, any>; // Additional props for custom component
-  // New: For credential type
-  allowedTypes?: string[]; // Array of credential type names that can be selected
-}
-
-export interface CredentialDefinition {
-  name: string;
-  displayName: string;
-  documentationUrl?: string;
-  properties: NodeProperty[];
-  authenticate?: {
-    type: "generic" | "oauth2" | "oauth1";
-    properties: Record<string, any>;
-  };
-}
-
-export interface NodeHooks {
-  activate?: () => Promise<void>;
-  deactivate?: () => Promise<void>;
-}
-
+/**
+ * Input data structure for node execution
+ */
 export interface NodeInputData {
   main?: any[][];
   [key: string]: any[][] | undefined;
 }
 
+/**
+ * Output data structure from node execution
+ */
 export interface NodeOutputData {
   main?: any[];
   [key: string]: any[] | undefined;
 }
 
-// Standardized node output format for consistent frontend handling
+/**
+ * Standardized node output format for consistent frontend handling
+ */
 export interface StandardizedNodeOutput {
   main: any[];
   branches?: Record<string, any[]>;
@@ -143,14 +94,17 @@ export interface StandardizedNodeOutput {
   };
 }
 
+/**
+ * Execution context provided to nodes during execution
+ */
 export interface NodeExecutionContext {
   getNodeParameter(parameterName: string, itemIndex?: number): any;
   getCredentials(type: string): Promise<any>;
   getInputData(inputName?: string): NodeInputData;
   helpers: NodeHelpers;
   logger: NodeLogger;
-  settings?: NodeSettingsConfig; // Node settings from Settings tab
-  userId?: string; // User ID for service nodes that need to fetch credentials
+  settings?: NodeSettingsConfig;
+  userId?: string;
   // Utility functions for common node operations
   resolveValue: (value: string | any, item: any) => any;
   resolvePath: (obj: any, path: string) => any;
@@ -162,6 +116,9 @@ export interface NodeExecutionContext {
   setNodeState?: (state: Record<string, any>) => void;
 }
 
+/**
+ * Helper functions available in node execution context
+ */
 export interface NodeHelpers {
   request: (options: RequestOptions) => Promise<any>;
   requestWithAuthentication: (
@@ -172,14 +129,20 @@ export interface NodeHelpers {
   normalizeItems: (items: any[]) => any[];
 }
 
+/**
+ * Logger interface for node execution
+ */
 export interface NodeLogger {
-  executionId?: string; // Execution ID for service node event emission
+  executionId?: string;
   debug: (message: string, extra?: any) => void;
   info: (message: string, extra?: any) => void;
   warn: (message: string, extra?: any) => void;
   error: (message: string, extra?: any) => void;
 }
 
+/**
+ * Options for HTTP requests made by nodes
+ */
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   url: string;
@@ -191,51 +154,17 @@ export interface RequestOptions {
   ignoreHttpStatusErrors?: boolean;
 }
 
+/**
+ * Node execute function signature
+ */
 export type NodeExecuteFunction = (
   this: NodeExecutionContext,
   inputData: NodeInputData
 ) => Promise<NodeOutputData[]>;
 
-export interface NodeValidationResult {
-  valid: boolean;
-  errors: NodeValidationError[];
-}
-
-export interface NodeValidationError {
-  property: string;
-  message: string;
-  value?: any;
-}
-
-export interface NodeSchema {
-  identifier: string; // Unique identifier for the node type (was 'type')
-  nodeCategory?: 'trigger' | 'action' | 'service' | 'tool' | 'condition' | 'transform'; // High-level category
-  displayName: string;
-  name: string;
-  group: string[];
-  version: number;
-  description: string;
-  defaults: Record<string, any>;
-  inputs: string[];
-  outputs: string[];
-  inputsConfig?: Record<string, {
-    position?: 'left' | 'right' | 'top' | 'bottom';
-    displayName?: string;
-    required?: boolean;
-  }>; // Optional input configuration
-  properties: NodeProperty[];
-  credentials?: CredentialDefinition[];
-  credentialSelector?: CredentialSelectorConfig;
-  icon?: string;
-  color?: string;
-}
-
-export interface NodeRegistrationResult {
-  success: boolean;
-  identifier?: string;
-  errors?: string[];
-}
-
+/**
+ * Result of node execution
+ */
 export interface NodeExecutionResult {
   success: boolean;
   data?: StandardizedNodeOutput;
@@ -246,56 +175,60 @@ export interface NodeExecutionResult {
   };
 }
 
-// Built-in node types
-export enum BuiltInNodeTypes {
-  HTTP_REQUEST = "http-request",
-  JSON = "json",
-  SET = "set",
-  IF = "if",
-  CODE = "code",
-  WEBHOOK = "webhook",
-  WEBHOOK_TRIGGER = "webhook-trigger",
-  SCHEDULE_TRIGGER = "schedule-trigger",
-  MANUAL_TRIGGER = "manual-trigger",
-  WORKFLOW_CALLED = "workflow-called",
-  OPENAI = "openai",
-  ANTHROPIC = "anthropic",
-}
+// =============================================================================
+// Backend-specific NodeDefinition (extends shared types with execute function)
+// =============================================================================
 
-export interface NodeTypeInfo {
-  identifier: string; // Unique identifier for the node type (was 'type')
+/**
+ * Complete node definition interface for backend
+ * This extends the shared NodeDefinition with the execute function
+ */
+export interface NodeDefinition {
+  /** Unique identifier for the node type */
+  identifier: string;
+  /** High-level category for organization and execution control */
+  nodeCategory?: NodeCategory;
   displayName: string;
   name: string;
-  description: string;
   group: string[];
   version: number;
+  description: string;
   defaults: Record<string, any>;
   inputs: string[];
   outputs: string[];
-  inputNames?: string[]; // Optional labeled input names
-  outputNames?: string[]; // Optional labeled output names
-  serviceInputs?: Array<{
-    name: string;
-    displayName: string;
-    required?: boolean;
-    description?: string;
-  }>; // Optional service inputs for AI Agent nodes
-  inputsConfig?: Record<string, {
-    position?: 'left' | 'right' | 'top' | 'bottom';
-    displayName?: string;
-    required?: boolean;
-  }>; // Optional input configuration
-  properties: NodeProperty[];
-  credentials?: CredentialDefinition[]; // Include credentials
-  credentialSelector?: CredentialSelectorConfig; // Include unified credential selector
+  /** Optional names for each input */
+  inputNames?: string[];
+  /** Optional names for each output */
+  outputNames?: string[];
+  /** Service connections (rendered at bottom-right with labels) */
+  serviceInputs?: ServiceInput[];
+  /** Optional input configuration */
+  inputsConfig?: Record<string, NodeInputConfig>;
+  credentials?: CredentialDefinition[];
+  credentialSelector?: CredentialSelectorConfig;
+  /** Support both static and dynamic properties */
+  properties: NodeProperty[] | (() => NodeProperty[]);
+  /** Node execution function - backend specific */
+  execute: NodeExecuteFunction;
+  /** Node lifecycle hooks */
+  hooks?: NodeHooks;
   icon?: string;
   color?: string;
-  // Node category for high-level organization
-  nodeCategory?: 'trigger' | 'action' | 'service' | 'tool' | 'condition' | 'transform';
-  // Trigger-specific metadata
-  triggerType?: "manual" | "webhook" | "schedule" | "polling" | "workflow-called";
-  // Execution metadata
-  executionCapability?: "trigger" | "action" | "transform" | "condition";
+  /** Optional custom output component identifier */
+  outputComponent?: string;
+  /** Trigger-specific metadata (only for trigger nodes) */
+  triggerType?: TriggerType;
+  /** Execution metadata */
+  executionCapability?: ExecutionCapability;
   canExecuteIndividually?: boolean;
   canBeDisabled?: boolean;
+  /** Dynamic options loading */
+  loadOptions?: Record<
+    string,
+    (
+      this: NodeExecutionContext
+    ) => Promise<Array<{ name: string; value: any; description?: string }>>
+  >;
+  /** Custom settings specific to this node type */
+  settings?: NodeSettings;
 }

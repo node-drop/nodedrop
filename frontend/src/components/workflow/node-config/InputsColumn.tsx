@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -161,13 +161,15 @@ function UnifiedTreeNode({
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <NodeIconRenderer
-                        icon={inputNode.icon || nodeTypeDefinition?.icon}
-                        nodeType={inputNode.type}
-                        nodeGroup={nodeTypeDefinition?.group}
-                        displayName={inputNode.name}
-                        backgroundColor={inputNode.color || nodeTypeDefinition?.color || '#6b7280'}
-                        isTrigger={isTrigger}
+                      <NodeIcon
+                        config={{
+                          icon: inputNode.icon || nodeTypeDefinition?.icon,
+                          nodeType: inputNode.type,
+                          nodeGroup: nodeTypeDefinition?.group,
+                          displayName: inputNode.name,
+                          color: inputNode.color || nodeTypeDefinition?.color || '#6b7280',
+                          isTrigger,
+                        }}
                         size="sm"
                         className="flex-shrink-0"
                       />
@@ -935,13 +937,15 @@ export function InputsColumn({ node }: InputsColumnProps) {
                 return (
                   <div key={inputNode.id} className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
-                      <NodeIconRenderer
-                        icon={inputNode.icon || nodeTypeDefinition?.icon}
-                        nodeType={inputNode.type}
-                        nodeGroup={nodeTypeDefinition?.group}
-                        displayName={inputNode.name}
-                        backgroundColor={inputNode.color || nodeTypeDefinition?.color || '#6b7280'}
-                        isTrigger={isTrigger}
+                      <NodeIcon
+                        config={{
+                          icon: inputNode.icon || nodeTypeDefinition?.icon,
+                          nodeType: inputNode.type,
+                          nodeGroup: nodeTypeDefinition?.group,
+                          displayName: inputNode.name,
+                          color: inputNode.color || nodeTypeDefinition?.color || '#6b7280',
+                          isTrigger,
+                        }}
                         size="sm"
                       />
                       <span className="text-sm font-medium">{inputNode.name}</span>
@@ -987,13 +991,15 @@ export function InputsColumn({ node }: InputsColumnProps) {
                         <tr key={inputNode.id} className="hover:bg-muted/30 transition-colors">
                           <td className="border border-border/50 p-2.5">
                             <div className="flex items-center gap-2">
-                              <NodeIconRenderer
-                                icon={inputNode.icon || nodeTypeDefinition?.icon}
-                                nodeType={inputNode.type}
-                                nodeGroup={nodeTypeDefinition?.group}
-                                displayName={inputNode.name}
-                                backgroundColor={inputNode.color || nodeTypeDefinition?.color || '#6b7280'}
-                                isTrigger={isTrigger}
+                              <NodeIcon
+                                config={{
+                                  icon: inputNode.icon || nodeTypeDefinition?.icon,
+                                  nodeType: inputNode.type,
+                                  nodeGroup: nodeTypeDefinition?.group,
+                                  displayName: inputNode.name,
+                                  color: inputNode.color || nodeTypeDefinition?.color || '#6b7280',
+                                  isTrigger,
+                                }}
                                 size="sm"
                               />
                               <span className="font-medium text-foreground">{inputNode.name}</span>

@@ -10,13 +10,13 @@ import {
 } from "../types/node.types";
 import { logger } from "../utils/logger";
 import {
-  ExpressionContext,
   extractJsonData,
   normalizeInputItems,
   resolvePath,
   resolveValue,
   wrapJsonData,
-} from "../utils/nodeHelpers";
+} from "@nodedrop/utils";
+import type { ExpressionContext } from "@nodedrop/types";
 import { CredentialService } from "./CredentialService";
 
 import { VariableService } from "./VariableService";
@@ -181,8 +181,7 @@ export class SecureExecutionService {
         try {
           let resolvedValue = await this.variableService.replaceVariablesInText(
             value,
-            userId,
-            workflowId
+            userId
           );
 
           // Unwrap simple {{value}} patterns

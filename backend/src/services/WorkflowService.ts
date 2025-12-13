@@ -19,6 +19,13 @@ interface WorkflowFilters {
   createdBefore?: Date;
 }
 
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
+
 export class WorkflowService {
   private prisma: PrismaClient;
 
@@ -30,7 +37,7 @@ export class WorkflowService {
 
 
 
-  async createWorkflow(userId: string, data: CreateWorkflowRequest) {
+  async createWorkflow(userId: string, data: CreateWorkflowRequest, options?: WorkspaceQueryOptions) {
     try {
       // Prepare triggers (extract, convert, normalize)
       const normalizedTriggers = prepareTriggersForSave(data, global.nodeService) || [];
@@ -43,6 +50,7 @@ export class WorkflowService {
           tags: data.tags || [],
           userId,
           teamId: data.teamId,
+          workspaceId: options?.workspaceId, // Add workspace context
           nodes: data.nodes as any,
           connections: data.connections,
           triggers: normalizedTriggers,
@@ -62,12 +70,13 @@ export class WorkflowService {
     }
   }
 
-  async getWorkflow(id: string, userId?: string) {
+  async getWorkflow(id: string, userId?: string, options?: WorkspaceQueryOptions) {
     try {
       const workflow = await this.prisma.workflow.findFirst({
         where: {
           id,
           ...(userId && { userId }),
+          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
         },
       });
 
@@ -251,7 +260,7 @@ export class WorkflowService {
     }
   }
 
-  async listWorkflows(userId: string, query: WorkflowQueryRequest) {
+  async listWorkflows(userId: string, query: WorkflowQueryRequest, options?: WorkspaceQueryOptions) {
     try {
       const {
         page = 1,
@@ -263,6 +272,11 @@ export class WorkflowService {
       const skip = (page - 1) * limit;
 
       const where: any = { userId };
+
+      // Filter by workspace if provided
+      if (options?.workspaceId) {
+        where.workspaceId = options.workspaceId;
+      }
 
       if (search) {
         where.OR = [
@@ -285,6 +299,7 @@ export class WorkflowService {
             tags: true,
             active: true,
             teamId: true,
+            workspaceId: true,
             createdAt: true,
             updatedAt: true,
             _count: {
@@ -323,7 +338,8 @@ export class WorkflowService {
       limit?: number;
       sortBy?: string;
       sortOrder?: "asc" | "desc";
-    }
+    },
+    options?: WorkspaceQueryOptions
   ) {
     try {
       const {
@@ -339,6 +355,11 @@ export class WorkflowService {
       const skip = (page - 1) * limit;
 
       const where: any = { userId };
+
+      // Filter by workspace if provided
+      if (options?.workspaceId) {
+        where.workspaceId = options.workspaceId;
+      }
 
       // Text search across name and description
       if (search) {
@@ -426,15 +447,16 @@ export class WorkflowService {
     }
   }
 
-  async duplicateWorkflow(id: string, userId: string, newName?: string) {
+  async duplicateWorkflow(id: string, userId: string, newName?: string, options?: WorkspaceQueryOptions) {
     try {
-      const originalWorkflow = await this.getWorkflow(id, userId);
+      const originalWorkflow = await this.getWorkflow(id, userId, options);
 
       const duplicatedWorkflow = await this.prisma.workflow.create({
         data: {
           name: newName || `${originalWorkflow.name} (Copy)`,
           description: originalWorkflow.description,
           userId,
+          workspaceId: options?.workspaceId || originalWorkflow.workspaceId, // Preserve workspace
           nodes: originalWorkflow.nodes as any,
           connections: originalWorkflow.connections as any,
           triggers: originalWorkflow.triggers as any,
@@ -457,24 +479,29 @@ export class WorkflowService {
 
 
 
-  async getWorkflowStats(userId: string) {
+  async getWorkflowStats(userId: string, options?: WorkspaceQueryOptions) {
     try {
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
+
       const [
         totalWorkflows,
         activeWorkflows,
         totalExecutions,
         recentExecutions,
       ] = await Promise.all([
-        this.prisma.workflow.count({ where: { userId } }),
-        this.prisma.workflow.count({ where: { userId, active: true } }),
+        this.prisma.workflow.count({ where: workflowWhere }),
+        this.prisma.workflow.count({ where: { ...workflowWhere, active: true } }),
         this.prisma.execution.count({
           where: {
-            workflow: { userId },
+            workflow: workflowWhere,
           },
         }),
         this.prisma.execution.count({
           where: {
-            workflow: { userId },
+            workflow: workflowWhere,
             createdAt: {
               gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
             },
@@ -601,7 +628,7 @@ export class WorkflowService {
   async getUpcomingExecutions(workflow: any, limit: number = 10) {
     try {
       const { getNextExecutionTimes, describeCronExpression } = await import(
-        "../utils/cronUtils"
+        "@nodedrop/utils"
       );
 
       const triggers = (workflow.triggers as any[]) || [];

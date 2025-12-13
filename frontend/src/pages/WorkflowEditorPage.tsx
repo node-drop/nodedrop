@@ -14,7 +14,8 @@ import { useAuthStore, useNodeTypes, useWorkflowStore } from '@/stores'
 import { Workflow } from '@/types'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router'
+import { toast } from 'sonner'
 
 export function WorkflowEditorPage() {
   const { id, executionId } = useParams<{ id: string; executionId?: string }>()
@@ -83,9 +84,11 @@ export function WorkflowEditorPage() {
 
       // Navigate to the new workflow
       navigate(`/workflows/${updatedWorkflow.id}/edit`, { replace: true })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create workflow:', error)
-      setError('Failed to create workflow. Please try again.')
+      const errorMessage = error?.message || 'Failed to create workflow. Please try again.'
+      setError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 

@@ -4,7 +4,7 @@ import { LogsTabContent } from './tabs/LogsTabContent'
 import { ProgressTabContent } from './tabs/ProgressTabContent'
 import { ResultsTabContent } from './tabs/ResultsTabContent'
 import { TimelineTabContent } from './tabs/TimelineTabContent'
-import type { ExecutionLogEntry } from '@/types/execution'
+import type { ExecutionLogEntry } from '@nodedrop/types'
 
 interface ExecutionPanelContentProps {
   activeTab: TabType

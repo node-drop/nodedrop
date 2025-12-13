@@ -13,6 +13,7 @@ class ApiClient {
       headers: {
         "Content-Type": "application/json",
       },
+      withCredentials: true, // Required for better-auth cookie-based sessions
     });
 
     this.setupInterceptors();
@@ -20,12 +21,19 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor to add auth token
+    // Request interceptor to add auth token and workspace header
     this.client.interceptors.request.use(
       (config) => {
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
         }
+        
+        // Add workspace header if available
+        const workspaceId = this.getWorkspaceId();
+        if (workspaceId) {
+          config.headers['x-workspace-id'] = workspaceId;
+        }
+        
         return config;
       },
       (error) => Promise.reject(error)
@@ -36,9 +44,11 @@ class ApiClient {
       (response: AxiosResponse) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Only handle unauthorized for authenticated requests, not login attempts
-          const isLoginRequest = error.config?.url?.includes('/auth/login');
-          if (!isLoginRequest) {
+          // Only handle unauthorized for authenticated requests, not login/register attempts
+          const isAuthRequest = error.config?.url?.includes('/auth/sign-in') || 
+                               error.config?.url?.includes('/auth/sign-up') ||
+                               error.config?.url?.includes('/auth/login');
+          if (!isAuthRequest) {
             // Clear token and notify auth store
             this.clearToken();
             this.handleUnauthorized();
@@ -58,6 +68,20 @@ class ApiClient {
     if (token) {
       this.setToken(token);
     }
+  }
+
+  private getWorkspaceId(): string | null {
+    // Get workspace ID from localStorage (set by workspace store)
+    try {
+      const workspaceStorage = localStorage.getItem("workspace-storage");
+      if (workspaceStorage) {
+        const parsed = JSON.parse(workspaceStorage);
+        return parsed.state?.currentWorkspaceId || null;
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return null;
   }
 
   private formatError(error: any): ApiError {

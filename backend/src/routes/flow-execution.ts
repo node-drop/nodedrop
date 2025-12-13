@@ -1,7 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import {
+  WorkspaceRequest,
+  requireWorkspace,
+} from "../middleware/workspace";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -12,10 +16,12 @@ const prisma = new PrismaClient();
  */
 router.post(
   "/start",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId, startNodeId, triggerData } = req.body;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Validate input
     if (!workflowId) {
@@ -24,7 +30,10 @@ router.post(
 
     // Get workflow
     const workflow = await prisma.workflow.findUnique({
-      where: { id: workflowId },
+      where: { 
+        id: workflowId,
+        ...(workspaceId && { workspaceId }),
+      },
       include: { user: true },
     });
 
@@ -41,6 +50,7 @@ router.post(
     const execution = await prisma.execution.create({
       data: {
         workflowId,
+        workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
         triggerData: triggerData || {},
       },
     });
@@ -60,14 +70,19 @@ router.post(
  */
 router.post(
   "/:executionId/cancel",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
     const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
+      where: { 
+        id: executionId,
+        ...(workspaceId && { workspaceId }),
+      },
       include: { workflow: true },
     });
 
@@ -101,14 +116,19 @@ router.post(
  */
 router.post(
   "/:executionId/pause",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
     const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
+      where: { 
+        id: executionId,
+        ...(workspaceId && { workspaceId }),
+      },
       include: { workflow: true },
     });
 
@@ -148,14 +168,19 @@ router.post(
  */
 router.post(
   "/:executionId/resume",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
     const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
+      where: { 
+        id: executionId,
+        ...(workspaceId && { workspaceId }),
+      },
       include: { workflow: true },
     });
 
@@ -193,13 +218,18 @@ router.post(
  */
 router.get(
   "/:executionId/status",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
+      where: { 
+        id: executionId,
+        ...(workspaceId && { workspaceId }),
+      },
       include: { workflow: true },
     });
 
@@ -232,14 +262,19 @@ router.get(
  */
 router.get(
   "/history/:workflowId",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const { workflowId } = req.params;
     const { limit = "50", offset = "0" } = req.query;
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     const workflow = await prisma.workflow.findUnique({
-      where: { id: workflowId },
+      where: { 
+        id: workflowId,
+        ...(workspaceId && { workspaceId }),
+      },
     });
 
     if (!workflow) {
@@ -280,13 +315,16 @@ router.get(
  */
 router.get(
   "/active",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const userId = req.user!.id;
+    const workspaceId = req.workspace?.workspaceId;
 
     const activeExecutions = await prisma.execution.findMany({
       where: {
         workflow: { userId },
+        ...(workspaceId && { workspaceId }),
         status: "RUNNING",
         finishedAt: null,
       },

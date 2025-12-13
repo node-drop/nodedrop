@@ -2,7 +2,7 @@ export interface User {
   id: string
   email: string
   name: string
-  role: 'ADMIN' | 'USER' // Match backend enum values
+  role: 'admin' | 'user' // Match better-auth admin plugin values
   createdAt: string
   updatedAt?: string // Optional since backend might not always return it
 }

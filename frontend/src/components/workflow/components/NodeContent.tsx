@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { clsx } from 'clsx'
 import { ImageIcon, Loader2, Pause } from 'lucide-react'
 import { useState } from 'react'
@@ -71,13 +71,15 @@ export function NodeContent({
             )}
           </div>
         ) : (
-          <NodeIconRenderer
-            icon={icon}
-            nodeType={nodeType}
-            nodeGroup={nodeGroup}
-            displayName={nodeType}
-            backgroundColor={color || (isTrigger ? '#4CAF50' : '#666')}
-            isTrigger={isTrigger}
+          <NodeIcon
+            config={{
+              icon,
+              nodeType,
+              nodeGroup,
+              displayName: nodeType,
+              color: color || (isTrigger ? '#4CAF50' : '#666'),
+              isTrigger,
+            }}
             size="md"
             isExecuting={isRunning}
             className="shadow-sm"

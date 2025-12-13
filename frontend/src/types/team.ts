@@ -1,103 +1,40 @@
-// Team-related type definitions
+/**
+ * Team Types - Re-exported from @nodedrop/types
+ * 
+ * This file re-exports shared team types from the types package.
+ * All team types are now defined in @nodedrop/types for consistency
+ * between frontend and backend.
+ */
 
-export type TeamRole = 'OWNER' | 'MEMBER' | 'VIEWER'
+// Re-export all team types from shared package
+export type {
+  TeamRole,
+  SharePermission,
+  Team,
+  TeamMember,
+  TeamCredentialShare,
+  CreateTeamRequest,
+  UpdateTeamRequest,
+  AddTeamMemberRequest,
+  UpdateTeamMemberRoleRequest,
+  ShareCredentialWithTeamRequest,
+  UpdateTeamCredentialPermissionRequest,
+} from "@nodedrop/types";
 
-export type SharePermission = 'USE' | 'VIEW' | 'EDIT'
+// Re-export schemas for validation
+export {
+  TeamRoleSchema,
+  SharePermissionSchema,
+  TeamSchema,
+  TeamMemberSchema,
+  TeamCredentialShareSchema,
+  CreateTeamRequestSchema,
+  UpdateTeamRequestSchema,
+  AddTeamMemberRequestSchema,
+  UpdateTeamMemberRoleRequestSchema,
+  ShareCredentialWithTeamRequestSchema,
+  UpdateTeamCredentialPermissionRequestSchema,
+} from "@nodedrop/types";
 
-export interface Team {
-  id: string
-  name: string
-  slug: string
-  description?: string
-  color: string
-  ownerId: string
-  settings?: Record<string, any>
-  createdAt: string
-  updatedAt: string
-  owner?: {
-    id: string
-    name: string | null
-    email: string
-  }
-  members?: TeamMember[]
-  userRole?: TeamRole
-  _count?: {
-    members?: number
-    workflows?: number
-    credentials?: number
-  }
-}
-
-export interface TeamMember {
-  id: string
-  teamId: string
-  userId: string
-  role: TeamRole
-  joinedAt: string
-  user: {
-    id: string
-    name: string | null
-    email: string
-  }
-}
-
-export interface TeamCredentialShare {
-  id: string
-  credentialId: string
-  teamId: string
-  permission: SharePermission
-  sharedAt: string
-  sharedBy?: string
-  credential?: {
-    id: string
-    name: string
-    type: string
-    userId: string
-    createdAt: string
-    updatedAt: string
-    expiresAt?: string | null
-  }
-  team?: {
-    id: string
-    name: string
-    slug: string
-    color: string
-  }
-  sharer?: {
-    id: string
-    name: string | null
-    email: string
-  }
-}
-
-export interface CreateTeamRequest {
-  name: string
-  slug?: string
-  description?: string
-  color?: string
-}
-
-export interface UpdateTeamRequest {
-  name?: string
-  slug?: string
-  description?: string
-  color?: string
-  settings?: Record<string, any>
-}
-
-export interface AddTeamMemberRequest {
-  email: string
-  role?: TeamRole
-}
-
-export interface UpdateMemberRoleRequest {
-  role: TeamRole
-}
-
-export interface ShareCredentialWithTeamRequest {
-  permission?: SharePermission
-}
-
-export interface UpdateTeamCredentialPermissionRequest {
-  permission: SharePermission
-}
+// Note: UpdateMemberRoleRequest is exported from workspace.ts for workspace member roles
+// Use UpdateTeamMemberRoleRequest for team member roles

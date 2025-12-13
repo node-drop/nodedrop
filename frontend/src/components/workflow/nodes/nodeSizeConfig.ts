@@ -36,7 +36,7 @@ export const NODE_SIZE_CONFIG: Record<NodeSize, NodeSizeConfig> = {
   medium: {
     minHeight: '',
     iconSize: 'md',
-    labelClass: 'text-sm',
+    labelClass: 'text-[10px] font-medium',
     padding: {
       compact: 'justify-center gap-0 p-2',
       normal: 'gap-2 p-2'
@@ -49,7 +49,7 @@ export const NODE_SIZE_CONFIG: Record<NodeSize, NodeSizeConfig> = {
   large: {
     minHeight: '80px',
     iconSize: 'md',
-    labelClass: 'text-sm',
+    labelClass: 'text-[10px] font-medium',
     padding: {
       compact: 'justify-center gap-0 p-2',
       normal: 'gap-2 p-3'

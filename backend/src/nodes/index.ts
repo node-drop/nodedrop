@@ -5,6 +5,7 @@ export * from "../utils/NodeDiscovery";
 export * from "./Code";
 export * from "./CustomTemplate";
 export * from "./DynamicProperties";
+export * from "./ErrorTrigger";
 export * from "./GoogleSheetsTrigger/GoogleSheetsTrigger.node";
 export * from "./HttpRequest";
 // export * from "./PostgreSQL/PostgreSQL.node"; // PostgreSQL node not yet implemented

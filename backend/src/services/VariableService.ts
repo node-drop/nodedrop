@@ -17,9 +17,17 @@ export interface Variable {
   description?: string | null;
   scope: "GLOBAL" | "LOCAL";
   workflowId?: string | null;
+  workspaceId?: string | null;
   userId: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
 }
 
 export class VariableService {
@@ -38,7 +46,8 @@ export class VariableService {
     value: string,
     description?: string,
     scope: "GLOBAL" | "LOCAL" = "GLOBAL",
-    workflowId?: string
+    workflowId?: string,
+    options?: WorkspaceQueryOptions
   ): Promise<Variable> {
     // Validate variable key format (alphanumeric, underscore, dot allowed)
     if (!this.isValidVariableKey(key)) {
@@ -63,7 +72,7 @@ export class VariableService {
       );
     }
 
-    // Check if variable key already exists for this user in the same scope
+    // Check if variable key already exists for this user in the same scope (and workspace)
     const whereClause: any = {
       key,
       userId,
@@ -74,6 +83,11 @@ export class VariableService {
       whereClause.workflowId = workflowId;
     } else {
       whereClause.workflowId = null;
+    }
+
+    // Filter by workspace if provided
+    if (options?.workspaceId) {
+      whereClause.workspaceId = options.workspaceId;
     }
 
     const existingVariable = await this.prisma.variable.findFirst({
@@ -96,6 +110,7 @@ export class VariableService {
         description,
         scope,
         workflowId: scope === "LOCAL" ? workflowId : null,
+        workspaceId: options?.workspaceId, // Add workspace context
         userId,
       },
     });
@@ -108,12 +123,18 @@ export class VariableService {
   /**
    * Get variable by ID
    */
-  async getVariable(id: string, userId: string): Promise<Variable | null> {
+  async getVariable(id: string, userId: string, options?: WorkspaceQueryOptions): Promise<Variable | null> {
+    const whereClause: any = {
+      id,
+      userId,
+    };
+
+    if (options?.workspaceId) {
+      whereClause.workspaceId = options.workspaceId;
+    }
+
     const variable = await this.prisma.variable.findFirst({
-      where: {
-        id,
-        userId,
-      },
+      where: whereClause,
     });
 
     return variable;
@@ -143,9 +164,15 @@ export class VariableService {
     userId: string,
     search?: string,
     scope?: "GLOBAL" | "LOCAL",
-    workflowId?: string
+    workflowId?: string,
+    options?: WorkspaceQueryOptions
   ): Promise<Variable[]> {
     const whereClause: any = { userId };
+
+    // Filter by workspace if provided
+    if (options?.workspaceId) {
+      whereClause.workspaceId = options.workspaceId;
+    }
 
     if (scope) {
       whereClause.scope = scope;
@@ -184,10 +211,16 @@ export class VariableService {
       key?: string;
       value?: string;
       description?: string | null;
-    }
+    },
+    options?: WorkspaceQueryOptions
   ): Promise<Variable> {
+    const whereClause: any = { id, userId };
+    if (options?.workspaceId) {
+      whereClause.workspaceId = options.workspaceId;
+    }
+
     const existingVariable = await this.prisma.variable.findFirst({
-      where: { id, userId },
+      where: whereClause,
     });
 
     if (!existingVariable) {
@@ -243,9 +276,14 @@ export class VariableService {
   /**
    * Delete variable
    */
-  async deleteVariable(id: string, userId: string): Promise<void> {
+  async deleteVariable(id: string, userId: string, options?: WorkspaceQueryOptions): Promise<void> {
+    const whereClause: any = { id, userId };
+    if (options?.workspaceId) {
+      whereClause.workspaceId = options.workspaceId;
+    }
+
     const variable = await this.prisma.variable.findFirst({
-      where: { id, userId },
+      where: whereClause,
     });
 
     if (!variable) {
@@ -273,15 +311,18 @@ export class VariableService {
    */
   async getVariablesForExecution(
     userId: string,
-    workflowId?: string
+    workflowId?: string,
+    options?: WorkspaceQueryOptions
   ): Promise<Record<string, string>> {
     const variableMap: Record<string, string> = {};
 
-    // Get global variables
+    // Get global variables (workspace-scoped if provided)
     const globalVariables = await this.getVariables(
       userId,
       undefined,
-      "GLOBAL"
+      "GLOBAL",
+      undefined,
+      options
     );
     for (const variable of globalVariables) {
       variableMap[variable.key] = variable.value;
@@ -293,7 +334,8 @@ export class VariableService {
         userId,
         undefined,
         "LOCAL",
-        workflowId
+        workflowId,
+        options
       );
       for (const variable of localVariables) {
         variableMap[variable.key] = variable.value;
@@ -308,7 +350,8 @@ export class VariableService {
    */
   async bulkUpsertVariables(
     userId: string,
-    variables: Array<{ key: string; value: string; description?: string }>
+    variables: Array<{ key: string; value: string; description?: string }>,
+    options?: WorkspaceQueryOptions
   ): Promise<Variable[]> {
     const results: Variable[] = [];
 
@@ -327,7 +370,7 @@ export class VariableService {
         const updated = await this.updateVariable(existingVariable.id, userId, {
           value: varData.value,
           description: varData.description,
-        });
+        }, options);
         results.push(updated);
       } else {
         // Create new variable
@@ -335,7 +378,10 @@ export class VariableService {
           userId,
           varData.key,
           varData.value,
-          varData.description
+          varData.description,
+          "GLOBAL",
+          undefined,
+          options
         );
         results.push(created);
       }
@@ -364,24 +410,13 @@ export class VariableService {
   async replaceVariablesInText(
     text: string,
     userId: string,
-    workflowId?: string
+    options?: WorkspaceQueryOptions
   ): Promise<string> {
     // Get global variables
-    const globalVariables = await this.getVariablesForExecution(userId);
+    const globalVariables = await this.getVariablesForExecution(userId, undefined, options);
 
     // Get local variables for the workflow if workflowId is provided
     const localVariables: Record<string, string> = {};
-    if (workflowId) {
-      const locals = await this.getVariables(
-        userId,
-        undefined,
-        "LOCAL",
-        workflowId
-      );
-      for (const variable of locals) {
-        localVariables[variable.key] = variable.value;
-      }
-    }
 
     let result = text;
 
@@ -439,12 +474,12 @@ export class VariableService {
   /**
    * Get statistics about variables usage
    */
-  async getVariableStats(userId: string): Promise<{
+  async getVariableStats(userId: string, options?: WorkspaceQueryOptions): Promise<{
     totalVariables: number;
     recentlyUpdated: number;
     keysWithDots: number;
   }> {
-    const variables = await this.getVariables(userId);
+    const variables = await this.getVariables(userId, undefined, undefined, undefined, options);
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 

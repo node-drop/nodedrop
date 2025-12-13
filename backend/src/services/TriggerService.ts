@@ -13,6 +13,13 @@ import { TriggerExecutionRequest, TriggerManager } from "./TriggerManager";
 import { WebhookRequestLogService } from "./WebhookRequestLogService";
 import { WorkflowService } from "./WorkflowService";
 
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
+
 export interface TriggerDefinition {
   id: string;
   type: "webhook" | "schedule" | "manual" | "workflow-called" | "polling";
@@ -221,13 +228,15 @@ export class TriggerService {
     triggerData: Omit<
       TriggerDefinition,
       "id" | "workflowId" | "createdAt" | "updatedAt"
-    >
+    >,
+    options?: WorkspaceQueryOptions
   ): Promise<TriggerDefinition> {
     try {
       // Verify workflow exists and belongs to user
       const workflow = await this.workflowService.getWorkflow(
         workflowId,
-        userId
+        userId,
+        options
       );
 
       // Validate trigger settings
@@ -282,7 +291,8 @@ export class TriggerService {
     workflowId: string,
     triggerId: string,
     userId: string,
-    updates: Partial<TriggerDefinition>
+    updates: Partial<TriggerDefinition>,
+    options?: WorkspaceQueryOptions
   ): Promise<TriggerDefinition> {
     try {
       // Get workflow and verify ownership
@@ -350,13 +360,15 @@ export class TriggerService {
   async deleteTrigger(
     workflowId: string,
     triggerId: string,
-    userId: string
+    userId: string,
+    options?: WorkspaceQueryOptions
   ): Promise<void> {
     try {
       // Get workflow and verify ownership
       const workflow = await this.workflowService.getWorkflow(
         workflowId,
-        userId
+        userId,
+        options
       );
       const triggers = (workflow.triggers as any[]) || [];
 
@@ -1750,13 +1762,15 @@ export class TriggerService {
     workflowId: string,
     triggerId: string,
     userId: string,
-    data?: any
+    data?: any,
+    options?: WorkspaceQueryOptions
   ): Promise<{ success: boolean; executionId?: string; error?: string }> {
     try {
       // Verify workflow and trigger
       const workflow = await this.workflowService.getWorkflow(
         workflowId,
-        userId
+        userId,
+        options
       );
       const triggers = (workflow.triggers as any[]) || [];
       const trigger = triggers.find(
@@ -2147,7 +2161,8 @@ export class TriggerService {
       status?: string;
       limit?: number;
       offset?: number;
-    }
+    },
+    options?: WorkspaceQueryOptions
   ): Promise<TriggerEvent[]> {
     // This would typically query a trigger_events table
     // For now, return empty array as we're not storing events in DB yet
@@ -2156,7 +2171,8 @@ export class TriggerService {
 
   async getTriggerStats(
     workflowId: string,
-    userId: string
+    userId: string,
+    options?: WorkspaceQueryOptions
   ): Promise<{
     totalTriggers: number;
     activeTriggers: number;
@@ -2166,7 +2182,8 @@ export class TriggerService {
     try {
       const workflow = await this.workflowService.getWorkflow(
         workflowId,
-        userId
+        userId,
+        options
       );
       const triggers = (workflow.triggers as any[]) || [];
 
@@ -2268,15 +2285,19 @@ export class TriggerService {
   /**
    * Get all active polling triggers for a user
    */
-  async getActivePollingTriggers(userId: string): Promise<any[]> {
+  async getActivePollingTriggers(userId: string, options?: WorkspaceQueryOptions): Promise<any[]> {
     try {
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
+
       // Get polling triggers from database with workflow details
       const pollingJobs = await this.prisma.triggerJob.findMany({
         where: {
           type: 'polling',
-          workflow: {
-            userId,
-          },
+          workflow: workflowWhere,
+          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
         },
         include: {
           workflow: {
@@ -2314,14 +2335,18 @@ export class TriggerService {
   /**
    * Get all active triggers (schedule + polling) for a user
    */
-  async getAllActiveTriggers(userId: string): Promise<any[]> {
+  async getAllActiveTriggers(userId: string, options?: WorkspaceQueryOptions): Promise<any[]> {
     try {
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
+
       // Get all trigger jobs from database with workflow details
       const triggerJobs = await this.prisma.triggerJob.findMany({
         where: {
-          workflow: {
-            userId,
-          },
+          workflow: workflowWhere,
+          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
         },
         include: {
           workflow: {

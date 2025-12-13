@@ -32,6 +32,7 @@ import variableRoutes from "./routes/variables";
 import webhookRoutes from "./routes/webhook";
 import webhookLogsRoutes from "./routes/webhook-logs";
 import { workflowRoutes } from "./routes/workflows";
+import workspaceRoutes from "./routes/workspaces";
 
 // Import middleware
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -41,6 +42,7 @@ import { PrismaClient } from "@prisma/client";
 import { CredentialService } from "./services/CredentialService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
 import { ExecutionService } from "./services/ExecutionService";
+import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
@@ -94,6 +96,9 @@ const executionService = new ExecutionService(
 
 // Initialize RealtimeExecutionEngine (for WebSocket execution)
 const realtimeExecutionEngine = new RealtimeExecutionEngine(prisma, nodeService);
+
+// Initialize ErrorTriggerService (for workflow failure monitoring)
+const errorTriggerService = new ErrorTriggerService(prisma);
 
 // Import WorkflowService, TriggerService singleton, and ScheduleJobManager
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
@@ -203,13 +208,34 @@ realtimeExecutionEngine.on("execution-completed", (data) => {
   });
 });
 
-realtimeExecutionEngine.on("execution-failed", (data) => {
+realtimeExecutionEngine.on("execution-failed", async (data) => {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "failed",
     error: data.error,
     timestamp: data.timestamp,
   });
+
+  // Fire error triggers for workflow failures
+  try {
+    await errorTriggerService.onWorkflowExecutionFailed({
+      executionId: data.executionId,
+      workflowId: data.workflowId || "",
+      workflowName: data.workflowName || "Unknown Workflow",
+      failedNodeId: data.failedNodeId,
+      failedNodeName: data.failedNodeName,
+      failedNodeType: data.failedNodeType,
+      errorMessage: data.error?.message || "Unknown error",
+      errorStack: data.error?.stack,
+      errorTimestamp: data.timestamp?.toISOString() || new Date().toISOString(),
+      executionStartedAt: data.executionStartedAt || new Date().toISOString(),
+      executionMode: data.executionMode,
+      userId: data.userId,
+      errorContext: data.errorContext,
+    });
+  } catch (errorTriggerError) {
+    logger.error("Failed to fire error triggers:", errorTriggerError);
+  }
 });
 
 realtimeExecutionEngine.on("execution-cancelled", (data) => {
@@ -240,6 +266,7 @@ declare global {
   var credentialService: CredentialService;
   var executionService: ExecutionService;
   var realtimeExecutionEngine: RealtimeExecutionEngine;
+  var errorTriggerService: ErrorTriggerService;
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
   var triggerService: any;
@@ -251,6 +278,7 @@ global.nodeService = nodeService;
 global.credentialService = credentialService;
 global.executionService = executionService;
 global.realtimeExecutionEngine = realtimeExecutionEngine;
+global.errorTriggerService = errorTriggerService;
 global.workflowService = workflowService;
 global.scheduleJobManager = scheduleJobManager;
 global.prisma = prisma;
@@ -333,7 +361,7 @@ app.use((req, res, next) => {
     origin: corsOriginFunction,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-workspace-id'],
     exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -440,7 +468,9 @@ app.use("/api/users", userRoutes);
 
 // System routes
 import systemRoutes from "./routes/system";
+import editionRoutes from "./routes/edition";
 app.use("/api/system", systemRoutes);
+app.use("/api/edition", editionRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api", environmentRoutes); // Environment routes are nested under workflows
 app.use("/api/executions", executionRoutes);
@@ -449,6 +479,7 @@ app.use("/api/node-types", nodeTypeRoutes);
 app.use("/api/credentials", credentialRoutes);
 app.use("/api/variables", variableRoutes);
 app.use("/api/teams", teamRoutes);
+app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/triggers", triggerRoutes);
 app.use("/api/custom-nodes", customNodeRoutes);
 app.use("/api/flow-execution", flowExecutionRoutes);
@@ -546,6 +577,15 @@ httpServer.listen(PORT, async () => {
     console.log(`✅ Initialized triggers & webhooks`);
   } catch (error) {
     console.error(`Failed to initialize TriggerService:`, error);
+  }
+
+  // Initialize ErrorTriggerService for workflow failure monitoring
+  try {
+    errorTriggerService.setExecutionService(executionService);
+    await errorTriggerService.initialize();
+    console.log(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
+  } catch (error) {
+    console.error(`Failed to initialize ErrorTriggerService:`, error);
   }
 
   // Initialize ScheduleJobManager for persistent schedule jobs

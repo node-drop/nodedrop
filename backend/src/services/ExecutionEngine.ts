@@ -21,7 +21,7 @@ import {
 } from "../types/execution.types";
 import { NodeInputData, NodeOutputData } from "../types/node.types";
 import { logger } from "../utils/logger";
-import { buildNodeIdToNameMap } from "../utils/nodeHelpers";
+import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { NodeService } from "./NodeService";
 
 export class ExecutionEngine extends EventEmitter {
@@ -104,6 +104,7 @@ export class ExecutionEngine extends EventEmitter {
       const execution = await this.prisma.execution.create({
         data: {
           workflowId,
+          workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
           status: ExecutionStatus.RUNNING,
           startedAt: new Date(),
           triggerData: triggerData || {},

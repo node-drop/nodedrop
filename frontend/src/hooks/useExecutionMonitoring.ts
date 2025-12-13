@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { socketService } from '../services/socket';
-import type { ExecutionEvent, ExecutionProgress, ExecutionLogEntry, NodeExecutionEvent } from '@/types/execution';
+import type { ExecutionEvent, ExecutionProgress, ExecutionLogEntry, NodeExecutionEvent } from '@nodedrop/types';
 
 export interface ExecutionMonitoringState {
   isConnected: boolean;

@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { CustomNodeUpload } from '@/components/customNode/CustomNodeUpload'
 import { NodeMarketplace } from '@/components/node/NodeMarketplace'
 import { NodesHeader } from '@/components/node/NodesHeader'
@@ -338,12 +338,15 @@ export function NodeTypesList({ }: NodeTypesListProps) {
                       target.style.transform = 'scale(1)'
                     }}
                   >
-                    <NodeIconRenderer
-                      icon={nodeType.icon}
-                      nodeType={nodeType.identifier}
-                      nodeGroup={nodeType.group}
-                      displayName={nodeType.displayName}
-                      backgroundColor={nodeType.color}
+                    <NodeIcon
+                      config={{
+                        icon: nodeType.icon,
+                        nodeType: nodeType.identifier,
+                        nodeGroup: nodeType.group,
+                        displayName: nodeType.displayName,
+                        color: nodeType.color,
+                        isTrigger: (nodeType as any).nodeCategory === 'trigger',
+                      }}
                       size="md"
                       className="shrink-0 mt-0.5"
                     />

@@ -23,7 +23,7 @@ import {
 import {
   validateImportFile as validateImportFileUtil,
   validateTitle as validateTitleUtil,
-} from "@/utils/errorHandling";
+} from "@nodedrop/utils";
 import { getAffectedNodes } from "@/utils/executionPathAnalyzer";
 import { extractNodeOutputData } from "@/utils/nodeDataUtils";
 import {
@@ -42,8 +42,8 @@ import {
 import { devtools } from "zustand/middleware";
 import { createWithEqualityFn } from "zustand/traditional";
 
-// Import execution types from central location
-import type { ExecutionLogEntry } from "@/types/execution";
+// Import execution types from shared package
+import type { ExecutionLogEntry } from "@nodedrop/types";
 
 interface WorkflowStore extends WorkflowEditorState {
   // Title management state
@@ -370,6 +370,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
               "webhook-trigger",
               "schedule-trigger",
               "workflow-called",
+              "error-trigger",
               "webhook",
             ];
 
@@ -3436,6 +3437,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             "webhook-trigger",
             "schedule-trigger",
             "workflow-called",
+            "error-trigger",
             "webhook",
           ];
           if (triggerTypes.includes(targetNode.type)) {
@@ -3667,17 +3669,13 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
         });
       },
 
-      // Template dialog actions
+      // Template dialog actions (creates custom node from selection)
       openTemplateDialog: () => {
-        set({
-          showTemplateDialog: true,
-        });
+        set({ showTemplateDialog: true });
       },
 
       closeTemplateDialog: () => {
-        set({
-          showTemplateDialog: false,
-        });
+        set({ showTemplateDialog: false });
       },
 
       // Template variable dialog actions

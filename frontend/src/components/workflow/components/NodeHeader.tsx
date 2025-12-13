@@ -89,7 +89,12 @@ export const NodeHeader = memo(function NodeHeader({
         {/* Label Section - Hidden in compact mode ONLY when collapsed, or when hideLabel is true */}
         {(!compactMode || isExpanded) && !hideLabel && (
           <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-sm font-medium truncate">{label}</span>
+            <span className="text-[10px] leading-5 font-medium truncate">{label}</span>
+            {icon?.config?.isTrigger && (
+              <span className="text-[8px] text-muted-foreground tracking-wide capitalize">
+                trigger
+              </span>
+            )}
             {headerInfo && (
               <span className="text-xs text-muted-foreground truncate">
                 {headerInfo}

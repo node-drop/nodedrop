@@ -6,3 +6,4 @@ export * from "./nodes";
 export * from "./triggers";
 export * from "./variables";
 export * from "./workflows";
+export * from "./workspaces";

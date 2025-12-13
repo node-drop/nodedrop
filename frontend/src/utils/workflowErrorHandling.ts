@@ -3,7 +3,7 @@
  * Extends the base error handling with workflow operation specific logic
  */
 
-import { Workflow, WorkflowConnection, WorkflowNode } from "@/types/workflow";
+import { Workflow, WorkflowConnection, WorkflowNode } from "@nodedrop/types";
 import {
   ErrorCodes,
   createOperationError,
@@ -357,7 +357,8 @@ export function handleWorkflowError(
 
   // Show user feedback if toast function provided
   if (showToast) {
-    const isWarning = [
+    // Warning codes - validation and recoverable errors show as warnings
+    const warningCodes: string[] = [
       ErrorCodes.TITLE_EMPTY,
       ErrorCodes.TITLE_TOO_LONG,
       ErrorCodes.TITLE_INVALID_CHARS,
@@ -372,7 +373,8 @@ export function handleWorkflowError(
       ErrorCodes.EXPORT_FAILED,
       ErrorCodes.UNKNOWN_ERROR,
       ErrorCodes.VALIDATION_ERROR,
-    ].includes(details.code);
+    ];
+    const isWarning = warningCodes.includes(details.code);
 
     showToast(isWarning ? "warning" : "error", `${operation} failed`, {
       message: userMessage,

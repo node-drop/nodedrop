@@ -71,10 +71,10 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
   }
 
   // Check if this is a trigger node (memoize to prevent recalculation)
-  const isTrigger = useMemo(() =>
-    data.executionCapability === 'trigger',
-    [data.executionCapability]
-  )
+  const isTrigger = useMemo(() => {
+    const nodeCategory = (data.nodeTypeDefinition as any)?.nodeCategory
+    return nodeCategory === 'trigger' || data.executionCapability === 'trigger'
+  }, [data.nodeTypeDefinition, data.executionCapability])
 
   // Check if this is a service node (tool, memory, model) - hide labels in compact mode
   const isServiceNode = useMemo(() => {
@@ -204,7 +204,7 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
     if (isServiceNode) {
       return '100px' // Smaller width for service nodes (tools, memory, model)
     }
-    return '180px' // Default width for regular nodes
+    return '150px' // Default width for regular nodes
   }, [isServiceNode])
 
   return (

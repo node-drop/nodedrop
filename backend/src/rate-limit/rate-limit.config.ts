@@ -33,12 +33,45 @@ export const rateLimitConfig = {
   },
 
   /**
-   * Rate limit for authentication endpoints
+   * Rate limit for authentication endpoints (general)
    */
   auth: {
     windowMs: parseInt(process.env.AUTH_WINDOW_MS || "900000"), // 15 minutes default
     max: parseInt(process.env.AUTH_MAX_REQUESTS || "5"), // 5 attempts default
     message: "Too many authentication attempts, please try again later",
+  },
+
+  /**
+   * Rate limit for login endpoint
+   * More restrictive to prevent brute force attacks
+   * Requirements: 14.1, 14.4
+   */
+  authLogin: {
+    windowMs: parseInt(process.env.AUTH_LOGIN_WINDOW_MS || "900000"), // 15 minutes default
+    max: parseInt(process.env.AUTH_LOGIN_MAX_REQUESTS || "5"), // 5 attempts default
+    message: "Too many login attempts, please try again later",
+  },
+
+  /**
+   * Rate limit for registration endpoint
+   * Prevents mass account creation
+   * Requirements: 14.2, 14.4
+   */
+  authRegister: {
+    windowMs: parseInt(process.env.AUTH_REGISTER_WINDOW_MS || "3600000"), // 1 hour default
+    max: parseInt(process.env.AUTH_REGISTER_MAX_REQUESTS || "5"), // 5 registrations default
+    message: "Too many registration attempts, please try again later",
+  },
+
+  /**
+   * Rate limit for password reset endpoint
+   * Per email address to prevent abuse
+   * Requirements: 14.3, 14.4
+   */
+  authPasswordReset: {
+    windowMs: parseInt(process.env.AUTH_RESET_WINDOW_MS || "3600000"), // 1 hour default
+    max: parseInt(process.env.AUTH_RESET_MAX_REQUESTS || "3"), // 3 attempts default
+    message: "Too many password reset requests, please try again later",
   },
 
   /**

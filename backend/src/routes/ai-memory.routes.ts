@@ -9,7 +9,7 @@
 
 import { Router } from "express";
 import { MemoryManager } from "../utils/ai/MemoryManager";
-import { authenticateToken } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -36,7 +36,7 @@ const router = Router();
  *   }
  * }
  */
-router.get("/conversations/:sessionId", authenticateToken, async (req, res) => {
+router.get("/conversations/:sessionId", requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const memoryManager = MemoryManager.getInstance();
@@ -71,7 +71,7 @@ router.get("/conversations/:sessionId", authenticateToken, async (req, res) => {
  *   "data": ["session-1", "session-2", "user-123"]
  * }
  */
-router.get("/conversations", authenticateToken, async (req, res) => {
+router.get("/conversations", requireAuth, async (req, res) => {
   try {
     const memoryManager = MemoryManager.getInstance();
     const sessions = await memoryManager.getActiveSessions();
@@ -107,7 +107,7 @@ router.get("/conversations", authenticateToken, async (req, res) => {
  *   "message": "Conversation user-123 cleared"
  * }
  */
-router.delete("/conversations/:sessionId", authenticateToken, async (req, res) => {
+router.delete("/conversations/:sessionId", requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const memoryManager = MemoryManager.getInstance();
@@ -147,7 +147,7 @@ router.delete("/conversations/:sessionId", authenticateToken, async (req, res) =
  *   }
  * }
  */
-router.get("/stats", authenticateToken, async (req, res) => {
+router.get("/stats", requireAuth, async (req, res) => {
   try {
     const memoryManager = MemoryManager.getInstance();
     const stats = await memoryManager.getStats();

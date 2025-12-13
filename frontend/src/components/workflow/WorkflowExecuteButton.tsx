@@ -12,8 +12,8 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { useWorkflowStore, useNodeTypes } from '@/stores'
-import { WorkflowNode } from '@/types/workflow'
-import { getTriggerNodes, getTriggerType } from '@/utils/triggerUtils'
+import { WorkflowNode } from '@nodedrop/types'
+import { getTriggerNodes, getTriggerType } from '@nodedrop/utils'
 import {
   ChevronDown,
   Clock,

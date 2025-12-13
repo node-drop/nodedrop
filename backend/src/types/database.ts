@@ -1,6 +1,17 @@
-// Core database types matching Prisma schema
-import { ExecutionStatus, NodeExecutionStatus, UserRole } from "@prisma/client";
+/**
+ * Database Types
+ * 
+ * These types match the Prisma schema and are used for database operations.
+ * They use Date objects for timestamps (as returned by Prisma).
+ * 
+ * For API response types that use string timestamps, see @nodedrop/types.
+ */
+
+import { ExecutionStatus, NodeExecutionStatus } from "@prisma/client";
 import { NodeProperty } from "./node.types";
+
+// UserRole is now a string field managed by better-auth admin plugin
+export type UserRole = "user" | "admin";
 
 export interface User {
   id: string;
@@ -18,6 +29,7 @@ export interface Workflow {
   name: string;
   description?: string;
   userId: string;
+  workspaceId?: string | null;
   nodes: Node[];
   connections: Connection[];
   triggers: Trigger[];
@@ -68,6 +80,8 @@ export interface WorkflowSettings {
   saveDataSuccessExecution?: "all" | "none";
   callerPolicy?: "workflowsFromSameOwner" | "workflowsFromAList" | "any";
   executionTimeout?: number;
+  /** ID of workflow to execute when this workflow fails (n8n-style error handling) */
+  errorWorkflowId?: string;
 }
 
 export interface Execution {
@@ -96,12 +110,17 @@ export interface NodeExecution {
   updatedAt: Date;
 }
 
+/**
+ * Database credential record
+ * Note: For API response types, see Credential in @nodedrop/types
+ * This type includes the encrypted data field which is not exposed in API responses
+ */
 export interface Credential {
   id: string;
   name: string;
   type: string;
   userId: string;
-  data: string; // Encrypted
+  data: string; // Encrypted - not exposed in API responses
   createdAt: Date;
   updatedAt: Date;
 }
@@ -126,9 +145,17 @@ export interface NodeType {
 }
 
 // Re-export Prisma enums for consistency
-export { ExecutionStatus, NodeExecutionStatus, UserRole };
+export { ExecutionStatus, NodeExecutionStatus };
 
-// Error types
+// =============================================================================
+// Database Error Types (use Date objects as stored in database)
+// For API response error types, see ExecutionError in @nodedrop/types
+// =============================================================================
+
+/**
+ * Error stored in database execution records
+ * Uses Date object for timestamp (as stored by Prisma)
+ */
 export interface ExecutionError {
   message: string;
   stack?: string;
@@ -136,6 +163,9 @@ export interface ExecutionError {
   nodeId?: string;
 }
 
+/**
+ * Error stored in database node execution records
+ */
 export interface NodeError {
   message: string;
   stack?: string;

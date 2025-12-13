@@ -5,7 +5,7 @@ import {
   NodeExecutionState,
   NodeExecutionStatus,
   NodeVisualState,
-} from "@/types/execution";
+} from "@nodedrop/types";
 
 export class ProgressTracker {
   // FIXED: Support multiple concurrent executions with separate state maps
@@ -415,7 +415,7 @@ export class ProgressTracker {
     for (const [nodeId, deps] of dependencies) {
       deps.forEach((depId) => {
         const depState = nodeStates.get(depId);
-        if (depState) {
+        if (depState && depState.dependents) {
           depState.dependents.push(nodeId);
         }
       });
