@@ -65,8 +65,9 @@ COPY package*.json ./
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 
-# Copy backend package files
+# Copy backend package files and prisma schema
 COPY backend/package*.json ./backend/
+COPY backend/prisma ./backend/prisma
 
 # Install all dependencies first (needed to build packages)
 RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
@@ -75,7 +76,12 @@ RUN npm install --workspace=packages/types --workspace=packages/utils --workspac
 RUN npm run build --workspace=packages/types
 RUN npm run build --workspace=packages/utils
 
+# Generate Prisma client
+WORKDIR /app/backend
+RUN npx prisma generate
+
 # Now prune dev dependencies
+WORKDIR /app
 RUN npm prune --omit=dev --workspace=packages/types --workspace=packages/utils --workspace=backend
 
 # Stage 4: Final production image
@@ -103,12 +109,7 @@ COPY --from=backend-builder /app/backend/prisma ./prisma
 
 # Copy production node_modules (including workspace packages)
 COPY --from=prod-deps /app/backend/node_modules ./node_modules
-COPY --from=prod-deps /app/node_modules ./node_modules_root
 COPY --from=prod-deps /app/packages ./packages
-
-# Copy Prisma generated files
-COPY --from=backend-builder /app/backend/node_modules/.prisma ./node_modules/.prisma
-COPY --from=backend-builder /app/backend/node_modules/@prisma ./node_modules/@prisma
 
 # Copy frontend built files to public directory
 COPY --from=frontend-builder /app/frontend/dist ./public
