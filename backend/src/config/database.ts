@@ -4,7 +4,7 @@ import { Pool } from 'pg'
 import { logger } from '../utils/logger'
 
 // Global Prisma client instance
-let prisma: PrismaClient
+let prisma: PrismaClient | undefined
 
 declare global {
   var __prisma: PrismaClient | undefined
@@ -24,31 +24,38 @@ function createPrismaClient(): PrismaClient {
   // Create the Prisma adapter
   const adapter = new PrismaPg(pool)
   
+  // @ts-ignore - Prisma 7 adapter type compatibility issue
   return new PrismaClient({
-    adapter: adapter as any,
+    adapter,
     log: ['query', 'info', 'warn', 'error'],
   })
 }
 
-// Initialize Prisma client
-if (process.env.NODE_ENV === 'production') {
-  prisma = createPrismaClient()
-} else {
-  if (!global.__prisma) {
-    global.__prisma = createPrismaClient()
+// Lazy initialization function
+function getPrismaClient(): PrismaClient {
+  if (!prisma) {
+    if (process.env.NODE_ENV === 'production') {
+      prisma = createPrismaClient()
+    } else {
+      if (!global.__prisma) {
+        global.__prisma = createPrismaClient()
+      }
+      prisma = global.__prisma
+    }
+    
+    // Set up logging - simplified for compatibility
+    if (process.env.NODE_ENV === 'development') {
+      logger.info('Database client initialized')
+    }
   }
-  prisma = global.__prisma
-}
-
-// Set up logging - simplified for compatibility
-if (process.env.NODE_ENV === 'development') {
-  logger.info('Database client initialized')
+  
+  return prisma
 }
 
 // Database connection health check
 export async function checkDatabaseConnection(): Promise<boolean> {
   try {
-    await prisma.$queryRaw`SELECT 1`
+    await getPrismaClient().$queryRaw`SELECT 1`
     logger.info('Database connection successful')
     return true
   } catch (error) {
@@ -60,12 +67,22 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 // Graceful shutdown
 export async function disconnectDatabase(): Promise<void> {
   try {
-    await prisma.$disconnect()
-    logger.info('Database disconnected successfully')
+    if (prisma) {
+      await prisma.$disconnect()
+      logger.info('Database disconnected successfully')
+    }
   } catch (error) {
     logger.error('Error disconnecting from database:', error)
   }
 }
 
-export { prisma }
-export default prisma
+// Export a proxy that lazily initializes the client
+const prismaProxy = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrismaClient()
+    return (client as any)[prop]
+  }
+})
+
+export { prismaProxy as prisma }
+export default prismaProxy
