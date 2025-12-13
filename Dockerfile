@@ -2,15 +2,27 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-builder
 
-WORKDIR /app/frontend
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that frontend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
 
 # Copy frontend package files
-COPY frontend/package*.json ./
+COPY frontend/package*.json ./frontend/
 
-# Install frontend dependencies
-RUN npm install && npm cache clean --force
+# Install workspace dependencies
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=frontend && npm cache clean --force
+
+# Build workspace packages first
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
 
 # Copy frontend source
+WORKDIR /app/frontend
 COPY frontend/ ./
 
 # Build frontend (Vite)
