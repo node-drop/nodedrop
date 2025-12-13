@@ -24,15 +24,27 @@ FROM node:22-alpine AS backend-builder
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev
 
-WORKDIR /app/backend
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that backend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
 
 # Copy backend package files
-COPY backend/package*.json ./
+COPY backend/package*.json ./backend/
 
-# Install all dependencies (including dev for build)
-RUN npm install && npm cache clean --force
+# Install workspace dependencies
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
+
+# Build workspace packages first (types, then utils which depends on types)
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
 
 # Copy backend source
+WORKDIR /app/backend
 COPY backend/ ./
 
 # Generate Prisma client and build TypeScript
@@ -44,13 +56,24 @@ FROM node:22-alpine AS prod-deps
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev
 
-WORKDIR /app/backend
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that backend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
 
 # Copy backend package files
-COPY backend/package*.json ./
+COPY backend/package*.json ./backend/
 
-# Install only production dependencies
-RUN npm install --omit=dev && npm cache clean --force
+# Install workspace dependencies (production only)
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend --omit=dev && npm cache clean --force
+
+# Build workspace packages (needed for production runtime)
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
 
 # Stage 4: Final production image
 FROM node:22-alpine AS production
@@ -75,8 +98,10 @@ COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/prisma ./prisma
 
-# Copy production node_modules
+# Copy production node_modules (including workspace packages)
 COPY --from=prod-deps /app/backend/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules_root
+COPY --from=prod-deps /app/packages ./packages
 
 # Copy Prisma generated files
 COPY --from=backend-builder /app/backend/node_modules/.prisma ./node_modules/.prisma
