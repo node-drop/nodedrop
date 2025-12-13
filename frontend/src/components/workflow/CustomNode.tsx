@@ -204,7 +204,7 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
     if (isServiceNode) {
       return '100px' // Smaller width for service nodes (tools, memory, model)
     }
-    return '180px' // Default width for regular nodes
+    return '150px' // Default width for regular nodes
   }, [isServiceNode])
 
   return (
