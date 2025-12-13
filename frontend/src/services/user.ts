@@ -11,6 +11,7 @@ export interface UserPreferences {
     zoomOnScroll?: boolean;
     canvasBoundaryX?: number;
     canvasBoundaryY?: number;
+    showRightSidebar?: boolean;
   };
   theme?: "light" | "dark" | "system";
   pinnedNodes?: string[]; // Array of node type identifiers
