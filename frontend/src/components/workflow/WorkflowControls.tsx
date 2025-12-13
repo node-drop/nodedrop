@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -427,12 +427,15 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
                         className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                         aria-label={`Add ${nodeType.displayName}`}
                       >
-                        <NodeIconRenderer
-                          icon={nodeType.icon}
-                          nodeType={nodeType.identifier}
-                          nodeGroup={nodeType.group}
-                          displayName={nodeType.displayName}
-                          backgroundColor={nodeType.color}
+                        <NodeIcon
+                          config={{
+                            icon: nodeType.icon,
+                            nodeType: nodeType.identifier,
+                            nodeGroup: nodeType.group,
+                            displayName: nodeType.displayName,
+                            color: nodeType.color,
+                            isTrigger: (nodeType as any).nodeCategory === 'trigger',
+                          }}
                           size="sm"
                         />
                       </button>

@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { Input } from '@/components/ui/input'
 import { NodeExecuteButton } from './NodeExecuteButton'
 import { NodeType } from '@/types'
@@ -53,12 +53,15 @@ export const NodeHeader = memo(function NodeHeader({
     <div className={cn('flex-shrink-0 border-b bg-muted/30 dark:bg-muted/20 flex items-center', padding, height)}>
       <div className="flex items-center justify-between w-full">
         <div className={cn('flex items-center flex-1 min-w-0', gap)}>
-          <NodeIconRenderer
-            icon={nodeType.icon}
-            nodeType={nodeType.identifier}
-            nodeGroup={nodeType.group}
-            displayName={nodeType.displayName}
-            backgroundColor={nodeType.color}
+          <NodeIcon
+            config={{
+              icon: nodeType.icon,
+              nodeType: nodeType.identifier,
+              nodeGroup: nodeType.group,
+              displayName: nodeType.displayName,
+              color: nodeType.color,
+              isTrigger: (nodeType as any).nodeCategory === 'trigger',
+            }}
             size={iconSize}
             className={isSmall ? 'rounded' : 'rounded-lg'}
           />

@@ -14,22 +14,27 @@ interface NodeIconProps {
     isTrigger?: boolean
     imageUrl?: string
     nodeType?: string
+    nodeGroup?: string[]
+    displayName?: string
   }
   /** Whether the node is currently executing */
   isExecuting?: boolean
   /** Icon size */
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
+  /** Additional CSS classes */
+  className?: string
 }
 
 // Hexagon sizes based on icon size
 const hexagonSizes = {
-  sm: { width: 24 * 0.645, height: 24, borderRadius: 24 * 0.1 },
+  xs: { width: 24 * 0.645, height: 24, borderRadius: 24 * 0.1 },
+  sm: { width: 28 * 0.645, height: 28, borderRadius: 28 * 0.1 },
   md: { width: 32 * 0.645, height: 32, borderRadius: 32 * 0.1 },
   lg: { width: 40 * 0.645, height: 40, borderRadius: 40 * 0.1 }
 }
 
 interface HexagonWrapperProps {
-  size: 'sm' | 'md' | 'lg'
+  size: 'xs' | 'sm' | 'md' | 'lg'
   color: string
   children: ReactNode
 }
@@ -103,18 +108,28 @@ export const NodeIcon = memo(function NodeIcon({
   iconColor = 'bg-blue-500',
   config,
   isExecuting = false,
-  size = 'md'
+  size = 'md',
+  className = ''
 }: NodeIconProps) {
   const sizeClasses = {
-    sm: 'w-6 h-6',
+    xs: 'w-6 h-6',
+    sm: 'w-7 h-7',
     md: 'w-8 h-8',
     lg: 'w-10 h-10'
   }
   
   const iconSizeClasses = {
-    sm: 'w-3 h-3',
+    xs: 'w-3 h-3',
+    sm: 'w-3.5 h-3.5',
     md: 'w-4 h-4',
     lg: 'w-5 h-5'
+  }
+
+  const zapSizes = {
+    xs: 'w-[4px] h-[4px]',
+    sm: 'w-[4px] h-[4px]',
+    md: 'w-[5px] h-[5px]',
+    lg: 'w-[6px] h-[6px]'
   }
 
   // Mode 1: Lucide Icon prop is provided directly
@@ -129,8 +144,8 @@ export const NodeIcon = memo(function NodeIcon({
           <HexagonWrapper size={size} color={config?.color || '#3b82f6'}>
             <Icon className={`${iconSizeClasses[size]} text-white`} />
           </HexagonWrapper>
-          <div className="absolute -top-0.5 right-0.5 bg-yellow-400 rounded-full p-[1px] shadow-md z-20">
-            <Zap className="w-[6px] h-[6px] text-yellow-900 fill-yellow-900" />
+          <div className="absolute -top-0.5 -right-0.5 bg-yellow-400 rounded-full p-px shadow-sm z-20 flex items-center justify-center" style={{ width: size === 'xs' || size === 'sm' ? '8px' : '10px', height: size === 'xs' || size === 'sm' ? '8px' : '10px' }}>
+            <Zap className={`${zapSizes[size]} text-yellow-900 fill-yellow-900`} />
           </div>
         </div>
       )
@@ -147,8 +162,8 @@ export const NodeIcon = memo(function NodeIcon({
   
   // Mode 2: Node config is provided
   if (config) {
-    const { icon, color, isTrigger, imageUrl, nodeType } = config
-    const IconComponent = getIconComponent(icon, nodeType)
+    const { icon, color, isTrigger, imageUrl, nodeType, nodeGroup, displayName } = config
+    const IconComponent = getIconComponent(icon, nodeType, nodeGroup)
     const useTextIcon = !IconComponent && isTextIcon(icon)
     const isSvgPath = typeof IconComponent === 'string'
     const bgColor = color || '#666'
@@ -158,7 +173,7 @@ export const NodeIcon = memo(function NodeIcon({
         return (
           <img 
             src={imageUrl} 
-            alt={icon || 'Node icon'} 
+            alt={icon || displayName || 'Node icon'} 
             className={`${iconSizeClasses[size]} object-cover`}
           />
         )
@@ -168,7 +183,7 @@ export const NodeIcon = memo(function NodeIcon({
         return (
           <img
             src={IconComponent as string}
-            alt={icon || 'Node icon'}
+            alt={icon || displayName || 'Node icon'}
             className={`${iconSizeClasses[size]} ${isExecuting ? 'opacity-30' : ''}`}
             crossOrigin="anonymous"
           />
@@ -184,7 +199,7 @@ export const NodeIcon = memo(function NodeIcon({
       
       return (
         <span className={isExecuting ? 'opacity-30' : ''}>
-          {useTextIcon ? icon : (icon || '?')}
+          {useTextIcon ? icon : (icon || displayName?.charAt(0).toUpperCase() || '?')}
         </span>
       )
     }
@@ -192,7 +207,7 @@ export const NodeIcon = memo(function NodeIcon({
     if (isTrigger) {
       // Use hexagon for trigger nodes
       return (
-        <div className="flex-shrink-0 relative" style={{ overflow: 'visible' }}>
+        <div className={`flex-shrink-0 relative ${className}`} style={{ overflow: 'visible' }}>
           <HexagonWrapper size={size} color={bgColor}>
             <div className="text-white text-sm font-bold">
               {renderIconContent()}
@@ -203,8 +218,8 @@ export const NodeIcon = memo(function NodeIcon({
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             </div>
           )}
-          <div className="absolute -top-0.5 right-0.5 bg-yellow-400 rounded-full p-[1px] shadow-md z-20">
-            <Zap className="w-[6px] h-[6px] text-yellow-900 fill-yellow-900" />
+          <div className="absolute -top-0.5 -right-0.5 bg-yellow-400 rounded-full p-px shadow-sm z-20 flex items-center justify-center" style={{ width: size === 'xs' || size === 'sm' ? '8px' : '10px', height: size === 'xs' || size === 'sm' ? '8px' : '10px' }}>
+            <Zap className={`${zapSizes[size]} text-yellow-900 fill-yellow-900`} />
           </div>
         </div>
       )
@@ -212,7 +227,7 @@ export const NodeIcon = memo(function NodeIcon({
     
     // Regular rounded square for non-trigger nodes
     return (
-      <div className="flex-shrink-0 relative">
+      <div className={`flex-shrink-0 relative ${className}`}>
         <div 
           className={`${sizeClasses[size]} flex items-center justify-center text-white text-sm font-bold relative shadow-sm rounded-md`}
           style={{ backgroundColor: bgColor }}
