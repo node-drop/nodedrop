@@ -1,8 +1,7 @@
-import { Request, Response, NextFunction } from "express";
+import { NextFunction, Request, Response } from "express";
 import multer from "multer";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../config/database";
 
-const prisma = new PrismaClient();
 
 /**
  * Configure multer for in-memory file storage

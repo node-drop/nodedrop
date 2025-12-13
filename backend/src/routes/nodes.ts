@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
 import fs from "fs";
 import path from "path";
@@ -7,7 +6,7 @@ import { asyncHandler } from "../middleware/errorHandler";
 import { validateQuery } from "../middleware/validation";
 import { ApiResponse, NodeQuerySchema } from "../types/api";
 
-const prisma = new PrismaClient();
+
 // Use lazy initialization to get the global nodeService when needed
 const getNodeService = () => {
   if (!global.nodeService) {

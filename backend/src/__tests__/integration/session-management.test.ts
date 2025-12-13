@@ -7,12 +7,10 @@
  * Requirements: 7.3, 7.5, 4.4, 9.4
  */
 
-import { PrismaClient } from "@prisma/client";
+import prisma from "../../config/database";
 
 // Use the actual database URL from environment
 const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/node_drop";
-
-let prisma: PrismaClient;
 
 // Test user data
 const testUser1 = {
@@ -35,14 +33,6 @@ const adminUser = {
 
 describe("Session Management - Database State Tests", () => {
   beforeAll(async () => {
-    // Initialize Prisma client with actual database URL
-    prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: DATABASE_URL
-        }
-      }
-    });
     await prisma.$connect();
   });
 

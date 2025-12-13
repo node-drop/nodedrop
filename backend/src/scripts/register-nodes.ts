@@ -4,12 +4,12 @@
  * Run this to register all nodes in the nodes directory without manual configuration
  */
 
-import { PrismaClient } from "@prisma/client";
+import prisma from "../config/database";
 import { NodeService } from "../services/NodeService";
 import { nodeDiscovery } from "../utils/NodeDiscovery";
 
 async function registerAllDiscoveredNodes() {
-  const prisma = new PrismaClient();
+
   const nodeService = new NodeService(prisma);
 
   try {

@@ -5,15 +5,15 @@
  * removed from both the database and Redis.
  */
 
-import { PrismaClient } from '@prisma/client';
-import { ScheduleJobManager } from './ScheduleJobManager';
+import prisma from "../config/database";
+import ExecutionHistoryService from '../services/ExecutionHistoryService';
 import { ExecutionService } from '../services/ExecutionService';
 import { NodeService } from '../services/NodeService';
-import ExecutionHistoryService from '../services/ExecutionHistoryService';
 import { logger } from '../utils/logger';
+import { ScheduleJobManager } from './ScheduleJobManager';
 
 async function testDeleteScheduleJob() {
-    const prisma = new PrismaClient();
+
     const nodeService = new NodeService(prisma);
     const executionHistoryService = new ExecutionHistoryService(prisma);
     const executionService = new ExecutionService(prisma, nodeService, executionHistoryService);

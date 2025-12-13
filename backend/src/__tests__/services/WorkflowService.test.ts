@@ -1,9 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import prisma from "../../config/database";
 import { AppError } from "../../middleware/errorHandler";
 import { WorkflowService } from "../../services/WorkflowService";
-
-const prisma = new PrismaClient();
 
 describe("WorkflowService", () => {
   let workflowService: WorkflowService;

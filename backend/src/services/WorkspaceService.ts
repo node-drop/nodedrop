@@ -5,21 +5,22 @@
  * This includes workspace CRUD, member management, invitations, and usage tracking.
  */
 
-import { PrismaClient, WorkspaceRole } from "@prisma/client";
-import { AppError } from "../middleware/errorHandler";
-import { logger } from "../utils/logger";
+import { WorkspaceRole } from "@prisma/client";
 import { randomBytes } from "crypto";
+import prisma from "../config/database";
+import { AppError } from "../middleware/errorHandler";
 import {
-  CreateWorkspaceRequest,
-  UpdateWorkspaceRequest,
-  WorkspaceResponse,
-  WorkspaceWithRole,
-  WorkspaceMemberResponse,
-  WorkspaceUsage,
-  getWorkspacePlan,
+    CreateWorkspaceRequest,
+    UpdateWorkspaceRequest,
+    WorkspaceMemberResponse,
+    WorkspaceResponse,
+    WorkspaceUsage,
+    WorkspaceWithRole,
+    getWorkspacePlan,
 } from "../types/workspace.types";
+import { logger } from "../utils/logger";
 
-const prisma = new PrismaClient();
+
 
 export class WorkspaceService {
   /**

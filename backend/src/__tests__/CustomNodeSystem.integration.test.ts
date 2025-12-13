@@ -1,31 +1,34 @@
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import prisma from '../config/database';
+import { CredentialService } from '../services/CredentialService';
 import { NodeLoader } from '../services/NodeLoader';
-import { NodeTemplateGenerator } from '../services/NodeTemplateGenerator';
 import { NodeMarketplace } from '../services/NodeMarketplace';
 import { NodeService } from '../services/NodeService';
-import { PrismaClient } from '@prisma/client';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { jest } from '@jest/globals';
+import { NodeTemplateGenerator } from '../services/NodeTemplateGenerator';
 
 describe('Custom Node System Integration', () => {
   let nodeService: NodeService;
   let nodeLoader: NodeLoader;
   let templateGenerator: NodeTemplateGenerator;
   let marketplace: NodeMarketplace;
-  let prisma: PrismaClient;
+  let credentialService: CredentialService;
   let tempDir: string;
   let customNodesDir: string;
 
   beforeAll(async () => {
+    // Set required environment variable for CredentialService
+    process.env.CREDENTIAL_ENCRYPTION_KEY = 'a'.repeat(64);
+
     // Create temporary directory for testing
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nd-node-test-'));
     customNodesDir = path.join(tempDir, 'custom-nodes');
     
     // Initialize services
-    prisma = new PrismaClient();
     nodeService = new NodeService(prisma);
-    nodeLoader = new NodeLoader(nodeService, prisma, customNodesDir);
+    credentialService = new CredentialService();
+    nodeLoader = new NodeLoader(nodeService, credentialService, prisma, customNodesDir);
     templateGenerator = new NodeTemplateGenerator();
     marketplace = new NodeMarketplace({
       registryUrl: 'https://test-registry.com'

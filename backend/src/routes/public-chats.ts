@@ -1,12 +1,11 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
 import rateLimit from "express-rate-limit";
-import cors from "cors";
 import { createServer } from "http";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import {
-  rateLimitConfig,
-  shouldSkipRateLimit,
+    rateLimitConfig,
+    shouldSkipRateLimit,
 } from "../rate-limit/rate-limit.config";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
@@ -68,7 +67,8 @@ const chatSubmitLimiter = rateLimit({
   },
 });
 
-const prisma = new PrismaClient();
+
+
 
 // Use lazy initialization to get services when needed
 const getNodeService = () => {

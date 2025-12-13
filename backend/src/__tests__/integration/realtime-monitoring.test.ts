@@ -1,17 +1,16 @@
-import { PrismaClient } from '@prisma/client';
 import { Server as HTTPServer } from 'http';
-import { io as Client, Socket as ClientSocket } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
-import { SocketService } from '../../services/SocketService';
+import { io as Client, Socket as ClientSocket } from 'socket.io-client';
+import prisma from '../../config/database';
 import { ExecutionService } from '../../services/ExecutionService';
 import { NodeService } from '../../services/NodeService';
+import { SocketService } from '../../services/SocketService';
 
 describe('Real-time Execution Monitoring Integration', () => {
   let httpServer: HTTPServer;
   let socketService: SocketService;
   let executionService: ExecutionService;
   let nodeService: NodeService;
-  let prisma: PrismaClient;
   let clientSocket: ClientSocket;
   let serverPort: number;
   let authToken: string;
@@ -27,7 +26,6 @@ describe('Real-time Execution Monitoring Integration', () => {
     socketService = new SocketService(httpServer);
     
     // Setup database and services
-    prisma = new PrismaClient();
     nodeService = new NodeService(prisma);
     executionService = new ExecutionService(prisma, nodeService);
     

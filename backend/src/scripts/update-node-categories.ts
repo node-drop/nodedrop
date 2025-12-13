@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from "../config/database";
 
-const prisma = new PrismaClient();
+
 
 async function updateNodeCategories() {
   console.log('🔄 Updating node categories in database...\n');

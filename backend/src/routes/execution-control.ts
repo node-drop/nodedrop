@@ -1,15 +1,15 @@
-import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
-  ExecutionTimeoutManager,
-  ManualInterventionResponse,
+    ExecutionTimeoutManager,
+    ManualInterventionResponse,
 } from "../services/ExecutionTimeoutManager";
 import { SocketService } from "../services/SocketService";
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
 
 // Initialize timeout manager (will be enhanced with proper dependency injection)
 const socketService = new SocketService(null as any); // Placeholder

@@ -1,18 +1,17 @@
 import { Response, Router } from "express";
+import prisma from "../config/database";
 import {
-  getPreferences,
-  patchPreferences,
-  updatePreferences,
-  getProfile,
-  updateProfile,
+    getPreferences,
+    getProfile,
+    patchPreferences,
+    updatePreferences,
+    updateProfile,
 } from "../controllers/user.controller";
-import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * User routes

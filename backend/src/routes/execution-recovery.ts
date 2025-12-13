@@ -1,12 +1,11 @@
-import { PrismaClient } from "@prisma/client";
-import { Router, Response } from "express";
+import { Response, Router } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
 import ExecutionRecoveryService from "../services/ExecutionRecoveryService";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Initialize services (in production, these would be injected)
 const historyService = new ExecutionHistoryService(prisma);

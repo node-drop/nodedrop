@@ -2,7 +2,7 @@
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import dotenv from "dotenv";
+import "dotenv/config"; // Must be first!
 import express from "express";
 import helmet from "helmet";
 import { createServer } from "http";
@@ -40,17 +40,19 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 // Import services
 import { PrismaClient } from "@prisma/client";
 import { CredentialService } from "./services/CredentialService";
+import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
 import { ExecutionService } from "./services/ExecutionService";
-import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
 
-// Load environment variables
-dotenv.config();
+
+
+// Import database after dotenv is loaded
+import prisma from "./config/database";
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,7 +64,6 @@ httpServer.keepAliveTimeout = 65000; // 65 seconds (slightly higher than typical
 httpServer.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
 
 // Initialize services
-const prisma = new PrismaClient();
 const nodeService = new NodeService(prisma);
 const credentialService = new CredentialService();
 
@@ -467,8 +468,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
 // System routes
-import systemRoutes from "./routes/system";
 import editionRoutes from "./routes/edition";
+import systemRoutes from "./routes/system";
 app.use("/api/system", systemRoutes);
 app.use("/api/edition", editionRoutes);
 app.use("/api/workflows", workflowRoutes);

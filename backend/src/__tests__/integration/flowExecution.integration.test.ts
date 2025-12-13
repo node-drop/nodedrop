@@ -1,13 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import { createServer } from "http";
 import { io as Client } from "socket.io-client";
 import request from "supertest";
+import prisma from "../../config/database";
 import app from "../../index";
 
 describe("Flow Execution System Integration Tests", () => {
   let server: any;
   let httpServer: any;
-  let prisma: PrismaClient;
   let clientSocket: any;
   let authToken: string;
   let testWorkflowId: string;
@@ -20,7 +19,6 @@ describe("Flow Execution System Integration Tests", () => {
       process.env.TEST_DATABASE_URL ||
       "postgresql://test:test@localhost:5432/nd_test";
 
-    prisma = new PrismaClient();
     await prisma.$connect();
 
     // Clean up test data

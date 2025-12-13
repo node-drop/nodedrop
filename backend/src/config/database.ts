@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '@prisma/client'
 import { Pool } from 'pg'
 import { logger } from '../utils/logger'
 
 // Global Prisma client instance
-let prisma: PrismaClient | undefined
+let prismaInstance: PrismaClient | undefined
 
 declare global {
   var __prisma: PrismaClient | undefined
@@ -31,16 +31,16 @@ function createPrismaClient(): PrismaClient {
   })
 }
 
-// Lazy initialization function
+// Lazy initialization - only create client when first accessed
 function getPrismaClient(): PrismaClient {
-  if (!prisma) {
+  if (!prismaInstance) {
     if (process.env.NODE_ENV === 'production') {
-      prisma = createPrismaClient()
+      prismaInstance = createPrismaClient()
     } else {
       if (!global.__prisma) {
         global.__prisma = createPrismaClient()
       }
-      prisma = global.__prisma
+      prismaInstance = global.__prisma
     }
     
     // Set up logging - simplified for compatibility
@@ -49,7 +49,7 @@ function getPrismaClient(): PrismaClient {
     }
   }
   
-  return prisma
+  return prismaInstance
 }
 
 // Database connection health check
@@ -67,8 +67,8 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 // Graceful shutdown
 export async function disconnectDatabase(): Promise<void> {
   try {
-    if (prisma) {
-      await prisma.$disconnect()
+    if (prismaInstance) {
+      await prismaInstance.$disconnect()
       logger.info('Database disconnected successfully')
     }
   } catch (error) {
@@ -76,13 +76,21 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
-// Export a proxy that lazily initializes the client
+// Export a Proxy that lazily initializes the client to ensure proper configuration
+// and avoid initialization errors during import time
 const prismaProxy = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     const client = getPrismaClient()
-    return (client as any)[prop]
+    const value = (client as any)[prop]
+    
+    // Bind functions to the client instance to preserve 'this' context
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    
+    return value
   }
 })
 
-export { prismaProxy as prisma }
-export default prismaProxy
+export const prisma = prismaProxy
+export default prisma

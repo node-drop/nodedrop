@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
 import * as crypto from "crypto";
+import prisma from "../config/database";
 import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
@@ -63,14 +63,13 @@ export interface CredentialRotationConfig {
 }
 
 export class CredentialService {
-  private prisma: PrismaClient;
+  private prisma = prisma;
   private encryptionKey: string;
   private algorithm = "aes-256-cbc";
   private credentialTypeRegistry = new Map<string, CredentialType>();
   private coreCredentialsRegistered = false;
 
   constructor() {
-    this.prisma = new PrismaClient();
 
     // Use environment variable or generate a secure key
     const keyString = process.env.CREDENTIAL_ENCRYPTION_KEY;

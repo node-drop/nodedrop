@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
-import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import prisma from "../config/database";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { validateQuery } from "../middleware/validation";
 import { WorkflowEnvironmentService } from "../services/WorkflowEnvironmentService";
 import { DeploymentHistoryQuerySchema } from "../types/api";
@@ -8,7 +8,6 @@ import { EnvironmentType } from "../types/environment";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const prisma = new PrismaClient();
 const environmentService = new WorkflowEnvironmentService(prisma);
 
 /**

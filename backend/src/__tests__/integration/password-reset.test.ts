@@ -8,14 +8,13 @@
  * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
  */
 
-import { PrismaClient } from "@prisma/client";
-import { PasswordResetService, createPasswordResetService } from "../../services/password-reset.service";
 import bcrypt from "bcryptjs";
+import prisma from "../../config/database";
+import { PasswordResetService, createPasswordResetService } from "../../services/password-reset.service";
 
 // Use the actual database URL from environment
 const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/node_drop";
 
-let prisma: PrismaClient;
 let passwordResetService: PasswordResetService;
 
 // Test user data
@@ -27,14 +26,6 @@ const testUser = {
 
 describe("Password Reset Flow - Database State Tests", () => {
   beforeAll(async () => {
-    // Initialize Prisma client with actual database URL
-    prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: DATABASE_URL
-        }
-      }
-    });
     await prisma.$connect();
     
     // Initialize password reset service

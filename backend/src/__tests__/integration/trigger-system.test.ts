@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import * as cron from 'node-cron';
+import prisma from '../../config/database';
+import { ExecutionService } from '../../services/ExecutionService';
+import { NodeService } from '../../services/NodeService';
+import { SocketService } from '../../services/SocketService';
 import { TriggerService } from '../../services/TriggerService';
 import { WorkflowService } from '../../services/WorkflowService';
-import { ExecutionService } from '../../services/ExecutionService';
-import { SocketService } from '../../services/SocketService';
-import { NodeService } from '../../services/NodeService';
-import * as cron from 'node-cron';
 
 // Mock external dependencies
 jest.mock('node-cron');
@@ -16,7 +16,6 @@ const mockCronValidate = jest.fn();
 (cron.validate as jest.Mock) = mockCronValidate;
 
 describe('Trigger System Integration Tests', () => {
-  let prisma: PrismaClient;
   let triggerService: TriggerService;
   let workflowService: WorkflowService;
   let executionService: ExecutionService;
@@ -25,13 +24,6 @@ describe('Trigger System Integration Tests', () => {
 
   beforeAll(async () => {
     // Initialize test database connection
-    prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/test_db'
-        }
-      }
-    });
 
     // Initialize services
     workflowService = new WorkflowService(prisma);
