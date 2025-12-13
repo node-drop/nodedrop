@@ -198,12 +198,19 @@ export function CollapsedNodeContent({
               isExecuting={nodeExecutionState.isExecuting}
               size={iconSize}
             />
-            <NodeLabel
-              label={data.label}
-              small={small}
-              compactMode={compactMode}
-              labelClass={labelClass}
-            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <NodeLabel
+                label={data.label}
+                small={small}
+                compactMode={compactMode}
+                labelClass={labelClass}
+              />
+              {isTrigger && !compactMode && (
+                <span className="text-[8px] text-muted-foreground tracking-wide capitalize">
+                  trigger
+                </span>
+              )}
+            </div>
           </div>
           {/* Render node enhancements (badges, overlays, etc.) */}
           {nodeEnhancements}
