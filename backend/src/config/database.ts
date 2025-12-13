@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 import { logger } from '../utils/logger'
 
 // Global Prisma client instance
@@ -8,9 +10,22 @@ declare global {
   var __prisma: PrismaClient | undefined
 }
 
-// Create Prisma client with proper configuration
+// Create Prisma client with proper configuration for Prisma 7
 function createPrismaClient(): PrismaClient {
+  const connectionString = process.env.DATABASE_URL
+  
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is not set')
+  }
+
+  // Create a connection pool
+  const pool = new Pool({ connectionString })
+  
+  // Create the Prisma adapter
+  const adapter = new PrismaPg(pool)
+  
   return new PrismaClient({
+    adapter: adapter as any,
     log: ['query', 'info', 'warn', 'error'],
   })
 }
