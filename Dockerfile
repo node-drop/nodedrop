@@ -68,12 +68,15 @@ COPY packages/utils ./packages/utils
 # Copy backend package files
 COPY backend/package*.json ./backend/
 
-# Install workspace dependencies (production only)
-RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend --omit=dev && npm cache clean --force
+# Install all dependencies first (needed to build packages)
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
 
 # Build workspace packages (needed for production runtime)
 RUN npm run build --workspace=packages/types
 RUN npm run build --workspace=packages/utils
+
+# Now prune dev dependencies
+RUN npm prune --omit=dev --workspace=packages/types --workspace=packages/utils --workspace=backend
 
 # Stage 4: Final production image
 FROM node:22-alpine AS production
