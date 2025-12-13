@@ -332,7 +332,7 @@ export function BaseNodeWrapper({
   const nodeOutputs = nodeConfig?.outputs || data.outputs || (showOutputHandle ? ['main'] : [])
   const nodeInputNames = nodeConfig?.inputNames || data.inputNames
   const nodeOutputNames = nodeConfig?.outputNames || data.outputNames
-  const isTrigger = data.executionCapability === 'trigger'
+  const isTrigger = nodeConfig?.isTrigger || data.executionCapability === 'trigger'
   
   // Show input labels if inputNames are provided
   const showInputLabels = !!nodeInputNames && nodeInputNames.length > 0
@@ -534,7 +534,7 @@ export function BaseNodeWrapper({
             <NodeHeader
               label={data.label}
               headerInfo={headerInfo}
-              icon={Icon ? { Icon, iconColor } : undefined}
+              icon={Icon ? { Icon, iconColor } : nodeConfig ? { config: { ...nodeConfig, isTrigger } } : undefined}
               isExpanded={true}
               canExpand={canExpand}
               onToggleExpand={handleToggleExpandClick}

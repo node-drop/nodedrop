@@ -245,14 +245,21 @@ router.get(
       // Find the node's directory in custom-nodes
       const customNodesDir = path.join(__dirname, "../../custom-nodes");
 
+      // Extract base folder name from node type (e.g., "slack-message" -> "slack")
+      // This handles cases where node names have suffixes like -tool, -message, -trigger
+      const baseFolder = type.split('-')[0];
+
       // Look for the icon file in the node's directory
       // The structure is: custom-nodes/{node-package}/nodes/{icon-file}
       const possiblePaths = [
-        // Try the node's type as directory name
+        // Try the base folder name first (e.g., "slack" for "slack-message")
+        path.join(customNodesDir, baseFolder, "nodes", iconFileName),
+        path.join(customNodesDir, baseFolder, iconFileName),
+        // Try the full node type as directory name
         path.join(customNodesDir, type, "nodes", iconFileName),
-        // Try common variations
-        path.join(customNodesDir, type.replace("-", ""), "nodes", iconFileName),
         path.join(customNodesDir, type, iconFileName),
+        // Try without hyphens
+        path.join(customNodesDir, type.replace(/-/g, ""), "nodes", iconFileName),
       ];
 
       let iconPath: string | null = null;

@@ -1,5 +1,5 @@
 import { getIconComponent, isTextIcon } from '@/utils/iconMapper'
-import { LucideIcon } from 'lucide-react'
+import { LucideIcon, Zap } from 'lucide-react'
 import { memo } from 'react'
 
 interface NodeIconProps {
@@ -59,14 +59,24 @@ export const NodeIcon = memo(function NodeIcon({
     md: 'w-4 h-4',
     lg: 'w-5 h-5'
   }
+
+
   
   // Mode 1: Lucide Icon prop is provided directly
   if (Icon) {
+    const isTrigger = config?.isTrigger
     return (
-      <div 
-        className={`${sizeClasses[size]} rounded-md ${iconColor} flex items-center justify-center flex-shrink-0 shadow-sm`}
-      >
-        <Icon className={`${iconSizeClasses[size]} text-white`} />
+      <div className="flex-shrink-0 relative">
+        <div 
+          className={`${sizeClasses[size]} ${isTrigger ? 'rounded-full' : 'rounded-md'} ${iconColor} flex items-center justify-center shadow-sm`}
+        >
+          <Icon className={`${iconSizeClasses[size]} text-white`} />
+        </div>
+        {isTrigger && (
+          <div className="absolute -top-0.5 -right-0.5 bg-yellow-400 rounded-full p-0.5 shadow-md">
+            <Zap className="w-2.5 h-2.5 text-yellow-900 fill-yellow-900" />
+          </div>
+        )}
       </div>
     )
   }
@@ -81,7 +91,7 @@ export const NodeIcon = memo(function NodeIcon({
     const isSvgPath = typeof IconComponent === 'string'
     
     return (
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 relative">
         <div 
           className={`${sizeClasses[size]} flex items-center justify-center text-white text-sm font-bold relative shadow-sm ${
             isTrigger ? 'rounded-full' : 'rounded-md'
@@ -134,6 +144,11 @@ export const NodeIcon = memo(function NodeIcon({
             </>
           )}
         </div>
+        {isTrigger && (
+          <div className="absolute -top-0.5 -right-0.5 bg-yellow-400 rounded-full p-0.5 shadow-md">
+            <Zap className="w-2.5 h-2.5 text-yellow-900 fill-yellow-900" />
+          </div>
+        )}
       </div>
     )
   }

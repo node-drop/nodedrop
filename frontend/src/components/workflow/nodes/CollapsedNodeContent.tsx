@@ -214,7 +214,7 @@ export function CollapsedNodeContent({
           <NodeHeader
             label={data.label}
             headerInfo={headerInfo}
-            icon={Icon ? { Icon, iconColor } : undefined}
+            icon={Icon ? { Icon, iconColor, config: { isTrigger } } : undefined}
             isExpanded={false}
             canExpand={canExpand && !!expandedContent}
             onToggleExpand={handleToggleExpandClick}
