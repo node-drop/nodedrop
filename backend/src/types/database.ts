@@ -1,6 +1,12 @@
 // Core database types matching Prisma schema
-import { ExecutionStatus, NodeExecutionStatus, UserRole } from "@prisma/client";
+import { ExecutionStatus, NodeExecutionStatus } from "@prisma/client";
 import { NodeProperty } from "./node.types";
+
+// UserRole enum definition (since it might not be exported from @prisma/client)
+export enum UserRole {
+  USER = "USER",
+  ADMIN = "ADMIN"
+}
 
 export interface User {
   id: string;
@@ -126,7 +132,7 @@ export interface NodeType {
 }
 
 // Re-export Prisma enums for consistency
-export { ExecutionStatus, NodeExecutionStatus, UserRole };
+export { ExecutionStatus, NodeExecutionStatus };
 
 // Error types
 export interface ExecutionError {

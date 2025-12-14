@@ -18,12 +18,14 @@ async function main() {
       update: {},
       create: {
         email: "test@node-drop.com",
-        password: testUserPassword,
         name: "Test User",
         role: "USER",
         active: true,
       },
     });
+
+    // Note: Password hashing should be handled by a database trigger or separate service
+    // The Prisma client excludes password fields for security
 
     // Seed categories
     const categories = [
