@@ -1,4 +1,4 @@
-import { useAddNodeDialogStore, useWorkflowStore } from '@/stores';
+import { usePlaceholderNodeStore, useWorkflowStore } from '@/stores';
 import { EdgeLabelRenderer, useReactFlow } from '@xyflow/react';
 import { Plus, Trash2, GitBranch, Spline } from 'lucide-react';
 import { CSSProperties, useCallback, useState } from 'react';
@@ -31,10 +31,12 @@ export function EdgeButton({
   onMouseEnter,
   onMouseLeave,
 }: EdgeButtonProps) {
-  const { openDialog } = useAddNodeDialogStore();
+  const { showPlaceholder } = usePlaceholderNodeStore();
   const { setEdges } = useReactFlow();
   // OPTIMIZATION: Use Zustand selectors to prevent unnecessary re-renders
   const workflow = useWorkflowStore(state => state.workflow);
+  const addNode = useWorkflowStore(state => state.addNode);
+  const addConnection = useWorkflowStore(state => state.addConnection);
   const removeConnection = useWorkflowStore(state => state.removeConnection);
   const updateConnection = useWorkflowStore(state => state.updateConnection);
   const readOnly = useWorkflowStore(state => state.readOnly);
@@ -46,35 +48,47 @@ export function EdgeButton({
 
   /**
    * Handle clicking the + button on an edge (connection line)
-   * Opens the add node dialog to insert a new node between two connected nodes
+   * Creates a node-selector node to insert a new node between two connected nodes
    * 
    * Position calculation:
-   * - We don't pass screen coordinates (x, y) to openDialog()
-   * - Instead, calculateInsertBetweenPosition() will automatically:
-   *   1. Place the new node horizontally between source and target
-   *   2. Align it on the Y-axis with the source node
-   *   3. Shift downstream nodes to the right if needed to make space
-   * - This ensures consistent horizontal layout and proper auto-layout behavior
+   * - Uses the edge button position (x, y) which is at the midpoint of the edge
+   * - The node-selector node will appear at this position for node selection
    */
   const handleAddClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
       
-      // Pass undefined position - let auto-layout handle positioning
       if (source && target) {
-        openDialog(
-          undefined,
-          {
-            sourceNodeId: source,
-            targetNodeId: target,
-            sourceOutput: sourceHandleId || undefined,
-            targetInput: targetHandleId || undefined,
-          }
-        );
+        // The x, y are already in flow coordinates (passed from edge component)
+        const position = { x, y };
+
+        // Create a node-selector node at the edge midpoint
+        const selectorNodeId = `node-selector-${Date.now()}`;
+        const selectorNode = {
+          id: selectorNodeId,
+          type: "node-selector",
+          name: "Select Node",
+          parameters: {},
+          position,
+          disabled: false,
+        };
+
+        // Add the selector node to workflow
+        addNode(selectorNode);
+
+        // Store insertion context for when user selects a node
+        // Note: For "insert between" case, we don't create a temp connection
+        // The existing edge stays visible until user selects a node
+        showPlaceholder(position, {
+          sourceNodeId: source,
+          targetNodeId: target,
+          sourceOutput: sourceHandleId || undefined,
+          targetInput: targetHandleId || undefined,
+        });
       }
     },
-    [openDialog, source, target, sourceHandleId, targetHandleId]
+    [x, y, source, target, sourceHandleId, targetHandleId, addNode, showPlaceholder]
   );
 
   const handleDeleteClick = useCallback(

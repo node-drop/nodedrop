@@ -1,4 +1,4 @@
-import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore } from "@/stores";
+import { useReactFlowUIStore, useWorkflowStore, usePlaceholderNodeStore } from "@/stores";
 import { NodeType, WorkflowConnection, WorkflowNode } from "@/types";
 import {
   Connection,
@@ -42,7 +42,7 @@ export function useReactFlowInteractions() {
     (state) => state.closeNodeProperties
   );
 
-  const { openDialog } = useAddNodeDialogStore();
+  const { showPlaceholder } = usePlaceholderNodeStore();
   const { isTemplateNode, handleTemplateExpansion } = useTemplateExpansion();
 
   const [connectionInProgress, setConnectionInProgress] =
@@ -532,7 +532,7 @@ export function useReactFlowInteractions() {
     []
   );
 
-  // Handle connection end - if dropped on canvas, show add node dialog
+  // Handle connection end - if dropped on canvas, show node selector node
   const handleConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
       // Use ref as fallback if state is null
@@ -547,7 +547,7 @@ export function useReactFlowInteractions() {
 
       // Use a small delay to allow handleConnect to fire first if a connection was made
       setTimeout(() => {
-        // If a connection was successfully made to an existing node, don't open the dialog
+        // If a connection was successfully made to an existing node, don't show selector
         if (connectionMadeRef.current) {
           setConnectionInProgress(null);
           connectionRef.current = null;
@@ -585,8 +585,84 @@ export function useReactFlowInteractions() {
             y: clientY - reactFlowBounds.top,
           });
 
-          // Open the add node dialog at the drop position with source connection context
-          openDialog(position, {
+          // Create a node-selector node at the drop position
+          const selectorNodeId = `node-selector-${Date.now()}`;
+          const selectorNode = {
+            id: selectorNodeId,
+            type: "node-selector",
+            name: "Select Node",
+            parameters: {},
+            position,
+            disabled: false,
+          };
+
+          // Create a temporary connection from source to selector node
+          const tempConnection = {
+            id: `temp-${activeConnection.source}-${selectorNodeId}`,
+            sourceNodeId: activeConnection.source,
+            sourceOutput: activeConnection.sourceHandle || "main",
+            targetNodeId: selectorNodeId,
+            targetInput: "main",
+          };
+
+          // Add node to workflow store (connection will be added after node renders)
+          const { workflow, updateWorkflow } = useWorkflowStore.getState();
+          if (workflow) {
+            updateWorkflow({
+              nodes: [...workflow.nodes, selectorNode],
+            }, true); // Skip history for temporary selector node
+          }
+
+          // Add node directly to React Flow for immediate rendering
+          setNodes((nodes) => [
+            ...nodes,
+            {
+              id: selectorNodeId,
+              type: "node-selector",
+              position,
+              data: {
+                label: "Select Node",
+                nodeType: "node-selector",
+              },
+            },
+          ]);
+
+          // Add edge after a delay to ensure node is rendered with correct dimensions
+          setTimeout(() => {
+            // Add connection to workflow store
+            const { workflow: currentWorkflow, updateWorkflow: update } = useWorkflowStore.getState();
+            if (currentWorkflow) {
+              update({
+                connections: [...currentWorkflow.connections, tempConnection],
+              }, true);
+            }
+
+            // Also add directly to React Flow
+            setEdges((edges) => {
+              // Check if edge already exists to avoid duplicates
+              if (edges.some(e => e.id === tempConnection.id)) {
+                return edges;
+              }
+              return [
+                ...edges,
+                {
+                  id: tempConnection.id,
+                  source: tempConnection.sourceNodeId,
+                  target: tempConnection.targetNodeId,
+                  sourceHandle: tempConnection.sourceOutput,
+                  targetHandle: tempConnection.targetInput,
+                  type: "editable-edge",
+                  data: {
+                    algorithm: "Step",
+                    points: [],
+                  },
+                },
+              ];
+            });
+          }, 50);
+
+          // Store insertion context for when user selects a node
+          showPlaceholder(position, {
             sourceNodeId: activeConnection.source,
             targetNodeId: "", // Empty target since we're adding a new node
             sourceOutput: activeConnection.sourceHandle || undefined,
@@ -599,7 +675,7 @@ export function useReactFlowInteractions() {
         connectionMadeRef.current = false;
       }, 0);
     },
-    [connectionInProgress, reactFlowInstance, openDialog]
+    [connectionInProgress, reactFlowInstance, showPlaceholder]
   );
 
   // ReactFlow control functions

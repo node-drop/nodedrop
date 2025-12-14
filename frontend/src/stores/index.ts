@@ -2,6 +2,7 @@
 export { useAddNodeDialogStore } from "./addNodeDialog";
 export { useAuthStore } from "./auth";
 export { useCopyPasteStore } from "./copyPaste";
+export { usePlaceholderNodeStore } from "./placeholderNode";
 export { useCredentialStore } from "./credential";
 export { useCustomNodeStore } from "./customNode";
 export { useNodeConfigDialogStore } from "./nodeConfigDialog";
