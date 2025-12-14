@@ -63,7 +63,8 @@ WORKDIR /app/backend
 COPY backend/ ./
 
 # Generate Prisma client FIRST (before TypeScript compilation)
-RUN npx prisma generate
+# Explicitly set schema path to ensure it's found
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 # Build TypeScript
 RUN npm run build
@@ -97,7 +98,7 @@ RUN npm run build --workspace=packages/utils
 
 # Generate Prisma client
 WORKDIR /app/backend
-RUN npx prisma generate
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 # Now prune dev dependencies
 WORKDIR /app
