@@ -114,6 +114,7 @@ Thumbs.db
 
 # Prisma
 prisma/migrations/
+backend/src/generated/
 
 # Custom nodes - keep folder only
 backend/custom-nodes/*
