@@ -209,6 +209,7 @@ async function main() {
       - DATABASE_URL=postgresql://postgres:${dbPassword}@postgres:5432/node_drop
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${jwtSecret}
+      - BETTER_AUTH_SECRET=${jwtSecret}
       - CREDENTIAL_ENCRYPTION_KEY=${credentialEncryptionKey}
       - PORT=5678
       - CORS_ORIGIN=http://localhost:${port},http://127.0.0.1:${port}${domain ? `\n      - DOMAIN=${domain}` : ''}

@@ -16,7 +16,7 @@ RUN npm ci && npm cache clean --force
 COPY . .
 
 # Generate Prisma client and build
-RUN npx prisma generate && npm run build
+RUN npx prisma generate --config ../prisma.config.ts && npm run build
 
 # Production dependencies stage
 FROM node:22-alpine AS prod-deps
@@ -39,6 +39,10 @@ WORKDIR /app
 
 # Install curl for health checks and OpenSSL for Prisma
 RUN apk add --no-cache curl openssl openssl-dev
+
+# Accept DATABASE_URL as build argument for migration
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
@@ -68,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 
 # Start application with migrations only
 # Node registration happens after server starts to avoid blocking and race conditions
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy --config ../prisma.config.ts && npm start"]
