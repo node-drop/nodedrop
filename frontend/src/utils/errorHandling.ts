@@ -1,270 +1,71 @@
-// @ts-nocheck
+/**
+ * Error Handling Utilities
+ *
+ * This module re-exports shared error handling utilities from @nodedrop/utils
+ * and provides frontend-specific error handling functions.
+ */
+
 import type { NodeExecutionError } from "@/components/workflow/types";
 
-/**
- * General error codes for the application
- */
-export const ErrorCodes = {
-  // Title validation errors
-  TITLE_EMPTY: "TITLE_EMPTY",
-  TITLE_TOO_LONG: "TITLE_TOO_LONG",
-  TITLE_INVALID_CHARS: "TITLE_INVALID_CHARS",
+// =============================================================================
+// Re-export shared utilities from @nodedrop/utils
+// =============================================================================
 
-  // File validation errors
-  FILE_TOO_LARGE: "FILE_TOO_LARGE",
-  FILE_INVALID_EXTENSION: "FILE_INVALID_EXTENSION",
-  FILE_CORRUPTED: "FILE_CORRUPTED",
+export {
+  // Error codes
+  ErrorCodes,
+  type ErrorCode,
+  type ErrorCategory,
+  // Error interfaces
+  type OperationError,
+  type ValidationError,
+  type ErrorDetails,
+  type ErrorInfo,
+  // Error creation
+  createOperationError,
+  // Error extraction
+  extractErrorDetails,
+  // User-friendly messages
+  getUserFriendlyErrorMessage,
+  // Error classification
+  classifyError,
+  // Recoverability
+  isRecoverableError,
+  getRecoverySuggestions,
+  // Logging utilities
+  logError,
+  sanitizeErrorForLogging,
+  // Retry utilities
+  type RetryOptions,
+  retryOperation,
+  // Async error handler
+  createAsyncErrorHandler,
+  // Validation utilities
+  validateTitle,
+  validateImportFile,
+  validateJsonContent,
+  MAX_TITLE_LENGTH,
+  INVALID_TITLE_CHARS,
+  MAX_FILE_SIZE,
+  type FileInfo,
+} from "@nodedrop/utils";
 
-  // Network errors
-  NETWORK_ERROR: "NETWORK_ERROR",
-  TIMEOUT_ERROR: "TIMEOUT_ERROR",
+// Import for internal use
+import { ErrorCodes } from "@nodedrop/utils";
+import type { ValidationError } from "@nodedrop/utils";
 
-  // Execution errors
-  EXECUTION_FAILED: "EXECUTION_FAILED",
-  NODE_EXECUTION_FAILED: "NODE_EXECUTION_FAILED",
-
-  // Import/Export errors
-  IMPORT_FAILED: "IMPORT_FAILED",
-  EXPORT_FAILED: "EXPORT_FAILED",
-
-  // Generic errors
-  UNKNOWN_ERROR: "UNKNOWN_ERROR",
-  VALIDATION_ERROR: "VALIDATION_ERROR",
-} as const;
-
-export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
-
-/**
- * Operation error interface
- */
-export interface OperationError extends Error {
-  code: ErrorCode;
-  details?: string;
-  context?: Record<string, any>;
-  recoverable?: boolean;
-}
-
-/**
- * Validation error interface
- */
-export interface ValidationError {
-  field: string;
-  message: string;
-  code: ErrorCode;
-}
-
-/**
- * Create an operation error
- */
-export function createOperationError(
-  code: ErrorCode,
-  message: string,
-  details?: string,
-  context?: Record<string, any>,
-  recoverable?: boolean
-): OperationError {
-  const error = new Error(message) as OperationError;
-  error.code = code;
-  error.details = details;
-  error.context = context;
-  error.recoverable = recoverable;
-  return error;
-}
-
-/**
- * Extract error details from any error type
- */
-export function extractErrorDetails(error: unknown): {
-  code: ErrorCode;
-  message: string;
-  details?: string;
-  context?: Record<string, any>;
-} {
-  if (error && typeof error === "object" && "code" in error) {
-    const opError = error as OperationError;
-    return {
-      code: opError.code,
-      message: opError.message,
-      details: opError.details,
-      context: opError.context,
-    };
-  }
-
-  if (error instanceof Error) {
-    // Try to determine error type from message
-    const message = error.message.toLowerCase();
-    let code: ErrorCode = ErrorCodes.UNKNOWN_ERROR;
-
-    if (message.includes("network")) {
-      code = ErrorCodes.NETWORK_ERROR;
-    } else if (message.includes("timeout")) {
-      code = ErrorCodes.TIMEOUT_ERROR;
-    }
-
-    return {
-      code,
-      message: error.message,
-      details: error.stack,
-    };
-  }
-
-  if (typeof error === "string") {
-    return {
-      code: ErrorCodes.UNKNOWN_ERROR,
-      message: error,
-    };
-  }
-
-  return {
-    code: ErrorCodes.UNKNOWN_ERROR,
-    message: "An unknown error occurred",
-  };
-}
-
-/**
- * Get user-friendly error message
- */
-export function getUserFriendlyErrorMessage(error: unknown): string {
-  const details = extractErrorDetails(error);
-
-  switch (details.code) {
-    case ErrorCodes.TITLE_EMPTY:
-      return "Workflow title cannot be empty";
-    case ErrorCodes.TITLE_TOO_LONG:
-      return "Workflow title is too long (maximum 100 characters)";
-    case ErrorCodes.TITLE_INVALID_CHARS:
-      return "Workflow title contains invalid characters";
-    case ErrorCodes.FILE_TOO_LARGE:
-      return "File is too large (maximum 50MB)";
-    case ErrorCodes.FILE_INVALID_EXTENSION:
-      return "Invalid file type. Please select a JSON file";
-    case ErrorCodes.NETWORK_ERROR:
-      return "Network error. Please check your connection and try again";
-    case ErrorCodes.TIMEOUT_ERROR:
-      return "Request timed out. Please try again";
-    case ErrorCodes.EXECUTION_FAILED:
-      return "Workflow execution failed";
-    case ErrorCodes.IMPORT_FAILED:
-      return "Failed to import workflow";
-    case ErrorCodes.EXPORT_FAILED:
-      return "Failed to export workflow";
-    default:
-      return details.message || "An unexpected error occurred";
-  }
-}
-
-/**
- * Check if an error is recoverable
- */
-export function isRecoverableError(error: unknown): boolean {
-  const details = extractErrorDetails(error);
-
-  const recoverableErrors = [
-    ErrorCodes.NETWORK_ERROR,
-    ErrorCodes.TIMEOUT_ERROR,
-    ErrorCodes.EXECUTION_FAILED,
-  ];
-
-  return recoverableErrors.includes(details.code);
-}
-
-/**
- * Get recovery suggestions for an error
- */
-export function getRecoverySuggestions(error: unknown): string[] {
-  const details = extractErrorDetails(error);
-
-  switch (details.code) {
-    case ErrorCodes.TITLE_EMPTY:
-      return ["Enter a title for your workflow"];
-    case ErrorCodes.TITLE_TOO_LONG:
-      return ["Shorten the workflow title to 100 characters or less"];
-    case ErrorCodes.TITLE_INVALID_CHARS:
-      return [
-        "Remove special characters from the title",
-        "Use only letters, numbers, spaces, and basic punctuation",
-      ];
-    case ErrorCodes.FILE_TOO_LARGE:
-      return [
-        "Select a smaller file (under 50MB)",
-        "Compress the file before uploading",
-      ];
-    case ErrorCodes.FILE_INVALID_EXTENSION:
-      return [
-        "Select a JSON file (.json)",
-        "Export your workflow as JSON first",
-      ];
-    case ErrorCodes.NETWORK_ERROR:
-      return ["Check your internet connection", "Try again in a few moments"];
-    case ErrorCodes.TIMEOUT_ERROR:
-      return [
-        "Try again with a shorter timeout",
-        "Check your network connection",
-      ];
-    default:
-      return ["Try again", "Contact support if the problem persists"];
-  }
-}
-
-/**
- * Log error for debugging
- */
-export function logError(error: unknown, context?: Record<string, any>): void {
-  const details = extractErrorDetails(error);
-  console.error("Application error:", {
-    ...details,
-    context,
-    timestamp: new Date().toISOString(),
-  });
-}
-
-/**
- * Retry operation with exponential backoff
- */
-export async function retryOperation<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      if (attempt === maxRetries || !isRecoverableError(error)) {
-        throw error;
-      }
-
-      const delay = baseDelay * Math.pow(2, attempt);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-
-  throw lastError;
-}
-
-/**
- * Create async error handler
- */
-export function createAsyncErrorHandler(onError?: (error: unknown) => void) {
-  return (error: unknown) => {
-    logError(error);
-    if (onError) {
-      onError(error);
-    }
-  };
-}
+// =============================================================================
+// Frontend-specific Error Handling
+// =============================================================================
 
 /**
  * Convert backend execution errors to user-friendly error objects
+ * This is frontend-specific as it creates NodeExecutionError objects for UI display
  */
 export function createNodeExecutionError(
-  error: any,
-  nodeId: string,
-  nodeType: string
+  error: unknown,
+  _nodeId: string,
+  _nodeType: string
 ): NodeExecutionError {
   // Default error structure
   const baseError: NodeExecutionError = {
@@ -278,20 +79,24 @@ export function createNodeExecutionError(
   };
 
   // Handle different error types
-  if (error?.httpErrorType) {
-    // HTTP execution errors from backend
-    return handleHttpExecutionError(error, baseError);
-  } else if (error?.type) {
-    // Structured errors with type field
-    return handleStructuredError(error, baseError);
-  } else if (error?.message) {
-    // Generic errors with message
-    return handleGenericError(error, baseError);
+  if (error && typeof error === "object") {
+    const errorObj = error as Record<string, unknown>;
+    
+    if (errorObj.httpErrorType) {
+      // HTTP execution errors from backend
+      return handleHttpExecutionError(errorObj, baseError);
+    } else if (errorObj.type) {
+      // Structured errors with type field
+      return handleStructuredError(errorObj, baseError);
+    } else if (errorObj.message) {
+      // Generic errors with message
+      return handleGenericError(errorObj, baseError);
+    }
   } else if (typeof error === "string") {
     // String errors
     baseError.message = error;
-    baseError.userFriendlyMessage = getUserFriendlyMessage(error);
-    baseError.isRetryable = isRetryableError(error);
+    baseError.userFriendlyMessage = getUserFriendlyMessageFromString(error);
+    baseError.isRetryable = isRetryableErrorMessage(error);
 
     // Try to determine error type from message
     const message = error.toLowerCase();
@@ -330,7 +135,7 @@ export function createNodeExecutionError(
  * Handle HTTP execution errors from backend
  */
 function handleHttpExecutionError(
-  error: any,
+  error: Record<string, unknown>,
   baseError: NodeExecutionError
 ): NodeExecutionError {
   const httpError = { ...baseError };
@@ -338,7 +143,7 @@ function handleHttpExecutionError(
   switch (error.httpErrorType) {
     case "TIMEOUT":
       httpError.type = "timeout";
-      httpError.message = error.message || "Request timed out";
+      httpError.message = (error.message as string) || "Request timed out";
       httpError.userFriendlyMessage =
         "The request timed out. The server may be slow or unavailable.";
       httpError.isRetryable = true;
@@ -346,7 +151,7 @@ function handleHttpExecutionError(
 
     case "DNS_RESOLUTION":
       httpError.type = "network";
-      httpError.message = error.message || "DNS resolution failed";
+      httpError.message = (error.message as string) || "DNS resolution failed";
       httpError.userFriendlyMessage =
         "Could not resolve the domain name. Please check the URL.";
       httpError.isRetryable = false;
@@ -354,7 +159,7 @@ function handleHttpExecutionError(
 
     case "CONNECTION_REFUSED":
       httpError.type = "network";
-      httpError.message = error.message || "Connection refused";
+      httpError.message = (error.message as string) || "Connection refused";
       httpError.userFriendlyMessage =
         "Connection was refused by the server. The service may be down.";
       httpError.isRetryable = true;
@@ -362,7 +167,7 @@ function handleHttpExecutionError(
 
     case "SSL_ERROR":
       httpError.type = "security";
-      httpError.message = error.message || "SSL/TLS error";
+      httpError.message = (error.message as string) || "SSL/TLS error";
       httpError.userFriendlyMessage =
         "SSL/TLS certificate error. The connection is not secure.";
       httpError.isRetryable = false;
@@ -370,46 +175,48 @@ function handleHttpExecutionError(
 
     case "NETWORK_UNREACHABLE":
       httpError.type = "network";
-      httpError.message = error.message || "Network unreachable";
+      httpError.message = (error.message as string) || "Network unreachable";
       httpError.userFriendlyMessage =
         "Network error occurred. Please check your internet connection.";
       httpError.isRetryable = true;
       break;
 
-    case "HTTP_ERROR":
+    case "HTTP_ERROR": {
       httpError.type = "server";
-      httpError.message = error.message || `HTTP ${error.statusCode}`;
+      const statusCode = error.statusCode as number | undefined;
+      httpError.message = (error.message as string) || `HTTP ${statusCode}`;
 
-      if (error.statusCode === 401) {
+      if (statusCode === 401) {
         httpError.userFriendlyMessage =
           "Authentication required. Please check your credentials.";
         httpError.isRetryable = false;
-      } else if (error.statusCode === 403) {
+      } else if (statusCode === 403) {
         httpError.userFriendlyMessage =
           "Access forbidden. You do not have permission to access this resource.";
         httpError.isRetryable = false;
-      } else if (error.statusCode === 404) {
+      } else if (statusCode === 404) {
         httpError.userFriendlyMessage =
           "Resource not found. Please check the URL.";
         httpError.isRetryable = false;
-      } else if (error.statusCode === 429) {
+      } else if (statusCode === 429) {
         httpError.userFriendlyMessage =
           "Too many requests. Please wait before trying again.";
         httpError.isRetryable = true;
-        httpError.retryAfter = error.retryAfter || 30000; // Default 30 seconds
-      } else if (error.statusCode && error.statusCode >= 500) {
+        httpError.retryAfter = (error.retryAfter as number) || 30000;
+      } else if (statusCode && statusCode >= 500) {
         httpError.userFriendlyMessage =
           "Server error occurred. Please try again later.";
         httpError.isRetryable = true;
       } else {
-        httpError.userFriendlyMessage = `HTTP error ${error.statusCode}: ${error.message}`;
-        httpError.isRetryable = error.isRetryable || false;
+        httpError.userFriendlyMessage = `HTTP error ${statusCode}: ${error.message}`;
+        httpError.isRetryable = (error.isRetryable as boolean) || false;
       }
       break;
+    }
 
     case "PARSE_ERROR":
       httpError.type = "validation";
-      httpError.message = error.message || "Response parsing error";
+      httpError.message = (error.message as string) || "Response parsing error";
       httpError.userFriendlyMessage =
         "Could not parse the server response. The response format may be invalid.";
       httpError.isRetryable = false;
@@ -417,7 +224,7 @@ function handleHttpExecutionError(
 
     case "SECURITY_ERROR":
       httpError.type = "security";
-      httpError.message = error.message || "Security validation failed";
+      httpError.message = (error.message as string) || "Security validation failed";
       httpError.userFriendlyMessage =
         "Security validation failed. The request was blocked for security reasons.";
       httpError.isRetryable = false;
@@ -425,7 +232,7 @@ function handleHttpExecutionError(
 
     case "RESOURCE_LIMIT_ERROR":
       httpError.type = "validation";
-      httpError.message = error.message || "Resource limit exceeded";
+      httpError.message = (error.message as string) || "Resource limit exceeded";
       httpError.userFriendlyMessage =
         "Resource limit exceeded. The request is too large or uses too many resources.";
       httpError.isRetryable = false;
@@ -433,15 +240,15 @@ function handleHttpExecutionError(
 
     default:
       httpError.type = "unknown";
-      httpError.message = error.message || "Unknown HTTP error";
+      httpError.message = (error.message as string) || "Unknown HTTP error";
       httpError.userFriendlyMessage =
         "An unexpected error occurred while making the request.";
-      httpError.isRetryable = error.isRetryable || false;
+      httpError.isRetryable = (error.isRetryable as boolean) || false;
   }
 
   // Set retry delay if provided
   if (error.retryAfter) {
-    httpError.retryAfter = error.retryAfter;
+    httpError.retryAfter = error.retryAfter as number;
   }
 
   return httpError;
@@ -451,7 +258,7 @@ function handleHttpExecutionError(
  * Handle structured errors with type field
  */
 function handleStructuredError(
-  error: any,
+  error: Record<string, unknown>,
   baseError: NodeExecutionError
 ): NodeExecutionError {
   const structuredError = { ...baseError };
@@ -459,7 +266,7 @@ function handleStructuredError(
   switch (error.type) {
     case "validation":
       structuredError.type = "validation";
-      structuredError.message = error.message || "Validation failed";
+      structuredError.message = (error.message as string) || "Validation failed";
       structuredError.userFriendlyMessage =
         "Invalid input parameters. Please check your node configuration.";
       structuredError.isRetryable = false;
@@ -467,7 +274,7 @@ function handleStructuredError(
 
     case "timeout":
       structuredError.type = "timeout";
-      structuredError.message = error.message || "Operation timed out";
+      structuredError.message = (error.message as string) || "Operation timed out";
       structuredError.userFriendlyMessage =
         "The operation timed out. Please try again.";
       structuredError.isRetryable = true;
@@ -475,7 +282,7 @@ function handleStructuredError(
 
     case "network":
       structuredError.type = "network";
-      structuredError.message = error.message || "Network error";
+      structuredError.message = (error.message as string) || "Network error";
       structuredError.userFriendlyMessage =
         "Network error occurred. Please check your connection.";
       structuredError.isRetryable = true;
@@ -483,7 +290,7 @@ function handleStructuredError(
 
     case "security":
       structuredError.type = "security";
-      structuredError.message = error.message || "Security error";
+      structuredError.message = (error.message as string) || "Security error";
       structuredError.userFriendlyMessage =
         "Security validation failed. The request was blocked.";
       structuredError.isRetryable = false;
@@ -491,7 +298,7 @@ function handleStructuredError(
 
     case "server":
       structuredError.type = "server";
-      structuredError.message = error.message || "Server error";
+      structuredError.message = (error.message as string) || "Server error";
       structuredError.userFriendlyMessage =
         "Server error occurred. Please try again later.";
       structuredError.isRetryable = true;
@@ -499,7 +306,7 @@ function handleStructuredError(
 
     default:
       structuredError.type = "unknown";
-      structuredError.message = error.message || "Unknown error";
+      structuredError.message = (error.message as string) || "Unknown error";
       structuredError.userFriendlyMessage = "An unexpected error occurred.";
       structuredError.isRetryable = false;
   }
@@ -511,43 +318,44 @@ function handleStructuredError(
  * Handle generic errors with message
  */
 function handleGenericError(
-  error: any,
+  error: Record<string, unknown>,
   baseError: NodeExecutionError
 ): NodeExecutionError {
   const genericError = { ...baseError };
+  const message = error.message as string;
 
-  genericError.message = error.message;
-  genericError.userFriendlyMessage = getUserFriendlyMessage(error.message);
-  genericError.isRetryable = isRetryableError(error.message);
+  genericError.message = message;
+  genericError.userFriendlyMessage = getUserFriendlyMessageFromString(message);
+  genericError.isRetryable = isRetryableErrorMessage(message);
 
   // Try to determine error type from message
-  const message = error.message.toLowerCase();
+  const lowerMessage = message.toLowerCase();
 
-  if (message.includes("timeout") || message.includes("timed out")) {
+  if (lowerMessage.includes("timeout") || lowerMessage.includes("timed out")) {
     genericError.type = "timeout";
     genericError.isRetryable = true;
   } else if (
-    message.includes("network") ||
-    message.includes("connection") ||
-    message.includes("dns")
+    lowerMessage.includes("network") ||
+    lowerMessage.includes("connection") ||
+    lowerMessage.includes("dns")
   ) {
     genericError.type = "network";
     genericError.isRetryable = true;
   } else if (
-    message.includes("validation") ||
-    message.includes("invalid") ||
-    message.includes("required")
+    lowerMessage.includes("validation") ||
+    lowerMessage.includes("invalid") ||
+    lowerMessage.includes("required")
   ) {
     genericError.type = "validation";
     genericError.isRetryable = false;
   } else if (
-    message.includes("security") ||
-    message.includes("unauthorized") ||
-    message.includes("forbidden")
+    lowerMessage.includes("security") ||
+    lowerMessage.includes("unauthorized") ||
+    lowerMessage.includes("forbidden")
   ) {
     genericError.type = "security";
     genericError.isRetryable = false;
-  } else if (message.includes("server") || message.includes("internal")) {
+  } else if (lowerMessage.includes("server") || lowerMessage.includes("internal")) {
     genericError.type = "server";
     genericError.isRetryable = true;
   }
@@ -556,9 +364,9 @@ function handleGenericError(
 }
 
 /**
- * Get user-friendly message from error message
+ * Get user-friendly message from error message string
  */
-function getUserFriendlyMessage(message: string): string {
+function getUserFriendlyMessageFromString(message: string): string {
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes("timeout") || lowerMessage.includes("timed out")) {
@@ -624,7 +432,7 @@ function getUserFriendlyMessage(message: string): string {
 /**
  * Determine if an error is retryable based on message
  */
-function isRetryableError(message: string): boolean {
+function isRetryableErrorMessage(message: string): boolean {
   const lowerMessage = message.toLowerCase();
 
   // Retryable errors
@@ -668,12 +476,13 @@ function isRetryableError(message: string): boolean {
 
 /**
  * Log execution error for debugging
+ * This is frontend-specific as it logs to browser console and optional logging service
  */
 export function logExecutionError(
   nodeId: string,
   nodeType: string,
   error: NodeExecutionError,
-  originalError?: any
+  originalError?: unknown
 ): void {
   const logData = {
     nodeId,
@@ -690,75 +499,17 @@ export function logExecutionError(
   console.error(`Node execution error [${nodeId}]:`, logData);
 
   // Send to logging service if available
-  if (typeof window !== "undefined" && (window as any).logService) {
-    (window as any).logService.error("node_execution_error", logData);
-  }
-}
-
-/**
- * Validate title utility
- */
-export function validateTitle(title: string): ValidationError[] {
-  const errors: ValidationError[] = [];
-
-  if (!title || title.trim().length === 0) {
-    errors.push({
-      field: "title",
-      message: "Title is required",
-      code: ErrorCodes.TITLE_EMPTY,
-    });
-  } else {
-    if (title.length > 100) {
-      errors.push({
-        field: "title",
-        message: "Title must be 100 characters or less",
-        code: ErrorCodes.TITLE_TOO_LONG,
-      });
-    }
-
-    // Check for invalid characters
-    const invalidChars = /[<>:"/\\|?*]/;
-    if (invalidChars.test(title)) {
-      errors.push({
-        field: "title",
-        message: "Title contains invalid characters",
-        code: ErrorCodes.TITLE_INVALID_CHARS,
-      });
+  if (typeof window !== "undefined") {
+    const win = window as unknown as { logService?: { error: (type: string, data: unknown) => void } };
+    if (win.logService) {
+      win.logService.error("node_execution_error", logData);
     }
   }
-
-  return errors;
-}
-
-/**
- * Validate import file utility
- */
-export function validateImportFile(file: File): ValidationError[] {
-  const errors: ValidationError[] = [];
-
-  // Check file size (max 50MB to match error message)
-  if (file.size > 50 * 1024 * 1024) {
-    errors.push({
-      field: "file",
-      message: "File size must be less than 50MB",
-      code: ErrorCodes.FILE_TOO_LARGE,
-    });
-  }
-
-  // Check file type
-  if (file.type !== "application/json" && !file.name.endsWith(".json")) {
-    errors.push({
-      field: "file",
-      message: "File must be a JSON file",
-      code: ErrorCodes.FILE_INVALID_EXTENSION,
-    });
-  }
-
-  return errors;
 }
 
 /**
  * Async validate import file content
+ * This is frontend-specific as it uses FileReader API
  */
 export function validateImportFileContent(
   file: File
@@ -770,7 +521,7 @@ export function validateImportFileContent(
         const content = e.target?.result as string;
         JSON.parse(content);
         resolve([]);
-      } catch (error) {
+      } catch {
         resolve([
           {
             field: "file",

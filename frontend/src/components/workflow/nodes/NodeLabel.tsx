@@ -28,7 +28,7 @@ export function NodeLabel({ label, small, compactMode, labelClass }: NodeLabelPr
   // Regular node label
   return (
     <div className="flex flex-col min-w-0 flex-1">
-      <span className={labelClass || 'text-sm font-medium truncate'}>
+      <span className={labelClass || 'text-[10px] leading-5 font-medium truncate'}>
         {label}
       </span>
     </div>

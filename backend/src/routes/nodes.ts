@@ -1,13 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
 import fs from "fs";
 import path from "path";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../middleware/errorHandler";
 import { validateQuery } from "../middleware/validation";
 import { ApiResponse, NodeQuerySchema } from "../types/api";
 
-const prisma = new PrismaClient();
+
 // Use lazy initialization to get the global nodeService when needed
 const getNodeService = () => {
   if (!global.nodeService) {
@@ -23,7 +22,7 @@ const router = Router();
 // GET /api/nodes - List available node types
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   validateQuery(NodeQuerySchema),
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
@@ -87,7 +86,7 @@ router.get(
 // GET /api/nodes/categories - Get node categories
 router.get(
   "/categories",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const nodeTypes = await getNodeService().getNodeTypes();
     const categories = Array.from(
@@ -110,7 +109,7 @@ router.get(
 // GET /api/nodes/:type - Get node type details
 router.get(
   "/:type",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const nodeSchema = await getNodeService().getNodeSchema(req.params.type);
 
@@ -137,7 +136,7 @@ router.get(
 // POST /api/nodes/:type/execute - Test node execution
 router.post(
   "/:type/execute",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const {
       parameters = {},
@@ -174,7 +173,7 @@ router.post(
 // POST /api/nodes/:type/load-options - Load dynamic options for a field
 router.post(
   "/:type/load-options",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { method, parameters = {}, credentials = {} } = req.body;
 
@@ -245,14 +244,21 @@ router.get(
       // Find the node's directory in custom-nodes
       const customNodesDir = path.join(__dirname, "../../custom-nodes");
 
+      // Extract base folder name from node type (e.g., "slack-message" -> "slack")
+      // This handles cases where node names have suffixes like -tool, -message, -trigger
+      const baseFolder = type.split('-')[0];
+
       // Look for the icon file in the node's directory
       // The structure is: custom-nodes/{node-package}/nodes/{icon-file}
       const possiblePaths = [
-        // Try the node's type as directory name
+        // Try the base folder name first (e.g., "slack" for "slack-message")
+        path.join(customNodesDir, baseFolder, "nodes", iconFileName),
+        path.join(customNodesDir, baseFolder, iconFileName),
+        // Try the full node type as directory name
         path.join(customNodesDir, type, "nodes", iconFileName),
-        // Try common variations
-        path.join(customNodesDir, type.replace("-", ""), "nodes", iconFileName),
         path.join(customNodesDir, type, iconFileName),
+        // Try without hyphens
+        path.join(customNodesDir, type.replace(/-/g, ""), "nodes", iconFileName),
       ];
 
       let iconPath: string | null = null;

@@ -11,7 +11,7 @@
  * - Supports conditional branches and loops
  */
 
-import type { Workflow, WorkflowConnection } from "../types/workflow";
+import type { Workflow, WorkflowConnection } from "@nodedrop/types";
 
 export interface ExecutionPath {
   triggerNodeId: string;

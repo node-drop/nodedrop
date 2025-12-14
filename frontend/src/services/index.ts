@@ -1,16 +1,21 @@
-// API service exports
-export * from "./api";
-export * from "./auth";
-export * from "./credential";
-export * from "./customNode";
-export * from "./ExecutionStateManager";
-export * from "./ExecutionWebSocket";
-export * from "./node";
-export * from "./ProgressTracker";
-export * from "./socket";
-export * from "./team";
-export * from "./template";
-export * from "./user";
-export * from "./variable.service";
-export * from "./workflow";
-export * from "./workflowFile";
+// API service exports - using named exports for better tree-shaking
+export { apiClient } from "./api";
+export { credentialService, CredentialService } from "./credential";
+export { customNodeService, CustomNodeService } from "./customNode";
+export { executionStateManager, ExecutionStateManager } from "./ExecutionStateManager";
+export { executionWebSocket, ExecutionWebSocket } from "./ExecutionWebSocket";
+export type { ExecutionEventData } from "./ExecutionWebSocket";
+export { nodeService, NodeService } from "./node";
+export type { TestNodeRequest, TestNodeResponse } from "./node";
+export { ProgressTracker } from "./ProgressTracker";
+export { socketService, SocketService, useSocket } from "./socket";
+export type { SocketEventHandler } from "./socket";
+export { teamService, TeamService } from "./team";
+export { templateService, TemplateService } from "./template";
+export type { CreateTemplateRequest, TemplateNodeType } from "./template";
+export { userService, UserService } from "./user";
+export type { UserPreferences, UserProfile } from "./user";
+export { variableService, VariableService } from "./variable.service";
+export { workflowService } from "./workflow";
+export { workflowFileService, WorkflowFileService } from "./workflowFile";
+export type { ValidationResult } from "./workflowFile";

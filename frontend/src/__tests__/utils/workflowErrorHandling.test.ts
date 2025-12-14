@@ -14,7 +14,7 @@ import {
   validateWorkflowForExecution,
   getWorkflowHealthScore
 } from '@/utils/workflowErrorHandling'
-import { Workflow, WorkflowNode, WorkflowConnection } from '@/types/workflow'
+import { Workflow, WorkflowNode, WorkflowConnection } from '@nodedrop/types'
 
 // Mock workflow data
 const createMockNode = (id: string, name: string, type = 'test'): WorkflowNode => ({

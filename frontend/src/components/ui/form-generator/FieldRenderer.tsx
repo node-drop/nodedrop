@@ -737,7 +737,7 @@ export function FieldRenderer({
           disabled={disabled || field.disabled}
           error={error}
           nodeId={nodeId}
-          expressionOptions={field.options?.filter((opt): opt is FormFieldOption => 'value' in opt)}
+          expressionOptions={field.options?.filter((opt): opt is { name: string; value: string } => 'value' in opt && typeof opt.value === 'string')}
           keyPlaceholder={field.componentProps?.keyPlaceholder}
           valuePlaceholder={field.componentProps?.valuePlaceholder}
           expressionPlaceholder={field.componentProps?.expressionPlaceholder}

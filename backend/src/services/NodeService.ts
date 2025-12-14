@@ -24,11 +24,18 @@ import {
   resolvePath,
   resolveValue,
   wrapJsonData,
-} from "../utils/nodeHelpers";
+} from "@nodedrop/utils";
 import {
   SecureExecutionOptions,
   SecureExecutionService,
 } from "./SecureExecutionService";
+
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
 
 export class NodeService {
   private prisma: PrismaClient;
@@ -163,7 +170,8 @@ export class NodeService {
    */
   async registerNode(
     nodeDefinition: NodeDefinition,
-    isCore: boolean = false
+    isCore: boolean = false,
+    options?: WorkspaceQueryOptions
   ): Promise<NodeRegistrationResult> {
     try {
       // Validate node definition
@@ -200,6 +208,7 @@ export class NodeService {
           nodeCategory: nodeDefinition.nodeCategory, // Include node category
           isCore: isCore, // Update isCore flag
           // Don't update active status on update - preserve user's choice
+          // Don't update workspaceId on update - preserve original workspace
         },
         create: {
           identifier: nodeDefinition.identifier,
@@ -219,6 +228,7 @@ export class NodeService {
           nodeCategory: nodeDefinition.nodeCategory, // Include node category
           isCore: isCore, // Set isCore flag for new nodes
           active: true,
+          workspaceId: options?.workspaceId, // Workspace-specific custom nodes
         },
       });
 
@@ -294,8 +304,9 @@ export class NodeService {
 
   /**
    * Get all available node types from in-memory registry (live definitions)
+   * For workspace-specific custom nodes, pass options.workspaceId to include them
    */
-  async getNodeTypes(): Promise<NodeTypeInfo[]> {
+  async getNodeTypes(options?: WorkspaceQueryOptions): Promise<NodeTypeInfo[]> {
     try {
       const nodeTypesFromRegistry: NodeTypeInfo[] = [];
 
@@ -336,8 +347,22 @@ export class NodeService {
       // If registry is empty, fallback to database (for built-in nodes that might be stored there)
       if (nodeTypesFromRegistry.length === 0) {
         logger.warn("Node registry is empty, falling back to database");
+        
+        // Build where clause: global nodes (workspaceId = null) + workspace-specific nodes
+        const whereClause: any = {
+          active: true,
+          OR: [
+            { workspaceId: null }, // Global nodes
+          ],
+        };
+        
+        // Include workspace-specific custom nodes if workspaceId provided
+        if (options?.workspaceId) {
+          whereClause.OR.push({ workspaceId: options.workspaceId });
+        }
+        
         const nodeTypes = await this.prisma.nodeType.findMany({
-          where: { active: true },
+          where: whereClause,
           select: {
             identifier: true,
             displayName: true,
@@ -351,6 +376,7 @@ export class NodeService {
             properties: true,
             icon: true,
             color: true,
+            workspaceId: true,
           },
           orderBy: { displayName: "asc" },
         });

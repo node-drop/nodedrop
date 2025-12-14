@@ -1,26 +1,28 @@
 /**
- * Expression validation utilities
+ * Expression Validation Utilities
+ * 
+ * Validates expression syntax for workflow expressions.
  */
 
-export interface ValidationError {
+export interface ExpressionValidationError {
   type: "unmatched_braces" | "invalid_variable" | "syntax_error" | "warning";
   message: string;
   position: number;
   length: number;
 }
 
-export interface ValidationResult {
+export interface ExpressionValidationResult {
   isValid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationError[];
+  errors: ExpressionValidationError[];
+  warnings: ExpressionValidationError[];
 }
 
 /**
  * Validate expression syntax
  */
-export function validateExpression(value: string): ValidationResult {
-  const errors: ValidationError[] = [];
-  const warnings: ValidationError[] = [];
+export function validateExpression(value: string): ExpressionValidationResult {
+  const errors: ExpressionValidationError[] = [];
+  const warnings: ExpressionValidationError[] = [];
 
   if (!value) {
     return { isValid: true, errors: [], warnings: [] };
@@ -32,7 +34,7 @@ export function validateExpression(value: string): ValidationResult {
   for (let i = 0; i < value.length; i++) {
     if (value[i] === "{" && value[i + 1] === "{") {
       braceStack.push({ type: "open", position: i });
-      i++; // Skip next character
+      i++;
     } else if (value[i] === "}" && value[i + 1] === "}") {
       if (braceStack.length === 0) {
         errors.push({
@@ -44,7 +46,7 @@ export function validateExpression(value: string): ValidationResult {
       } else {
         braceStack.pop();
       }
-      i++; // Skip next character
+      i++;
     }
   }
 
@@ -59,13 +61,11 @@ export function validateExpression(value: string): ValidationResult {
   });
 
   // Check for invalid variable references
-  // Match $vars.something or $local.something
   const variablePattern = /(\$(?:vars|local)\.([a-zA-Z_][a-zA-Z0-9_]*))/g;
   let match;
 
   while ((match = variablePattern.exec(value)) !== null) {
     const varName = match[2];
-    // Basic validation - variable names should not be empty
     if (!varName || varName.length === 0) {
       errors.push({
         type: "invalid_variable",
@@ -76,10 +76,9 @@ export function validateExpression(value: string): ValidationResult {
     }
   }
 
-  // Check for incomplete variable references ($vars or $local without property)
+  // Check for incomplete variable references
   const incompleteVarPattern = /\$(?:vars|local)(?![.\w])/g;
   while ((match = incompleteVarPattern.exec(value)) !== null) {
-    // Only warn if it's inside an expression {{ }}
     const textBefore = value.substring(0, match.index);
     const lastOpenBrace = textBefore.lastIndexOf("{{");
     const lastCloseBrace = textBefore.lastIndexOf("}}");
@@ -150,7 +149,6 @@ export function getExpressionBlocks(
         }
       }
 
-      // If we exited without closing, it's an unclosed expression
       if (depth > 0) {
         blocks.push({ start, end: value.length, content });
       }

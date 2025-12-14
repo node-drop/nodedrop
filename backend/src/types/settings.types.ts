@@ -4,25 +4,18 @@
  * This module defines the settings system for nodes. Settings are common
  * configuration options that appear in a separate "Settings" tab in the
  * node configuration dialog, separate from the main "Parameters" tab.
+ * 
+ * Core types (NodeSetting, NodeSettingsConfig) are imported from @nodedrop/types.
  */
 
-export interface NodeSetting {
-  displayName: string;
-  name: string;
-  type: "string" | "number" | "boolean" | "options" | "json";
-  default: any;
-  description: string;
-  placeholder?: string;
-  required?: boolean;
-  disabled?: boolean; // If true, user cannot modify this setting
-  hidden?: boolean; // If true, setting is hidden from UI
-  options?: Array<{ name: string; value: any; description?: string }>;
-  displayOptions?: {
-    show?: Record<string, any[]>;
-    hide?: Record<string, any[]>;
-  };
-}
+import { NodeSetting, NodeSettingsConfig } from "@nodedrop/types";
 
+// Re-export shared types
+export type { NodeSetting, NodeSettingsConfig };
+
+/**
+ * Collection of node settings keyed by setting name
+ */
 export interface NodeSettings {
   [key: string]: NodeSetting;
 }
@@ -104,11 +97,7 @@ export const DEFAULT_NODE_SETTINGS: NodeSettings = {
   },
 };
 
-/**
- * Settings configuration for a specific node instance
- * Stored as a flat object with setting names as keys
- */
-export type NodeSettingsConfig = Record<string, any>;
+// NodeSettingsConfig is imported from @nodedrop/types above
 
 /**
  * Settings that can be applied at different levels

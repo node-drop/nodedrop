@@ -96,6 +96,7 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
         "webhook-trigger",
         "schedule-trigger",
         "workflow-called",
+        "error-trigger",
       ];
       const mode = triggerNodeTypes.includes(nodeType) ? "workflow" : "single";
 

@@ -5,7 +5,10 @@
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+// Use actual database URL if not already set (don't override with test credentials)
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/node_drop';
+}
 
 // Increase timeout for integration tests
 jest.setTimeout(30000);

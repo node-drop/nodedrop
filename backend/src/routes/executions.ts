@@ -1,15 +1,18 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import prisma from "../config/database";
+import { requireAuth } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { validateParams, validateQuery } from "../middleware/validation";
+import {
+    WorkspaceRequest,
+    requireWorkspace,
+} from "../middleware/workspace";
 import { ExecutionService } from "../services";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { ApiResponse, ExecutionQuerySchema, IdParamSchema } from "../types/api";
+import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQuerySchema } from "../types/api";
 import { logger } from "../utils/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 // Use lazy initialization to get services when needed
 let localNodeService: any = null;
 
@@ -49,8 +52,9 @@ const getExecutionService = () => {
 // POST /api/executions - Execute a workflow or single node
 router.post(
   "/",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const {
       workflowId,
       triggerData,
@@ -62,6 +66,7 @@ router.post(
       parameters,
       mode = "workflow",
     } = req.body;
+    const workspaceId = req.workspace?.workspaceId;
 
     if (!workflowId) {
       throw new AppError("Workflow ID is required", 400, "MISSING_WORKFLOW_ID");
@@ -123,10 +128,12 @@ router.post(
 // GET /api/executions/scheduled - Get upcoming scheduled executions
 router.get(
   "/scheduled",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const limit = parseInt(req.query.limit as string) || 10;
-    const workflowId = req.query.workflowId as string;
+  requireAuth,
+  requireWorkspace,
+  validateQuery(ScheduledExecutionsQuerySchema),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { limit, workflowId } = req.query as unknown as { limit: number; workflowId?: string };
+    const workspaceId = req.workspace?.workspaceId;
 
     // Import WorkflowService
     const { WorkflowService } = await import("../services/WorkflowService");
@@ -138,7 +145,8 @@ router.get(
       // Get specific workflow
       const workflow = await workflowService.getWorkflow(
         workflowId,
-        req.user!.id
+        req.user!.id,
+        { workspaceId }
       );
       workflows = [workflow];
     } else {
@@ -146,6 +154,7 @@ router.get(
       const allWorkflows = await prisma.workflow.findMany({
         where: {
           userId: req.user!.id,
+          ...(workspaceId && { workspaceId }),
         },
         select: {
           id: true,
@@ -209,9 +218,10 @@ router.get(
 // GET /api/executions - List executions
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateQuery(ExecutionQuerySchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const {
       page = 1,
       limit = 10,
@@ -221,6 +231,7 @@ router.get(
       startedBefore,
     } = req.query as any;
     const offset = (page - 1) * limit;
+    const workspaceId = req.workspace?.workspaceId;
 
     const filters = {
       workflowId,
@@ -233,7 +244,8 @@ router.get(
 
     const result = await getExecutionService().listExecutions(
       req.user!.id,
-      filters
+      filters,
+      { workspaceId }
     );
 
     const response: ApiResponse = {
@@ -254,12 +266,15 @@ router.get(
 // GET /api/executions/:id - Get execution by ID
 router.get(
   "/:id",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const execution = await getExecutionService().getExecution(
       req.params.id,
-      req.user!.id
+      req.user!.id,
+      { workspaceId }
     );
 
     if (!execution) {
@@ -278,9 +293,11 @@ router.get(
 // GET /api/executions/:id/progress - Get execution progress
 router.get(
   "/:id/progress",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const progress = await getExecutionService().getExecutionProgress(
       req.params.id,
       req.user!.id
@@ -302,9 +319,11 @@ router.get(
 // DELETE /api/executions/:id - Delete execution
 router.delete(
   "/:id",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().deleteExecution(
       req.params.id,
       req.user!.id
@@ -329,9 +348,11 @@ router.delete(
 // POST /api/executions/:id/cancel - Cancel execution
 router.post(
   "/:id/cancel",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().cancelExecution(
       req.params.id,
       req.user!.id
@@ -356,9 +377,11 @@ router.post(
 // POST /api/executions/:id/retry - Retry execution
 router.post(
   "/:id/retry",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
     const result = await getExecutionService().retryExecution(
       req.params.id,
       req.user!.id
@@ -382,9 +405,11 @@ router.post(
 // GET /api/executions/stats - Get execution statistics
 router.get(
   "/stats",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const stats = await getExecutionService().getExecutionStats(req.user!.id);
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const workspaceId = req.workspace?.workspaceId;
+    const stats = await getExecutionService().getExecutionStats(req.user!.id, { workspaceId });
 
     const response: ApiResponse = {
       success: true,
@@ -398,8 +423,9 @@ router.get(
 // GET /api/executions/realtime/info - Get real-time monitoring info
 router.get(
   "/realtime/info",
-  authenticateToken,
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const socketService = global.socketService;
 
     const response: ApiResponse = {
@@ -432,9 +458,10 @@ router.get(
 // GET /api/executions/:id/subscribers - Get execution subscribers count
 router.get(
   "/:id/subscribers",
-  authenticateToken,
+  requireAuth,
+  requireWorkspace,
   validateParams(IdParamSchema),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
     const socketService = global.socketService;
     const subscribersCount = socketService
       ? socketService.getExecutionSubscribersCount(req.params.id)

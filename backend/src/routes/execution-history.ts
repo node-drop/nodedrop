@@ -1,13 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService, {
-  ExecutionHistoryQuery,
+    ExecutionHistoryQuery,
 } from "../services/ExecutionHistoryService";
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const historyService = new ExecutionHistoryService(prisma);
 
 /**
@@ -16,7 +15,7 @@ const historyService = new ExecutionHistoryService(prisma);
  */
 router.get(
   "/",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
     const {
@@ -81,7 +80,7 @@ router.get(
  */
 router.get(
   "/analytics",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
     const { workflowId, startDate, endDate } = req.query;
@@ -121,7 +120,7 @@ router.get(
  */
 router.get(
   "/:executionId/debug",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -167,7 +166,7 @@ router.get(
  */
 router.get(
   "/:executionId/logs",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const { level, nodeId } = req.query;
@@ -215,7 +214,7 @@ router.get(
  */
 router.get(
   "/:executionId/export",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -261,7 +260,7 @@ router.get(
  */
 router.get(
   "/search/errors",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
     const { pattern, limit = "50" } = req.query;
@@ -299,7 +298,7 @@ router.get(
  */
 router.post(
   "/:executionId/logs",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const { level, message, nodeId, metadata } = req.body;
@@ -353,7 +352,7 @@ router.post(
  */
 router.delete(
   "/:executionId/logs",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;

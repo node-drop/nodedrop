@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../config/database";
 import { HttpRequestNode } from "../nodes/HttpRequest/HttpRequest.node";
 
-const prisma = new PrismaClient();
+
 
 async function updateHttpNodeCredentials() {
   try {

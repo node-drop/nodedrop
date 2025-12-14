@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { variableService } from '@/services'
 import { useWorkflowStore } from '@/stores'
 import type { Variable } from '@/types/variable'
-import { validateExpression } from '@/utils/expressionValidator'
+import { validateExpression } from '@nodedrop/utils'
 import { fuzzyFilter } from '@/utils/fuzzySearch'
 import {
     AlertCircle,

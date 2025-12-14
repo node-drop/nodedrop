@@ -13,9 +13,10 @@ import {
   ExecutionProgress,
   ExecutionStats,
   QueueConfig,
+  NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
-import { buildExpressionContext } from "../utils/nodeHelpers";
+import { buildExpressionContext } from "@nodedrop/utils";
 import { ExecutionEngine } from "./ExecutionEngine";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import {
@@ -24,6 +25,13 @@ import {
   FlowExecutionResult,
 } from "./FlowExecutionEngine";
 import { NodeService } from "./NodeService";
+
+/**
+ * Options for workspace-scoped queries
+ */
+interface WorkspaceQueryOptions {
+  workspaceId?: string;
+}
 
 export class ExecutionService {
   private prisma: PrismaClient;
@@ -254,7 +262,8 @@ export class ExecutionService {
             settings: parsedWorkflow.settings,
           }
           : undefined,
-        options // Pass options to check saveToDatabase
+        options, // Pass options to check saveToDatabase
+        parsedWorkflow.workspaceId // Pass workspaceId for denormalization
       );
 
       // Collect error information from failed nodes
@@ -394,7 +403,8 @@ export class ExecutionService {
             settings: parsedWorkflow.settings,
           }
           : undefined,
-        options // Pass options to check saveToDatabase
+        options, // Pass options to check saveToDatabase
+        parsedWorkflow.workspaceId // Pass workspaceId for denormalization
       );
 
       // Collect error information from failed nodes
@@ -451,15 +461,20 @@ export class ExecutionService {
    */
   async getExecution(
     executionId: string,
-    userId: string
+    userId: string,
+    options?: WorkspaceQueryOptions
   ): Promise<Execution | null> {
     try {
-
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
 
       const execution = await this.prisma.execution.findFirst({
         where: {
           id: executionId,
-          workflow: { userId },
+          workflow: workflowWhere,
+          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
         },
         include: {
           workflow: {
@@ -506,7 +521,8 @@ export class ExecutionService {
    */
   async listExecutions(
     userId: string,
-    filters: ExecutionFilters = {}
+    filters: ExecutionFilters = {},
+    options?: WorkspaceQueryOptions
   ): Promise<{
     executions: Execution[];
     total: number;
@@ -524,9 +540,19 @@ export class ExecutionService {
         offset = 0,
       } = filters;
 
+      const workflowWhere: any = { userId };
+      if (options?.workspaceId) {
+        workflowWhere.workspaceId = options.workspaceId;
+      }
+
       const where: any = {
-        workflow: { userId },
+        workflow: workflowWhere,
       };
+
+      // Also filter by denormalized workspaceId on execution for performance
+      if (options?.workspaceId) {
+        where.workspaceId = options.workspaceId;
+      }
 
       if (status) {
         where.status = status;
@@ -887,10 +913,16 @@ export class ExecutionService {
   /**
    * Get execution statistics
    */
-  async getExecutionStats(userId?: string): Promise<ExecutionStats> {
+  async getExecutionStats(userId?: string, options?: WorkspaceQueryOptions): Promise<ExecutionStats> {
     try {
       if (userId) {
-        // Get stats for specific user
+        // Build workspace-aware where clause
+        const workflowWhere: any = { userId };
+        if (options?.workspaceId) {
+          workflowWhere.workspaceId = options.workspaceId;
+        }
+
+        // Get stats for specific user (and workspace if provided)
         const [
           totalExecutions,
           runningExecutions,
@@ -899,19 +931,19 @@ export class ExecutionService {
           cancelledExecutions,
         ] = await Promise.all([
           this.prisma.execution.count({
-            where: { workflow: { userId } },
+            where: { workflow: workflowWhere },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.RUNNING },
+            where: { workflow: workflowWhere, status: ExecutionStatus.RUNNING },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.SUCCESS },
+            where: { workflow: workflowWhere, status: ExecutionStatus.SUCCESS },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.ERROR },
+            where: { workflow: workflowWhere, status: ExecutionStatus.ERROR },
           }),
           this.prisma.execution.count({
-            where: { workflow: { userId }, status: ExecutionStatus.CANCELLED },
+            where: { workflow: workflowWhere, status: ExecutionStatus.CANCELLED },
           }),
         ]);
 
@@ -1007,7 +1039,7 @@ export class ExecutionService {
     });
 
     // FlowExecutionEngine events
-    this.flowExecutionEngine.on("flowExecutionCompleted", (flowResult) => {
+    this.flowExecutionEngine.on("flowExecutionCompleted", async (flowResult) => {
 
 
       // Broadcast flow completion event to BOTH execution room and workflow room
@@ -1027,6 +1059,72 @@ export class ExecutionService {
           },
           flowResult.workflowId // Pass workflowId to broadcast to workflow room
         );
+      }
+
+      // Fire error triggers if the flow failed or had partial failures
+      if (flowResult.status === "failed" || flowResult.status === "partial") {
+        try {
+          if (global.errorTriggerService) {
+            // Get workflow details for error trigger
+            let workflowName = "Unknown Workflow";
+            let userId = "";
+            let failedNodeName: string | undefined;
+            let failedNodeType: string | undefined;
+            
+            try {
+              const workflow = await this.prisma.workflow.findUnique({
+                where: { id: flowResult.workflowId },
+                select: { name: true, userId: true, nodes: true },
+              });
+              if (workflow) {
+                workflowName = workflow.name;
+                userId = workflow.userId;
+                
+                // Get first failed node details
+                if (flowResult.failedNodes.length > 0) {
+                  const nodes = workflow.nodes as any[];
+                  const failedNode = nodes?.find((n: any) => n.id === flowResult.failedNodes[0]);
+                  if (failedNode) {
+                    failedNodeName = failedNode.name;
+                    failedNodeType = failedNode.type;
+                  }
+                }
+              }
+            } catch (e) {
+              logger.warn("Could not fetch workflow details for error trigger", { error: e });
+            }
+
+            // Get error message from node results
+            let errorMessage = "Workflow execution failed";
+            if (flowResult.failedNodes.length > 0) {
+              const failedNodeResult = flowResult.nodeResults.get(flowResult.failedNodes[0]);
+              if (failedNodeResult?.error) {
+                errorMessage = failedNodeResult.error.message || failedNodeResult.error;
+              }
+            }
+
+            await global.errorTriggerService.onWorkflowExecutionFailed({
+              executionId: flowResult.executionId,
+              workflowId: flowResult.workflowId,
+              workflowName,
+              failedNodeId: flowResult.failedNodes[0],
+              failedNodeName,
+              failedNodeType,
+              errorMessage,
+              errorTimestamp: new Date().toISOString(),
+              executionStartedAt: new Date().toISOString(),
+              executionMode: "flow",
+              userId,
+              errorContext: {
+                isPartialFailure: flowResult.status === "partial",
+                failedNodes: flowResult.failedNodes,
+                executedNodes: flowResult.executedNodes,
+              },
+            });
+          }
+        } catch (errorTriggerError) {
+          logger.error("Failed to fire error triggers for flow execution:", errorTriggerError);
+        }
       }
     });
 
@@ -1074,7 +1172,7 @@ export class ExecutionService {
             executionId: nodeEventData.executionId,
             type: "node-started",
             nodeId: nodeEventData.nodeId,
-            status: "RUNNING",
+            status: NodeExecutionStatus.RUNNING,
             data: nodeEventData.node,
             timestamp: new Date(),
           }
@@ -1407,7 +1505,8 @@ export class ExecutionService {
             userId,
             nodeInputData,
             undefined, // No workflow snapshot for single node execution
-            undefined // No options - always save single node executions
+            undefined, // No options - always save single node executions
+            parsedWorkflow.workspaceId // Pass workspaceId for denormalization
           );
 
 
@@ -1638,7 +1737,8 @@ export class ExecutionService {
     userId: string,
     triggerData?: any,
     workflowSnapshot?: { nodes: any[]; connections: any[]; settings?: any },
-    options?: ExecutionOptions
+    options?: ExecutionOptions,
+    workspaceId?: string | null
   ): Promise<any> {
     try {
       // Skip database save if configured
@@ -1701,6 +1801,7 @@ export class ExecutionService {
         data: {
           id: flowResult.executionId,
           workflowId: actualWorkflowId,
+          workspaceId: workspaceId || undefined, // Denormalized for efficient workspace-level queries
           status: executionStatus,
           startedAt: new Date(Date.now() - flowResult.totalDuration),
           finishedAt: new Date(),

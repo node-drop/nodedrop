@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, ReactNode } from 'react'
 import { useTeamStore } from '@/stores/team'
 import { useAuthStore } from '@/stores/auth'
+import { editionConfig } from '@/config/edition'
 import { Team } from '@/types'
 
 interface TeamContextValue {
@@ -31,9 +32,9 @@ export function TeamProvider({ children }: TeamProviderProps) {
     setCurrentTeam,
   } = useTeamStore()
 
-  // Load teams when user is authenticated
+  // Load teams when user is authenticated (only if team collaboration feature is enabled)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && editionConfig.isFeatureEnabled('teamCollaboration')) {
       fetchTeams()
     }
   }, [isAuthenticated, fetchTeams])
@@ -56,7 +57,10 @@ export function TeamProvider({ children }: TeamProviderProps) {
   }, [currentTeamId])
 
   const refreshTeams = async () => {
-    await fetchTeams()
+    // Only fetch teams if feature is enabled
+    if (editionConfig.isFeatureEnabled('teamCollaboration')) {
+      await fetchTeams()
+    }
   }
 
   const value: TeamContextValue = {

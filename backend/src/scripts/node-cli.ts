@@ -4,21 +4,21 @@
  * Provides commands to create, list, and manage nodes in the new structure
  */
 
-import { PrismaClient } from "@prisma/client";
 import * as fs from "fs";
 import * as path from "path";
+import prisma from "../config/database";
 import { NodeService } from "../services/NodeService";
 import { NodeDiscovery } from "../utils/NodeDiscovery";
 
 const NODES_DIR = path.join(__dirname, "..", "nodes");
 
 class NodeCLI {
-  private prisma: PrismaClient;
+  private prisma = prisma;
   private nodeService?: NodeService;
   private nodeDiscovery: NodeDiscovery;
 
   constructor() {
-    this.prisma = new PrismaClient();
+
     this.nodeDiscovery = new NodeDiscovery(NODES_DIR);
     // Don't initialize NodeService automatically to avoid unwanted registration
   }
@@ -404,7 +404,7 @@ export const ${nodeName}Node: NodeDefinition = {
       "  npm run nodes:list              - List all registered nodes"
     );
     console.log(
-      "  npm run nodes:create <name>     - Create a new node template"
+      "  npm run nodes:create <name>     - Create a new node package (scaffolding)"
     );
     console.log(
       "  npm run nodes:discover          - Discover and register all nodes"

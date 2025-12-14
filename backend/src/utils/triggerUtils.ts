@@ -1,11 +1,39 @@
 /**
  * Trigger-related utility functions
+ * 
+ * This module provides backend-specific trigger utilities that extend
+ * the shared utilities from @nodedrop/utils.
  */
 
 import { convertScheduleSettings } from "./scheduleUtils";
 
+// Import shared trigger utilities from @nodedrop/utils
+import { normalizeTriggers as sharedNormalizeTriggers } from "@nodedrop/utils";
+
+// Re-export shared trigger utilities from @nodedrop/utils
+export {
+  isTriggerNodeType,
+  isTriggerNode,
+  getTriggerType,
+  getTriggerNodes,
+  filterTriggersByType,
+  getActiveTriggers,
+  hasTriggerOfType,
+  countTriggersByType,
+  normalizeTriggers,
+  type NodeTypeDefinition,
+  type ExtractedTrigger,
+  type TriggerExtractionConfig,
+} from "@nodedrop/utils";
+
 /**
- * Extract triggers from trigger nodes in the workflow
+ * Extract triggers from trigger nodes in the workflow using NodeService.
+ * This is a backend-specific implementation that uses the NodeService
+ * for node definition lookup instead of a static array.
+ * 
+ * @param nodes - Array of workflow nodes
+ * @param nodeService - NodeService instance for looking up node definitions
+ * @returns Array of extracted trigger configurations
  */
 export function extractTriggersFromNodes(nodes: any[], nodeService: any): any[] {
   if (!Array.isArray(nodes)) {
@@ -47,21 +75,6 @@ export function extractTriggersFromNodes(nodes: any[], nodeService: any): any[] 
 }
 
 /**
- * Normalize triggers to ensure they have the active property set
- */
-export function normalizeTriggers(triggers: any[]): any[] {
-  if (!Array.isArray(triggers)) {
-    return [];
-  }
-
-  return triggers.map((trigger) => ({
-    ...trigger,
-    // Set active to true if not explicitly set
-    active: trigger.active !== undefined ? trigger.active : true,
-  }));
-}
-
-/**
  * Prepare triggers for saving - extract from nodes if needed, convert schedules, and normalize
  */
 export function prepareTriggersForSave(
@@ -86,9 +99,9 @@ export function prepareTriggersForSave(
     });
   }
 
-  // Normalize triggers if they exist
+  // Normalize triggers if they exist using shared utility
   if (triggersToSave) {
-    return normalizeTriggers(triggersToSave);
+    return sharedNormalizeTriggers(triggersToSave as any);
   }
 
   return undefined;

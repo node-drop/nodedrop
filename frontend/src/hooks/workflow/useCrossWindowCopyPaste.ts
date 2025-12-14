@@ -1,5 +1,5 @@
 import { useWorkflowStore } from "@/stores";
-import { WorkflowConnection, WorkflowNode } from "@/types/workflow";
+import { WorkflowConnection, WorkflowNode } from "@nodedrop/types";
 import { ensureUniqueNodeName } from "@/utils/nodeReferenceUtils";
 import { useReactFlow } from "@xyflow/react";
 import { useCallback, useState } from "react";

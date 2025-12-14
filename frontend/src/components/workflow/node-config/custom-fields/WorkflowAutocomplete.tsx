@@ -1,4 +1,5 @@
 import { AutoComplete, AutoCompleteOption } from "@/components/ui/autocomplete";
+import { env } from "@/config/env";
 import { Workflow } from "lucide-react";
 
 interface WorkflowData {
@@ -14,6 +15,7 @@ interface WorkflowAutocompleteProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   error?: string;
+  refreshable?: boolean;
 }
 
 export function WorkflowAutocomplete({
@@ -21,13 +23,14 @@ export function WorkflowAutocomplete({
   onChange,
   disabled = false,
   error,
+  refreshable = true,
 }: WorkflowAutocompleteProps) {
   // Fetch workflows from API
   const fetchWorkflows = async (): Promise<AutoCompleteOption<string>[]> => {
     const token = localStorage.getItem("auth_token");
     
-    // Call workflows API
-    const response = await fetch(`/api/workflows`, {
+    // Call workflows API using the configured API base URL
+    const response = await fetch(`${env.API_BASE_URL}/workflows`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -37,10 +40,14 @@ export function WorkflowAutocomplete({
     });
 
     if (!response.ok) {
-      // Parse error response
-      const errorData = await response.json();
-      const errorMessage = errorData.error?.message || response.statusText;
-      throw new Error(errorMessage);
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        const errorMessage = errorData.error?.message || response.statusText;
+        throw new Error(errorMessage);
+      }
+      throw new Error(`Failed to fetch workflows: ${response.statusText}`);
     }
 
     const result = await response.json();
@@ -76,7 +83,7 @@ export function WorkflowAutocomplete({
         error={error}
         icon={<Workflow className="w-4 h-4 text-blue-600" />}
         clearable={false}
-        refreshable={true}
+        refreshable={refreshable}
         searchable={true}
         maxHeight={300}
       />

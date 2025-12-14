@@ -1,69 +1,38 @@
-export interface Variable {
-  id: string;
-  key: string;
-  value: string;
-  description?: string | null;
-  scope: "GLOBAL" | "LOCAL";
-  workflowId?: string | null;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-}
+/**
+ * Variable Types - Re-exported from @nodedrop/types
+ * 
+ * This file re-exports shared variable types from the types package.
+ * All variable types are now defined in @nodedrop/types for consistency
+ * between frontend and backend.
+ */
 
-export interface CreateVariableRequest {
-  key: string;
-  value: string;
-  description?: string;
-  scope?: "GLOBAL" | "LOCAL";
-  workflowId?: string;
-}
+// Re-export all variable types from shared package
+export type {
+  VariableScope,
+  Variable,
+  CreateVariableRequest,
+  UpdateVariableRequest,
+  VariableQueryOptions,
+  VariablesPagination,
+  VariablesResponse,
+  BulkUpsertVariablesRequest,
+  BulkUpsertVariablesResponse,
+  VariableStatsResponse,
+  VariableReplaceRequest,
+  VariableReplaceResponse,
+} from "@nodedrop/types";
 
-export interface UpdateVariableRequest {
-  key?: string;
-  value?: string;
-  description?: string | null;
-}
-
-export interface VariableQueryOptions {
-  search?: string;
-  page?: number;
-  limit?: number;
-  sortBy?: "key" | "createdAt" | "updatedAt";
-  sortOrder?: "asc" | "desc";
-}
-
-export interface VariablesResponse {
-  variables: Variable[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-}
-
-export interface BulkUpsertVariablesRequest {
-  variables: CreateVariableRequest[];
-}
-
-export interface BulkUpsertVariablesResponse {
-  created: number;
-  updated: number;
-  variables: Variable[];
-}
-
-export interface VariableStatsResponse {
-  totalVariables: number;
-  recentlyCreated: number;
-  recentlyUpdated: number;
-}
-
-export interface VariableReplaceRequest {
-  text: string;
-}
-
-export interface VariableReplaceResponse {
-  originalText: string;
-  replacedText: string;
-  variablesFound: string[];
-}
+// Re-export schemas for validation
+export {
+  VariableScopeSchema,
+  VariableSchema,
+  CreateVariableRequestSchema,
+  UpdateVariableRequestSchema,
+  VariableQueryOptionsSchema,
+  VariablesResponseSchema,
+  BulkUpsertVariablesRequestSchema,
+  BulkUpsertVariablesResponseSchema,
+  VariableStatsResponseSchema,
+  VariableReplaceRequestSchema,
+  VariableReplaceResponseSchema,
+} from "@nodedrop/types";

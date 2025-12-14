@@ -1,15 +1,13 @@
-import { PrismaClient } from "@prisma/client";
 import { performance } from "perf_hooks";
 import request from "supertest";
+import prisma from "../../config/database";
 import app from "../../index";
 
 describe("Performance and Load Tests", () => {
-  let prisma: PrismaClient;
   let authToken: string;
   let testWorkflowId: string;
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
     await prisma.$connect();
 
     // Create test user and workflow

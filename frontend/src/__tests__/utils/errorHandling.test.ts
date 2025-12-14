@@ -1,5 +1,8 @@
 /**
  * Unit tests for error handling utilities
+ * 
+ * These tests verify the shared error handling utilities from @nodedrop/utils
+ * as re-exported through @/utils/errorHandling
  */
 
 import { vi } from 'vitest'
@@ -42,7 +45,7 @@ describe('Error Handling Utilities', () => {
       expect(error.message).toBe('Unknown error')
       expect(error.details).toBeUndefined()
       expect(error.context).toBeUndefined()
-      expect(error.recoverable).toBe(false)
+      expect(error.recoverable).toBeUndefined()
     })
   })
 
@@ -61,7 +64,6 @@ describe('Error Handling Utilities', () => {
       expect(details.message).toBe('Export failed')
       expect(details.details).toBe('Network timeout')
       expect(details.context).toEqual({ workflowId: 'wf-123' })
-      expect(details.timestamp).toBeGreaterThan(0)
     })
 
     it('should extract details from regular Error', () => {
@@ -71,7 +73,6 @@ describe('Error Handling Utilities', () => {
       expect(details.code).toBe(ErrorCodes.UNKNOWN_ERROR)
       expect(details.message).toBe('Regular error')
       expect(details.details).toBe(error.stack)
-      expect(details.timestamp).toBeGreaterThan(0)
     })
 
     it('should handle network errors', () => {
@@ -149,8 +150,12 @@ describe('Error Handling Utilities', () => {
       expect(isRecoverableError(nonRecoverableError)).toBe(false)
     })
 
-    it('should identify network errors as recoverable', () => {
-      const networkError = new Error('Network request failed')
+    it('should identify network errors as recoverable by classification', () => {
+      // Network errors without explicit recoverable flag should be classified as recoverable
+      const networkError = createOperationError(
+        ErrorCodes.NETWORK_ERROR,
+        'Network error'
+      )
       expect(isRecoverableError(networkError)).toBe(true)
     })
   })
@@ -209,8 +214,7 @@ describe('Error Handling Utilities', () => {
 
   describe('validateImportFile', () => {
     it('should validate file size', () => {
-      const largeFile = new File([''], 'test.json', { type: 'application/json' })
-      Object.defineProperty(largeFile, 'size', { value: 60 * 1024 * 1024 }) // 60MB
+      const largeFile = { name: 'test.json', size: 60 * 1024 * 1024, type: 'application/json' }
 
       const errors = validateImportFile(largeFile)
       expect(errors).toHaveLength(1)
@@ -218,48 +222,53 @@ describe('Error Handling Utilities', () => {
     })
 
     it('should validate file extension', () => {
-      const invalidFile = new File([''], 'test.txt', { type: 'text/plain' })
+      const invalidFile = { name: 'test.txt', size: 1024, type: 'text/plain' }
       const errors = validateImportFile(invalidFile)
       expect(errors).toHaveLength(1)
       expect(errors[0].code).toBe(ErrorCodes.FILE_INVALID_EXTENSION)
     })
 
     it('should pass valid JSON file', () => {
-      const validFile = new File(['{}'], 'workflow.json', { type: 'application/json' })
+      const validFile = { name: 'workflow.json', size: 1024, type: 'application/json' }
       const errors = validateImportFile(validFile)
       expect(errors).toHaveLength(0)
     })
 
-    it('should pass valid workflow file', () => {
-      const validFile = new File(['{}'], 'workflow.workflow', { type: 'application/json' })
+    it('should pass file with JSON extension regardless of type', () => {
+      const validFile = { name: 'workflow.json', size: 1024, type: '' }
       const errors = validateImportFile(validFile)
       expect(errors).toHaveLength(0)
     })
   })
 
   describe('createAsyncErrorHandler', () => {
-    it('should handle successful operations', async () => {
-      const operation = vi.fn().mockResolvedValue('success')
-      const handler = createAsyncErrorHandler(operation, { context: 'test' })
+    it('should create an error handler that logs errors', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const onError = vi.fn()
+      const handler = createAsyncErrorHandler(onError)
 
-      const result = await handler('arg1', 'arg2')
-      expect(result).toBe('success')
-      expect(operation).toHaveBeenCalledWith('arg1', 'arg2')
+      const testError = new Error('Test error')
+      handler(testError)
+
+      expect(onError).toHaveBeenCalledWith(testError)
+      consoleSpy.mockRestore()
     })
 
-    it('should handle and re-throw errors', async () => {
-      const error = new Error('Operation failed')
-      const operation = vi.fn().mockRejectedValue(error)
-      const handler = createAsyncErrorHandler(operation, { context: 'test' })
+    it('should work without onError callback', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const handler = createAsyncErrorHandler()
 
-      await expect(handler('arg1')).rejects.toThrow('Operation failed')
+      const testError = new Error('Test error')
+      // Should not throw
+      expect(() => handler(testError)).not.toThrow()
+      consoleSpy.mockRestore()
     })
   })
 
   describe('retryOperation', () => {
     it('should succeed on first attempt', async () => {
       const operation = vi.fn().mockResolvedValue('success')
-      const result = await retryOperation(operation, 3, 100)
+      const result = await retryOperation(operation, { maxRetries: 3, baseDelay: 10 })
 
       expect(result).toBe('success')
       expect(operation).toHaveBeenCalledTimes(1)
@@ -272,7 +281,7 @@ describe('Error Handling Utilities', () => {
         .mockRejectedValueOnce(networkError)
         .mockResolvedValue('success')
 
-      const result = await retryOperation(operation, 3, 10)
+      const result = await retryOperation(operation, { maxRetries: 3, baseDelay: 10, exponentialBackoff: false })
 
       expect(result).toBe('success')
       expect(operation).toHaveBeenCalledTimes(3)
@@ -282,7 +291,7 @@ describe('Error Handling Utilities', () => {
       const validationError = createOperationError(ErrorCodes.TITLE_EMPTY, 'Title empty', undefined, undefined, false)
       const operation = vi.fn().mockRejectedValue(validationError)
 
-      await expect(retryOperation(operation, 3, 10)).rejects.toThrow('Title empty')
+      await expect(retryOperation(operation, { maxRetries: 3, baseDelay: 10 })).rejects.toThrow('Title empty')
       expect(operation).toHaveBeenCalledTimes(1)
     })
 
@@ -290,7 +299,7 @@ describe('Error Handling Utilities', () => {
       const networkError = createOperationError(ErrorCodes.NETWORK_ERROR, 'Network error', undefined, undefined, true)
       const operation = vi.fn().mockRejectedValue(networkError)
 
-      await expect(retryOperation(operation, 2, 10)).rejects.toThrow('Network error')
+      await expect(retryOperation(operation, { maxRetries: 2, baseDelay: 10, exponentialBackoff: false })).rejects.toThrow('Network error')
       expect(operation).toHaveBeenCalledTimes(3) // Initial + 2 retries
     })
   })

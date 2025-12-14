@@ -1,14 +1,14 @@
-import { PrismaClient } from '@prisma/client'
-import { Router, Response } from 'express'
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth'
+import { Response, Router } from 'express'
+import prisma from '../config/database'
+import { requireAuth } from '../middleware/auth'
+import { WorkspaceRequest, requireWorkspace } from '../middleware/workspace'
 import { WebhookRequestLogService } from '../services/WebhookRequestLogService'
 
-const prisma = new PrismaClient()
 const router = Router()
 const webhookLogService = new WebhookRequestLogService(prisma)
 
 // Get all webhook logs for the authenticated user
-router.get('/webhook-logs', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/webhook-logs', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { limit, offset, status, startDate, endDate } = req.query
     
@@ -36,7 +36,7 @@ router.get('/webhook-logs', authenticateToken, async (req: AuthenticatedRequest,
 })
 
 // Get logs for a specific webhook
-router.get('/webhooks/:webhookId/logs', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { webhookId } = req.params
     const { limit, offset, status, startDate, endDate } = req.query
@@ -66,7 +66,7 @@ router.get('/webhooks/:webhookId/logs', authenticateToken, async (req: Authentic
 })
 
 // Get a single log entry
-router.get('/webhook-logs/:logId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/webhook-logs/:logId', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { logId } = req.params
     const log = await webhookLogService.getLog(logId, req.user!.id)
@@ -91,7 +91,7 @@ router.get('/webhook-logs/:logId', authenticateToken, async (req: AuthenticatedR
 })
 
 // Get webhook statistics
-router.get('/webhooks/:webhookId/stats', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/webhooks/:webhookId/stats', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { webhookId } = req.params
     const stats = await webhookLogService.getWebhookStats(webhookId, req.user!.id)
@@ -109,7 +109,7 @@ router.get('/webhooks/:webhookId/stats', authenticateToken, async (req: Authenti
 })
 
 // Delete logs for a webhook
-router.delete('/webhooks/:webhookId/logs', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { webhookId } = req.params
     await webhookLogService.deleteLogsForWebhook(webhookId, req.user!.id)

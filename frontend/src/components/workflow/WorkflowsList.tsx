@@ -28,7 +28,7 @@ import {
   Workflow as WorkflowIcon
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 
 interface WorkflowsListProps { }
 
@@ -278,8 +278,9 @@ export function WorkflowsList({ }: WorkflowsListProps) {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateValue: string | Date) => {
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'

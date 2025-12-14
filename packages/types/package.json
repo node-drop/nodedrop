@@ -1,0 +1,33 @@
+{
+  "name": "@nodedrop/types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript type definitions for NodeDrop workflow automation platform",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "nodedrop",
+    "types",
+    "typescript",
+    "workflow"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "rimraf": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

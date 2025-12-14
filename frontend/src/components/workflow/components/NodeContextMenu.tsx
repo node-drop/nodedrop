@@ -172,7 +172,7 @@ export function NodeContextMenu({
         </>
       )}
 
-      {/* Create Template option - show if nodes are selected (including groups with children) */}
+      {/* Create Custom Node option - show if nodes are selected (including groups with children) */}
       {canCreateTemplate && onCreateTemplate && (
         <>
           <ContextMenuSeparator />
@@ -182,7 +182,7 @@ export function NodeContextMenu({
             className="cursor-pointer"
           >
             <PackagePlus className="mr-2 h-4 w-4" />
-            Create Template
+            Create Custom Node
           </ContextMenuItem>
         </>
       )}

@@ -1,6 +1,23 @@
 /**
  * Workflow validation utilities
+ * 
+ * Uses shared Zod schemas from @nodedrop/types for consistent validation
+ * across frontend and backend.
  */
+
+import { z } from "zod";
+import {
+  WorkflowNodeSchema,
+  WorkflowConnectionSchema,
+  WorkflowTriggerSchema,
+  WorkflowSettingsSchema,
+  safeParse,
+  formatZodErrorString,
+} from "@nodedrop/types";
+
+// =============================================================================
+// Validation Result Types
+// =============================================================================
 
 interface ValidationResult {
   isValid: boolean;
@@ -8,46 +25,76 @@ interface ValidationResult {
   warnings?: string[];
 }
 
+// =============================================================================
+// Workflow Data Schema (for validation input)
+// =============================================================================
+
 /**
- * Validate workflow structure and data
+ * Schema for validating incoming workflow data.
+ * Uses shared schemas from @nodedrop/types as the source of truth.
  */
-export function validateWorkflow(workflowData: any): ValidationResult {
+const WorkflowDataSchema = z.object({
+  nodes: z.array(WorkflowNodeSchema),
+  connections: z.array(WorkflowConnectionSchema).optional().default([]),
+  triggers: z.array(WorkflowTriggerSchema).optional().default([]),
+  settings: WorkflowSettingsSchema.optional(),
+});
+
+type WorkflowData = z.infer<typeof WorkflowDataSchema>;
+
+// =============================================================================
+// Main Validation Function
+// =============================================================================
+
+/**
+ * Validate workflow structure and data using Zod schemas.
+ * Combines schema validation with structural checks (circular deps, orphans, etc.)
+ */
+export function validateWorkflow(workflowData: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Basic validation
-  if (!workflowData.nodes || workflowData.nodes.length === 0) {
+  // Step 1: Schema validation using shared Zod schemas
+  const parseResult = safeParse(WorkflowDataSchema, workflowData);
+  
+  if (!parseResult.success) {
+    const schemaErrors = formatZodErrorString(parseResult.error);
+    errors.push(`Schema validation failed: ${schemaErrors}`);
+    return { isValid: false, errors, warnings };
+  }
+
+  const validatedData = parseResult.data;
+
+  // Step 2: Basic validation - must have at least one node
+  if (validatedData.nodes.length === 0) {
     errors.push("Workflow must contain at least one node");
     return { isValid: false, errors, warnings };
   }
 
-  const nodeIds = new Set<string>(workflowData.nodes.map((node: any) => node.id));
+  const nodeIds = new Set<string>(validatedData.nodes.map((node) => node.id));
   const nodeIdArray = Array.from(nodeIds);
 
-  // Check for duplicate node IDs
-  if (nodeIdArray.length !== workflowData.nodes.length) {
+  // Step 3: Check for duplicate node IDs
+  if (nodeIdArray.length !== validatedData.nodes.length) {
     errors.push("Workflow contains duplicate node IDs");
   }
 
-  // Validate individual nodes
-  validateNodes(workflowData.nodes, errors);
+  const connections = validatedData.connections ?? [];
+  const triggers = validatedData.triggers ?? [];
 
-  // Validate node connections
-  validateConnections(workflowData.connections, nodeIds, errors);
+  // Step 4: Validate node connections
+  validateConnections(connections, nodeIds, errors);
 
-  // Check for circular dependencies
-  if (detectCircularDependencies(workflowData.nodes, workflowData.connections || [])) {
+  // Step 5: Check for circular dependencies
+  if (detectCircularDependencies(validatedData.nodes, connections)) {
     errors.push("Workflow contains circular dependencies");
   }
 
-  // Check for orphaned nodes
-  checkOrphanedNodes(workflowData.connections, nodeIdArray, warnings);
+  // Step 6: Check for orphaned nodes (warning only)
+  checkOrphanedNodes(connections, nodeIdArray, warnings);
 
-  // Validate triggers
-  validateTriggers(workflowData.triggers, nodeIds, errors);
-
-  // Validate workflow settings
-  validateSettings(workflowData.settings, errors);
+  // Step 7: Validate triggers reference existing nodes
+  validateTriggers(triggers, nodeIds, errors);
 
   return {
     isValid: errors.length === 0,
@@ -56,52 +103,22 @@ export function validateWorkflow(workflowData: any): ValidationResult {
   };
 }
 
-/**
- * Validate individual nodes
- */
-function validateNodes(nodes: any[], errors: string[]): void {
-  for (const node of nodes) {
-    if (!node.id || typeof node.id !== "string") {
-      errors.push("All nodes must have a valid ID");
-    }
-    if (!node.type || typeof node.type !== "string") {
-      errors.push(`Node ${node.id} must have a valid type`);
-    }
-    // Allow empty names for group nodes, but require valid string type
-    if (node.type === "group") {
-      if (typeof node.name !== "string") {
-        errors.push(`Node ${node.id} must have a valid name`);
-      }
-    } else {
-      if (!node.name || typeof node.name !== "string") {
-        errors.push(`Node ${node.id} must have a valid name`);
-      }
-    }
-    // Validate optional description field
-    if (node.description !== undefined && typeof node.description !== "string") {
-      errors.push(`Node ${node.id} must have a valid description (string or undefined)`);
-    }
-    if (
-      !node.position ||
-      typeof node.position.x !== "number" ||
-      typeof node.position.y !== "number"
-    ) {
-      errors.push(`Node ${node.id} must have valid position coordinates`);
-    }
-    if (!node.parameters || typeof node.parameters !== "object") {
-      errors.push(`Node ${node.id} must have valid parameters object`);
-    }
-  }
-}
+// =============================================================================
+// Connection Validation
+// =============================================================================
 
 /**
- * Validate node connections
+ * Validate node connections for structural integrity
  */
-function validateConnections(connections: any[], nodeIds: Set<string>, errors: string[]): void {
-  if (!connections || connections.length === 0) return;
+function validateConnections(
+  connections: z.infer<typeof WorkflowConnectionSchema>[],
+  nodeIds: Set<string>,
+  errors: string[]
+): void {
+  if (connections.length === 0) return;
 
-  const connectionIds = new Set();
-  
+  const connectionIds = new Set<string>();
+
   for (const connection of connections) {
     // Check for duplicate connection IDs
     if (connectionIds.has(connection.id)) {
@@ -109,21 +126,14 @@ function validateConnections(connections: any[], nodeIds: Set<string>, errors: s
     }
     connectionIds.add(connection.id);
 
-    // Validate connection structure
-    if (!connection.id || typeof connection.id !== "string") {
-      errors.push("All connections must have a valid ID");
-    }
-    if (!connection.sourceNodeId || !nodeIds.has(connection.sourceNodeId)) {
+    // Validate source node exists
+    if (!nodeIds.has(connection.sourceNodeId)) {
       errors.push(`Invalid connection: source node ${connection.sourceNodeId} not found`);
     }
-    if (!connection.targetNodeId || !nodeIds.has(connection.targetNodeId)) {
+
+    // Validate target node exists
+    if (!nodeIds.has(connection.targetNodeId)) {
       errors.push(`Invalid connection: target node ${connection.targetNodeId} not found`);
-    }
-    if (!connection.sourceOutput || typeof connection.sourceOutput !== "string") {
-      errors.push(`Connection ${connection.id} must have a valid source output`);
-    }
-    if (!connection.targetInput || typeof connection.targetInput !== "string") {
-      errors.push(`Connection ${connection.id} must have a valid target input`);
     }
 
     // Check for self-connections
@@ -133,14 +143,22 @@ function validateConnections(connections: any[], nodeIds: Set<string>, errors: s
   }
 }
 
-/**
- * Check for orphaned nodes (nodes with no connections)
- */
-function checkOrphanedNodes(connections: any[], nodeIdArray: string[], warnings: string[]): void {
-  if (!connections || connections.length === 0) return;
+// =============================================================================
+// Orphaned Node Detection
+// =============================================================================
 
-  const connectedNodes = new Set();
-  connections.forEach((conn: any) => {
+/**
+ * Check for orphaned nodes (nodes with no connections) - generates warnings
+ */
+function checkOrphanedNodes(
+  connections: z.infer<typeof WorkflowConnectionSchema>[],
+  nodeIdArray: string[],
+  warnings: string[]
+): void {
+  if (connections.length === 0) return;
+
+  const connectedNodes = new Set<string>();
+  connections.forEach((conn) => {
     connectedNodes.add(conn.sourceNodeId);
     connectedNodes.add(conn.targetNodeId);
   });
@@ -151,58 +169,39 @@ function checkOrphanedNodes(connections: any[], nodeIdArray: string[], warnings:
   }
 }
 
+// =============================================================================
+// Trigger Validation
+// =============================================================================
+
 /**
- * Validate triggers
+ * Validate triggers reference existing nodes
  */
-function validateTriggers(triggers: any[], nodeIds: Set<string>, errors: string[]): void {
-  if (!triggers || triggers.length === 0) return;
+function validateTriggers(
+  triggers: z.infer<typeof WorkflowTriggerSchema>[],
+  nodeIds: Set<string>,
+  errors: string[]
+): void {
+  if (triggers.length === 0) return;
 
   for (const trigger of triggers) {
-    if (!trigger.id || typeof trigger.id !== "string") {
-      errors.push("All triggers must have a valid ID");
-    }
-    if (!trigger.type || typeof trigger.type !== "string") {
-      errors.push(`Trigger ${trigger.id} must have a valid type`);
-    }
-    if (!trigger.nodeId || !nodeIds.has(trigger.nodeId)) {
+    // Only validate nodeId if it's present (it's optional in the schema)
+    if (trigger.nodeId && !nodeIds.has(trigger.nodeId)) {
       errors.push(`Trigger ${trigger.id} references non-existent node ${trigger.nodeId}`);
     }
   }
 }
 
-/**
- * Validate workflow settings
- */
-function validateSettings(settings: any, errors: string[]): void {
-  if (!settings) return;
-
-  if (settings.timezone && typeof settings.timezone !== "string") {
-    errors.push("Workflow timezone must be a valid string");
-  }
-  if (
-    settings.saveExecutionProgress !== undefined &&
-    typeof settings.saveExecutionProgress !== "boolean"
-  ) {
-    errors.push("saveExecutionProgress must be a boolean");
-  }
-  if (
-    settings.saveDataErrorExecution !== undefined &&
-    !["all", "none"].includes(settings.saveDataErrorExecution)
-  ) {
-    errors.push('saveDataErrorExecution must be "all" or "none"');
-  }
-  if (
-    settings.saveDataSuccessExecution !== undefined &&
-    !["all", "none"].includes(settings.saveDataSuccessExecution)
-  ) {
-    errors.push('saveDataSuccessExecution must be "all" or "none"');
-  }
-}
+// =============================================================================
+// Circular Dependency Detection
+// =============================================================================
 
 /**
- * Detect circular dependencies in workflow graph
+ * Detect circular dependencies in workflow graph using DFS
  */
-function detectCircularDependencies(nodes: any[], connections: any[]): boolean {
+function detectCircularDependencies(
+  nodes: z.infer<typeof WorkflowNodeSchema>[],
+  connections: z.infer<typeof WorkflowConnectionSchema>[]
+): boolean {
   const graph = new Map<string, string[]>();
   const visited = new Set<string>();
   const recursionStack = new Set<string>();

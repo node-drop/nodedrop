@@ -158,7 +158,7 @@ export const FormGenerator = forwardRef<FormGeneratorRef, FormGeneratorProps>(({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className={cn('space-y-6', className)}>
+      <div className={cn('space-y-4', className)}>
         {visibleFields.map((field) => (
           <FieldWrapper key={field.name} field={field} values={values} allFields={fields}>
             {field.type === 'hidden' ? (
@@ -270,7 +270,7 @@ function FormFieldLabel({ field, showRequiredIndicator, requiredIndicator }: For
   }
 
   return (
-    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1.5">
+    <label className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1.5">
       <span>
         {field.displayName}
         {field.required && showRequiredIndicator && requiredIndicator}
@@ -302,7 +302,7 @@ function FormFieldDescription({ field }: FormFieldDescriptionProps) {
     return null
   }
 
-  return <p className="text-sm text-muted-foreground">{field.description}</p>
+  return <p className="text-xs text-muted-foreground">{field.description}</p>
 }
 
 // Form field error component

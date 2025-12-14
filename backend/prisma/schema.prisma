@@ -5,21 +5,31 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
   id                       String            @id @default(cuid())
   email                    String            @unique
-  password                 String
+  emailVerified            Boolean           @default(false)
   name                     String?
-  role                     UserRole          @default(USER)
-  active                   Boolean           @default(true)
-  preferences              Json?             @default("{}")
-  resetToken               String?
-  resetTokenExpiry         DateTime?
+  image                    String?
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
+
+  // Custom fields - role managed by better-auth admin plugin
+  role                     String            @default("user")
+  banned                   Boolean           @default(false) // Required by better-auth admin plugin
+  banReason                String?                           // Optional ban reason
+  banExpires               DateTime?                         // Optional ban expiration
+  active                   Boolean           @default(true)
+  preferences              Json?             @default("{}")
+  
+  // Default workspace for the user (set on first login)
+  defaultWorkspaceId       String?
+
+  // Relations
+  sessions                 Session[]
+  accounts                 Account[]
   credentials              Credential[]
   workflows                Workflow[]
   variables                Variable[]
@@ -28,8 +38,153 @@ model User {
   performedShares          CredentialShare[] @relation("CredentialSharedBy")
   ownedTeams               Team[]            @relation("TeamOwner")
   teamMemberships          TeamMember[]
+  workspaceMemberships     WorkspaceMember[]
+  ownedWorkspaces          Workspace[]       @relation("WorkspaceOwner")
 
   @@map("users")
+}
+
+// ============================================
+// WORKSPACE (MULTI-TENANCY)
+// ============================================
+
+model Workspace {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  description      String?
+  
+  // Ownership
+  ownerId          String
+  
+  // Billing & Plan
+  plan             String   @default("free") // free, pro, enterprise
+  billingEmail     String?
+  stripeCustomerId String?
+  
+  // Plan Limits
+  maxMembers       Int      @default(1)
+  maxWorkflows     Int      @default(5)
+  maxExecutionsPerMonth Int @default(1000)
+  maxCredentials   Int      @default(10)
+  
+  // Usage Tracking
+  currentMonthExecutions Int @default(0)
+  usageResetAt     DateTime @default(now())
+  
+  // Settings
+  settings         Json     @default("{}")
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  owner            User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members          WorkspaceMember[]
+  teams            Team[]
+  workflows        Workflow[]
+  credentials      Credential[]
+  variables        Variable[]
+  nodeTypes        NodeType[]
+  executions       Execution[]
+  triggerJobs      TriggerJob[]
+  webhookLogs      WebhookRequestLog[]
+
+  @@index([ownerId])
+  @@index([slug])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  invitedBy   String?
+  
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+enum WorkspaceRole {
+  OWNER   // Full control, billing, can delete workspace
+  ADMIN   // Can manage members, settings, all resources
+  MEMBER  // Can create/edit own resources
+  VIEWER  // Read-only access
+}
+
+model WorkspaceInvitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole @default(MEMBER)
+  token       String        @unique
+  invitedBy   String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, email])
+  @@index([token])
+  @@index([email])
+  @@map("workspace_invitations")
+}
+
+// better-auth Session model
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// better-auth Account model (for OAuth)
+model Account {
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?   // For email/password auth
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+// better-auth Verification model (password reset, email verification)
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verifications")
 }
 
 model Category {
@@ -52,8 +207,9 @@ model Workflow {
   description      String?
   category         String?
   tags             String[]              @default([])
-  userId           String
-  teamId           String? // NULL = personal, value = team
+  userId           String                // Creator of the workflow
+  workspaceId      String?               // Workspace this workflow belongs to (nullable for migration)
+  teamId           String?               // NULL = workspace-level, value = team within workspace
   nodes            Json                  @default("[]")
   connections      Json                  @default("[]")
   triggers         Json                  @default("[]")
@@ -67,9 +223,13 @@ model Workflow {
   environments     WorkflowEnvironment[]
   triggerJobs      TriggerJob[]
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace        Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   team             Team?                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
-  @@index([userId, teamId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([teamId])
+  @@index([workspaceId, teamId])
   @@map("workflows")
 }
 
@@ -141,6 +301,7 @@ enum DeploymentStatus {
 model Execution {
   id                  String               @id @default(cuid())
   workflowId          String
+  workspaceId         String?              // Denormalized for efficient workspace-level queries
   environment         EnvironmentType      @default(DEVELOPMENT)
   status              ExecutionStatus      @default(RUNNING)
   startedAt           DateTime             @default(now())
@@ -162,10 +323,14 @@ model Execution {
   snapshotHash        String? // Hash of workflow structure for quick comparison
   executionHistory    ExecutionHistory[]
   workflow            Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workspace           Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   flowExecutionStates FlowExecutionState[]
   nodeExecutions      NodeExecution[]
 
   @@index([environment])
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
   @@map("executions")
 }
 
@@ -193,18 +358,22 @@ model NodeExecution {
 }
 
 model Credential {
-  id        String            @id @default(cuid())
-  name      String
-  type      String
-  userId    String
-  data      String
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  expiresAt DateTime?
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shares    CredentialShare[]
+  id          String            @id @default(cuid())
+  name        String
+  type        String
+  userId      String            // Creator of the credential
+  workspaceId String?           // Workspace this credential belongs to (nullable for migration)
+  data        String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  expiresAt   DateTime?
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  shares      CredentialShare[]
 
-  @@unique([userId, name])
+  @@unique([userId, name]) // Keep for backward compatibility
+  @@index([userId])
+  @@index([workspaceId])
   @@map("credentials")
 }
 
@@ -244,16 +413,20 @@ model Team {
   slug              String            @unique
   description       String?
   ownerId           String
+  workspaceId       String?           // Workspace this team belongs to (nullable for migration)
   color             String            @default("#3b82f6")
   settings          Json              @default("{}")
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   owner             User              @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace         Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members           TeamMember[]
   workflows         Workflow[]
   sharedCredentials CredentialShare[] @relation("CredentialSharedWithTeam")
 
   @@index([ownerId])
+  @@index([workspaceId])
+  @@unique([workspaceId, slug])
   @@map("teams")
 }
 
@@ -285,13 +458,17 @@ model Variable {
   description String?
   scope       VariableScope @default(GLOBAL)
   workflowId  String?
-  userId      String
+  userId      String        // Creator of the variable
+  workspaceId String?       // Workspace this variable belongs to (nullable for migration)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   workflow    Workflow?     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, key, workflowId])
+  @@unique([userId, key, workflowId]) // Keep for backward compatibility
+  @@index([userId])
+  @@index([workspaceId])
   @@index([userId, scope])
   @@index([workflowId])
   @@map("variables")
@@ -303,31 +480,35 @@ enum VariableScope {
 }
 
 model NodeType {
-  id                 String   @id @default(cuid())
-  identifier         String   @unique // Unique identifier for the node type (was 'type')
+  id                 String     @id @default(cuid())
+  identifier         String     @unique // Unique identifier for the node type (was 'type') - kept unique globally for backward compatibility
   displayName        String
   name               String
   group              String[]
-  version            Int      @default(1)
+  version            Int        @default(1)
   description        String
-  defaults           Json     @default("{}")
+  defaults           Json       @default("{}")
   inputs             String[]
   outputs            String[]
-  inputsConfig       Json? // Configuration for input positioning (left, right, top, bottom)
-  properties         Json     @default("[]")
-  credentials        Json? // Credential type definitions
-  credentialSelector Json? // Unified credential selector configuration
+  inputsConfig       Json?      // Configuration for input positioning (left, right, top, bottom)
+  properties         Json       @default("[]")
+  credentials        Json?      // Credential type definitions
+  credentialSelector Json?      // Unified credential selector configuration
   icon               String?
   color              String?
-  outputComponent    String? // Custom output component identifier for dynamic rendering
-  active             Boolean  @default(true)
-  isCore             Boolean  @default(false) // Flag to identify core system nodes that cannot be deleted
-  isTemplate         Boolean  @default(false) // Flag to identify template nodes
-  templateData       Json? // Template structure (nodes and connections)
-  nodeCategory       String? // Category for execution control: 'service' or 'tool'
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  outputComponent    String?    // Custom output component identifier for dynamic rendering
+  active             Boolean    @default(true)
+  isCore             Boolean    @default(false) // Flag to identify core system nodes that cannot be deleted
+  isTemplate         Boolean    @default(false) // Flag to identify template nodes
+  templateData       Json?      // Template structure (nodes and connections)
+  nodeCategory       String?    // Category for execution control: 'service' or 'tool'
+  workspaceId        String?    // NULL = global/system node, value = workspace-specific custom node
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  workspace          Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId])
+  @@index([isCore])
   @@map("node_types")
 }
 
@@ -384,10 +565,8 @@ model ExecutionHistory {
   @@map("execution_history")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
+// UserRole enum removed - now using String for role field
+// Managed by better-auth admin plugin with values: "user", "admin"
 
 enum ExecutionStatus {
   RUNNING
@@ -413,58 +592,64 @@ enum NodeExecutionStatus {
 }
 
 model TriggerJob {
-  id             String    @id @default(cuid())
+  id             String     @id @default(cuid())
   workflowId     String
-  triggerId      String // References trigger.id in workflow.triggers JSON
-  type           String    @default("schedule") // 'schedule' or 'polling'
-  jobKey         String    @unique // Bull queue job key (for schedule) or trigger ID (for polling)
-  cronExpression String? // Only for schedule type
-  pollInterval   Int? // Only for polling type (in seconds)
-  timezone       String    @default("UTC")
+  workspaceId    String?    // Denormalized for efficient workspace-level queries
+  triggerId      String     // References trigger.id in workflow.triggers JSON
+  type           String     @default("schedule") // 'schedule' or 'polling'
+  jobKey         String     @unique // Bull queue job key (for schedule) or trigger ID (for polling)
+  cronExpression String?    // Only for schedule type
+  pollInterval   Int?       // Only for polling type (in seconds)
+  timezone       String     @default("UTC")
   description    String?
-  active         Boolean   @default(true)
+  active         Boolean    @default(true)
   lastRun        DateTime?
-  nextRun        DateTime? // For schedule: next cron run, For polling: last poll + interval
-  failCount      Int       @default(0)
+  nextRun        DateTime?  // For schedule: next cron run, For polling: last poll + interval
+  failCount      Int        @default(0)
   lastError      Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  workflow       Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  workflow       Workflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workspace      Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workflowId, triggerId])
   @@index([workflowId])
+  @@index([workspaceId])
   @@index([active])
   @@index([type])
   @@map("trigger_jobs")
 }
 
 model WebhookRequestLog {
-  id           String   @id @default(cuid())
-  type         String   @default("webhook") // 'webhook', 'form', 'chat'
-  webhookId    String // The webhook/form/chat identifier (path or UUID)
-  workflowId   String // For filtering by workflow
-  userId       String // For access control
-  timestamp    DateTime @default(now())
-  method       String // GET, POST, PUT, DELETE, PATCH
-  path         String // Full path including query
-  headers      Json // Sanitized headers (no auth tokens)
-  body         Json? // Request body (truncated if large)
-  query        Json? // Query parameters
+  id           String     @id @default(cuid())
+  type         String     @default("webhook") // 'webhook', 'form', 'chat'
+  webhookId    String     // The webhook/form/chat identifier (path or UUID)
+  workflowId   String     // For filtering by workflow
+  workspaceId  String?    // Denormalized for efficient workspace-level queries
+  userId       String     // For access control
+  timestamp    DateTime   @default(now())
+  method       String     // GET, POST, PUT, DELETE, PATCH
+  path         String     // Full path including query
+  headers      Json       // Sanitized headers (no auth tokens)
+  body         Json?      // Request body (truncated if large)
+  query        Json?      // Query parameters
   ip           String
   userAgent    String?
-  status       String // 'success', 'rejected', 'failed'
-  reason       String? // Why rejected (e.g., "Authentication failed")
-  executionId  String? // Link to execution if created
-  responseCode Int // HTTP response code (200, 401, 500, etc.)
-  responseTime Int // Response time in milliseconds
-  testMode     Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  status       String     // 'success', 'rejected', 'failed'
+  reason       String?    // Why rejected (e.g., "Authentication failed")
+  executionId  String?    // Link to execution if created
+  responseCode Int        // HTTP response code (200, 401, 500, etc.)
+  responseTime Int        // Response time in milliseconds
+  testMode     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([type, webhookId, timestamp])
   @@index([type, workflowId, timestamp])
   @@index([type, userId, timestamp])
   @@index([webhookId, timestamp])
   @@index([workflowId, timestamp])
+  @@index([workspaceId, timestamp])
   @@index([userId, timestamp])
   @@index([timestamp])
   @@map("webhook_request_logs")

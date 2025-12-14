@@ -2,15 +2,28 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-builder
 
-WORKDIR /app/frontend
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that frontend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
 
 # Copy frontend package files
-COPY frontend/package*.json ./
+COPY frontend/package*.json ./frontend/
 
-# Install frontend dependencies
-RUN npm install && npm cache clean --force
+# Install workspace dependencies
+RUN npm install -g typescript
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=frontend && npm cache clean --force
+
+# Build workspace packages first
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
 
 # Copy frontend source
+WORKDIR /app/frontend
 COPY frontend/ ./
 
 # Build frontend (Vite)
@@ -24,15 +37,28 @@ FROM node:22-alpine AS backend-builder
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev
 
-WORKDIR /app/backend
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that backend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
 
 # Copy backend package files
-COPY backend/package*.json ./
+COPY backend/package*.json ./backend/
 
-# Install all dependencies (including dev for build)
-RUN npm install && npm cache clean --force
+# Install workspace dependencies
+RUN npm install -g typescript
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
+
+# Build workspace packages first (types, then utils which depends on types)
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
 
 # Copy backend source
+WORKDIR /app/backend
 COPY backend/ ./
 
 # Generate Prisma client and build TypeScript
@@ -44,13 +70,34 @@ FROM node:22-alpine AS prod-deps
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev
 
+WORKDIR /app
+
+# Copy root package files for workspace setup
+COPY package*.json ./
+
+# Copy workspace packages that backend depends on
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
+
+# Copy backend package files and prisma schema
+COPY backend/package*.json ./backend/
+COPY backend/prisma ./backend/prisma
+
+# Install all dependencies first (needed to build packages)
+RUN npm install -g typescript
+RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
+
+# Build workspace packages (needed for production runtime)
+RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/utils
+
+# Generate Prisma client
 WORKDIR /app/backend
+RUN npx prisma generate
 
-# Copy backend package files
-COPY backend/package*.json ./
-
-# Install only production dependencies
-RUN npm install --omit=dev && npm cache clean --force
+# Now prune dev dependencies
+WORKDIR /app
+RUN npm prune --omit=dev --workspace=packages/types --workspace=packages/utils --workspace=backend
 
 # Stage 4: Final production image
 FROM node:22-alpine AS production
@@ -75,12 +122,9 @@ COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/prisma ./prisma
 
-# Copy production node_modules
+# Copy production node_modules (including workspace packages)
 COPY --from=prod-deps /app/backend/node_modules ./node_modules
-
-# Copy Prisma generated files
-COPY --from=backend-builder /app/backend/node_modules/.prisma ./node_modules/.prisma
-COPY --from=backend-builder /app/backend/node_modules/@prisma ./node_modules/@prisma
+COPY --from=prod-deps /app/packages ./packages
 
 # Copy frontend built files to public directory
 COPY --from=frontend-builder /app/frontend/dist ./public

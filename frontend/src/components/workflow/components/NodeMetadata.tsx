@@ -1,4 +1,4 @@
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 import { memo, useMemo } from 'react'
 
 interface NodeMetadataProps {

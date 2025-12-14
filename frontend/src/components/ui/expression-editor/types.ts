@@ -1,22 +1,12 @@
-export interface AutocompleteItem {
-  label: string
-  type: "variable" | "method" | "property" | "object" | "array" | "function"
-  description?: string
-  insertText: string
-}
+// Import and re-export shared types from @nodedrop/types
+import type { 
+  VariableCategoryItem,
+  VariableCategory,
+  ExpressionResult,
+} from '@nodedrop/types';
 
-export interface VariableCategory {
-  name: string
-  icon: string
-  items: AutocompleteItem[]
-}
-
-export interface ExpressionResult {
-  success: boolean
-  value: string
-  type: string
-  error?: string
-}
+export type { VariableCategory, ExpressionResult };
+export type AutocompleteItem = VariableCategoryItem;
 
 export interface ExpressionEditorProps {
   /** Initial expression value */

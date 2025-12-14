@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 import { CustomNodesPage } from '../../pages/CustomNodesPage';
 
 // Simple integration test to verify the page renders

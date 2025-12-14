@@ -37,7 +37,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 import { ExecutionsHeader } from './ExecutionsHeader'
 
 // Use ExecutionDetails from the service as our Execution type

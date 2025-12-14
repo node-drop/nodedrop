@@ -1,19 +1,17 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
-import { createServer } from "http";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
 import { ExecutionService } from "../services/ExecutionService";
-import { SocketService } from "../services/SocketService";
 import { WorkflowService } from "../services/WorkflowService";
 import {
-  getTriggerService,
-  initializeTriggerService,
+    getTriggerService,
+    initializeTriggerService,
 } from "../services/triggerServiceSingleton";
 
 const router = Router();
-const prisma = new PrismaClient();
+
 
 /**
  * Helper function to send standardized error response

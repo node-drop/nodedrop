@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -207,19 +207,21 @@ export function NodeMarketplace({
                       alt={pkg.name}
                       className="w-full h-full object-contain"
                       onError={(e) => {
-                        // Fallback to NodeIconRenderer if image fails to load
+                        // Fallback to NodeIcon if image fails to load
                         e.currentTarget.style.display = 'none';
                         e.currentTarget.parentElement!.innerHTML = '';
                       }}
                     />
                   </div>
                 ) : (
-                  <NodeIconRenderer
-                    icon={pkg.icon || pkg.keywords?.[0]}
-                    nodeType={pkg.name}
-                    nodeGroup={pkg.keywords || []}
-                    displayName={pkg.name}
-                    backgroundColor="hsl(var(--primary))"
+                  <NodeIcon
+                    config={{
+                      icon: pkg.icon || pkg.keywords?.[0],
+                      nodeType: pkg.name,
+                      nodeGroup: pkg.keywords || [],
+                      displayName: pkg.name,
+                      color: 'hsl(var(--primary))',
+                    }}
                     size="md"
                     className="shrink-0 mt-0.5"
                   />

@@ -14,7 +14,8 @@ import { useAuthStore, useNodeTypes, useWorkflowStore } from '@/stores'
 import { Workflow } from '@/types'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router'
+import { toast } from 'sonner'
 
 export function WorkflowEditorPage() {
   const { id, executionId } = useParams<{ id: string; executionId?: string }>()
@@ -31,8 +32,8 @@ export function WorkflowEditorPage() {
   } = useWorkflowStore()
   const { user } = useAuthStore()
   const [error, setError] = useState<string | null>(null)
-  // Use global node types store instead of local state
-  const { activeNodeTypes: nodeTypes, isLoading: isLoadingNodeTypes } = useNodeTypes()
+  // Use global node types store - node types load lazily when needed
+  const { activeNodeTypes: nodeTypes } = useNodeTypes()
   const [execution, setExecution] = useState<ExecutionDetails | null>(null)
   const [isLoadingExecution, setIsLoadingExecution] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -83,9 +84,11 @@ export function WorkflowEditorPage() {
 
       // Navigate to the new workflow
       navigate(`/workflows/${updatedWorkflow.id}/edit`, { replace: true })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create workflow:', error)
-      setError('Failed to create workflow. Please try again.')
+      const errorMessage = error?.message || 'Failed to create workflow. Please try again.'
+      setError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 
@@ -349,13 +352,16 @@ export function WorkflowEditorPage() {
   }, [id, executionId, setWorkflow, setLoading, user?.id])
 
   const renderContent = () => {
-    if (isLoading || isLoadingNodeTypes || isLoadingExecution) {
+    // Note: isLoadingNodeTypes is intentionally NOT included here
+    // Node types load lazily when user opens add node dialog or nodes sidebar
+    // This improves initial page load performance
+    if (isLoading || isLoadingExecution) {
       return (
         <div className="flex items-center justify-center h-full w-full bg-background">
           <div className="flex items-center space-x-2">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
             <span className="text-muted-foreground">
-              {isLoadingExecution ? 'Loading execution...' : isLoadingNodeTypes ? 'Loading node types...' : 'Loading workflow...'}
+              {isLoadingExecution ? 'Loading execution...' : 'Loading workflow...'}
             </span>
           </div>
         </div>

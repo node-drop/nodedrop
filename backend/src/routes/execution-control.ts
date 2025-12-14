@@ -1,15 +1,15 @@
-import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
-  ExecutionTimeoutManager,
-  ManualInterventionResponse,
+    ExecutionTimeoutManager,
+    ManualInterventionResponse,
 } from "../services/ExecutionTimeoutManager";
 import { SocketService } from "../services/SocketService";
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
 
 // Initialize timeout manager (will be enhanced with proper dependency injection)
 const socketService = new SocketService(null as any); // Placeholder
@@ -21,7 +21,7 @@ const timeoutManager = new ExecutionTimeoutManager(prisma, socketService);
  */
 router.get(
   "/interventions",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 
@@ -51,7 +51,7 @@ router.get(
  */
 router.post(
   "/interventions/:interventionId/respond",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { interventionId } = req.params;
     const { approved, input, choice } = req.body;
@@ -101,7 +101,7 @@ router.post(
  */
 router.post(
   "/:executionId/extend-timeout",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const { additionalMinutes = 30 } = req.body;
@@ -162,7 +162,7 @@ router.post(
  */
 router.get(
   "/:executionId/timeout-status",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const userId = req.user!.id;
@@ -222,7 +222,7 @@ router.get(
  */
 router.post(
   "/:executionId/force-cancel",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const { reason = "Manual cancellation" } = req.body;
@@ -281,7 +281,7 @@ router.post(
  */
 router.post(
   "/:executionId/request-intervention",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { executionId } = req.params;
     const { nodeId, type, message, options, timeout, requiredRole, metadata } =

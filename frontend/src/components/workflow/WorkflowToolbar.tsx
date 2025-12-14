@@ -17,18 +17,17 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
+import { useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
 import { useEnvironmentStore } from '@/stores/environment'
 import { getEnvironmentLabel } from '@/types/environment'
-import { validateImportFile } from '@/utils/errorHandling'
-import { useSelectedNodes } from '@/hooks/workflow'
+import { validateImportFile } from '@nodedrop/utils'
+
 import {
   ChevronDown,
   Download,
   Loader2,
   MoreHorizontal,
   Package,
-  PackagePlus,
   PanelRight,
   RefreshCw,
   Save,
@@ -40,7 +39,6 @@ import { toast } from 'sonner'
 import { ManualDeploymentDialog } from '../environment/ManualDeploymentDialog'
 import { UpdateEnvironmentDialog } from '../environment/UpdateEnvironmentDialog'
 import { WorkflowBreadcrumb } from './WorkflowBreadcrumb'
-import { WorkflowSettingsModal } from './WorkflowSettingsModal'
 
 interface WorkflowToolbarProps {
   // Minimal props - mainly for workflow operations that need main workflow store
@@ -52,19 +50,56 @@ export function WorkflowToolbar({
   onSave,
 }: WorkflowToolbarProps) {
   const { showConfirm, ConfirmDialog } = useConfirmDialog()
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const { selectedEnvironment, summaries } = useEnvironmentStore()
   
   // Sidebar from ReactFlowUI store
-  const { showRightSidebar, toggleRightSidebar } = useReactFlowUIStore()
-  
-  // Add Node Dialog store
-  const { openDialog } = useAddNodeDialogStore()
-  
-  // Get selected nodes count
-  const { selectedNodesCount } = useSelectedNodes()
+  const { showRightSidebar, toggleRightSidebar, openRightSidebar, reactFlowInstance } = useReactFlowUIStore()
+
+  // Helper to create node selector at viewport center
+  const createNodeSelectorAtCenter = () => {
+    if (!reactFlowInstance) return
+    
+    // Calculate center of viewport
+    const viewportCenter = reactFlowInstance.screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    })
+    
+    // Create a node-selector node at viewport center
+    const selectorNodeId = `node-selector-${Date.now()}`
+    const selectorNode = {
+      id: selectorNodeId,
+      type: 'node-selector',
+      name: 'Select Node',
+      parameters: {},
+      position: viewportCenter,
+      disabled: false,
+    }
+
+    // Add node to workflow store
+    const { workflow, updateWorkflow } = useWorkflowStore.getState()
+    if (workflow) {
+      updateWorkflow({
+        nodes: [...workflow.nodes, selectorNode],
+      }, true) // Skip history for temporary selector node
+    }
+
+    // Add node directly to React Flow for immediate rendering
+    reactFlowInstance.setNodes((nodes: any[]) => [
+      ...nodes,
+      {
+        id: selectorNodeId,
+        type: 'node-selector',
+        position: viewportCenter,
+        data: {
+          label: 'Select Node',
+          nodeType: 'node-selector',
+        },
+      },
+    ])
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -73,13 +108,13 @@ export function WorkflowToolbar({
       if ((event.metaKey || event.ctrlKey) && event.key === 'k' && !event.shiftKey) {
         event.preventDefault()
         event.stopPropagation()
-        openDialog()
+        createNodeSelectorAtCenter()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [openDialog])
+  }, [reactFlowInstance])
   
   // Get main workflow store for title synchronization, import/export, AND isDirty state
   const { 
@@ -92,7 +127,6 @@ export function WorkflowToolbar({
     isDirty, // Use isDirty from main workflow store
     setDirty,
     updateWorkflow,
-    openTemplateDialog
   } = useWorkflowStore()
   
   // Get toolbar state from the dedicated store (excluding isDirty which comes from main store)
@@ -214,25 +248,9 @@ export function WorkflowToolbar({
     }
   }
 
-  const handleWorkflowSettingsSave = async (updates: { name?: string; description?: string; category?: string; tags?: string[] }) => {
-    if (workflow) {
-      updateWorkflow(updates)
-      setDirty(true)
-      // The actual save will happen when the user clicks the main Save button
-    }
-  }
-
   return (
     <TooltipProvider>
       <ConfirmDialog />
-      {workflow && (
-        <WorkflowSettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          workflow={workflow}
-          onSave={handleWorkflowSettingsSave}
-        />
-      )}
       <header className="flex items-center px-3 py-1.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 shadow-sm min-h-[48px]">
         {/* Left section - Sidebar trigger, Home, Breadcrumb and Edit actions */}
         <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -408,7 +426,7 @@ export function WorkflowToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => setShowSettingsModal(true)} className="text-xs">
+            <DropdownMenuItem onClick={() => openRightSidebar('workflow')} className="text-xs">
               <Settings className="mr-2 h-3.5 w-3.5" />
               Workflow Settings
             </DropdownMenuItem>
@@ -416,20 +434,6 @@ export function WorkflowToolbar({
             <DropdownMenuItem onClick={toggleRightSidebar} className="text-xs">
               <PanelRight className="mr-2 h-3.5 w-3.5" />
               {showRightSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
-            </DropdownMenuItem>
-            
-            <DropdownMenuSeparator />
-            
-            <DropdownMenuItem 
-              onClick={openTemplateDialog}
-              disabled={selectedNodesCount === 0}
-              className="text-xs"
-            >
-              <PackagePlus className="mr-2 h-3.5 w-3.5" />
-              Create Template
-              {selectedNodesCount === 0 && (
-                <span className="ml-auto text-[10px] text-muted-foreground">(no selection)</span>
-              )}
             </DropdownMenuItem>
             
             <DropdownMenuSeparator />
@@ -503,24 +507,6 @@ export function WorkflowToolbar({
       
       {/* Confirm Dialog */}
       <ConfirmDialog />
-      
-      {/* Workflow Settings Modal */}
-      {workflow && (
-        <WorkflowSettingsModal
-          isOpen={showSettingsModal}
-          workflow={workflow}
-          onClose={() => setShowSettingsModal(false)}
-          onSave={(updates) => {
-            updateWorkflow(updates)
-            // If name was updated, also update the title state
-            if (updates.name && updates.name !== mainWorkflowTitle) {
-              updateWorkflowTitle(updates.name)
-            }
-            setDirty(true)
-            setShowSettingsModal(false)
-          }}
-        />
-      )}
     </TooltipProvider>
   )
 }

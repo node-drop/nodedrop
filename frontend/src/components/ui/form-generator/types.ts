@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 
 export interface FormFieldOption {
   name: string;
-  value: any;
+  value?: any;
   description?: string;
 }
 

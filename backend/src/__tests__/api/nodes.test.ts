@@ -1,9 +1,7 @@
-import * as request from 'supertest';
-import { app } from '../../index';
-import { PrismaClient } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient();
+import * as request from 'supertest';
+import prisma from '../../config/database';
+import { app } from '../../index';
 
 // Mock user for authentication
 const mockUser = {

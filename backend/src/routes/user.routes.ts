@@ -1,18 +1,17 @@
 import { Response, Router } from "express";
+import prisma from "../config/database";
 import {
-  getPreferences,
-  patchPreferences,
-  updatePreferences,
-  getProfile,
-  updateProfile,
+    getPreferences,
+    getProfile,
+    patchPreferences,
+    updatePreferences,
+    updateProfile,
 } from "../controllers/user.controller";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
-import { PrismaClient } from "@prisma/client";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * User routes
@@ -20,24 +19,24 @@ const prisma = new PrismaClient();
  */
 
 // GET /api/users/profile - Get current user's profile
-router.get("/profile", authenticateToken, getProfile);
+router.get("/profile", requireAuth, getProfile);
 
 // PUT /api/users/profile - Update current user's profile
-router.put("/profile", authenticateToken, updateProfile);
+router.put("/profile", requireAuth, updateProfile);
 
 // GET /api/users/preferences - Get current user's preferences
-router.get("/preferences", authenticateToken, getPreferences);
+router.get("/preferences", requireAuth, getPreferences);
 
 // PUT /api/users/preferences - Replace all preferences
-router.put("/preferences", authenticateToken, updatePreferences);
+router.put("/preferences", requireAuth, updatePreferences);
 
 // PATCH /api/users/preferences - Merge preferences (partial update)
-router.patch("/preferences", authenticateToken, patchPreferences);
+router.patch("/preferences", requireAuth, patchPreferences);
 
 // GET /api/users/search - Search users by email or name (for credential sharing)
 router.get(
   "/search",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { query, email } = req.query;
 

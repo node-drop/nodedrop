@@ -9,5 +9,6 @@ export { CredentialService } from './CredentialService';
 export * from './NodeLoader';
 export * from './NodeTemplateGenerator';
 export * from './NodeMarketplace';
+export * from './ErrorTriggerService';
 // TODO: Add other services as they are implemented
 // export * from './AuthService';

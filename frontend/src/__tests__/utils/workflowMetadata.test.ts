@@ -17,7 +17,7 @@ import {
   CURRENT_METADATA_SCHEMA_VERSION,
   DEFAULT_METADATA
 } from '@/utils/workflowMetadata'
-import { Workflow, WorkflowMetadata } from '@/types/workflow'
+import { Workflow, WorkflowMetadata } from '@nodedrop/types'
 
 describe('workflowMetadata', () => {
   const mockWorkflow: Workflow = {

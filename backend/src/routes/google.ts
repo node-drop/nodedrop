@@ -1,12 +1,10 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, authenticateToken } from "../middleware/auth";
+import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { CredentialService } from "../services/CredentialService";
 import { GoogleSheetsHelper } from "../services/GoogleSheetsHelper";
 
 const router = Router();
-const prisma = new PrismaClient();
 const credentialService = new CredentialService();
 
 /**
@@ -15,7 +13,7 @@ const credentialService = new CredentialService();
  */
 router.get(
   "/spreadsheets",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
     const credentialId = req.query.credentialId as string;
@@ -56,7 +54,7 @@ router.get(
  */
 router.get(
   "/spreadsheets/:spreadsheetId",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { spreadsheetId } = req.params;
     const userId = req.user!.id;
@@ -98,7 +96,7 @@ router.get(
  */
 router.get(
   "/spreadsheets/:spreadsheetId/sheets",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { spreadsheetId } = req.params;
     const userId = req.user!.id;
@@ -140,7 +138,7 @@ router.get(
  */
 router.get(
   "/spreadsheets/:spreadsheetId/sheets/:sheetName/columns",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { spreadsheetId, sheetName } = req.params;
     const userId = req.user!.id;
@@ -185,7 +183,7 @@ router.get(
  */
 router.get(
   "/spreadsheets/:spreadsheetId/data",
-  authenticateToken,
+  requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { spreadsheetId } = req.params;
     const userId = req.user!.id;

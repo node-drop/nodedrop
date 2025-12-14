@@ -1,4 +1,4 @@
-import { NodeIconRenderer } from '@/components/common/NodeIconRenderer'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { Badge } from '@/components/ui/badge'
 import {
   CommandDialog,
@@ -289,13 +289,15 @@ export function AddNodeCommandDialog({
                       onSelect={() => handleSelectNode(node)}
                       className="flex items-center gap-3 p-3"
                     >
-                      <NodeIconRenderer
-                        icon={node.icon}
-                        nodeType={node.identifier}
-                        nodeGroup={node.group}
-                        displayName={node.displayName}
-                        backgroundColor={node.color || '#6b7280'}
-                        isTrigger={node.nodeCategory === 'trigger'}
+                      <NodeIcon
+                        config={{
+                          icon: node.icon,
+                          nodeType: node.identifier,
+                          nodeGroup: node.group,
+                          displayName: node.displayName,
+                          color: node.color || '#6b7280',
+                          isTrigger: node.nodeCategory === 'trigger',
+                        }}
                         size="md"
                         className="flex-shrink-0 shadow-sm"
                       />

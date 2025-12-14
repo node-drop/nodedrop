@@ -125,7 +125,7 @@ export function CollectionField({
           {/* Add option selector in header */}
           {availableOptions.length > 0 && (
             <Select
-              value=""
+              value={undefined}
               onValueChange={(value) => {
                 if (value) {
                   handleAddOption(value)

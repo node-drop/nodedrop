@@ -1,4 +1,4 @@
-import { ExecutionLogEntry } from '@/types/execution'
+import { ExecutionLogEntry } from '@nodedrop/types'
 import { Badge } from '@/components/ui/badge'
 import { 
   ChevronRight, 

@@ -4,7 +4,7 @@ import {
   resolvePath,
   resolveValue,
   wrapJsonData,
-} from "../nodeHelpers";
+} from "@nodedrop/utils";
 
 describe("Node Helper Functions", () => {
   afterEach(() => {

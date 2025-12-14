@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-import { PrismaClient } from "@prisma/client";
 import { Command } from "commander";
 import { promises as fs } from "fs";
 import * as path from "path";
+import prisma from "../config/database";
 import { CredentialService } from "../services/CredentialService";
 import { NodeLoader } from "../services/NodeLoader";
 import { NodeService } from "../services/NodeService";
 import {
-  NodeTemplateGenerator,
-  NodeTemplateOptions,
+    NodeTemplateGenerator,
+    NodeTemplateOptions,
 } from "../services/NodeTemplateGenerator";
 
 const program = new Command();
@@ -19,10 +19,10 @@ program
   .description("CLI tool for nodeDrop custom node development")
   .version("1.0.0");
 
-// Create command
+// Create command - scaffolds a new node package from template
 program
   .command("create")
-  .description("Create a new node from template")
+  .description("Create a new node package from template (scaffolding)")
   .option(
     "-t, --type <type>",
     "Node type (action, trigger, transform)",
@@ -108,7 +108,6 @@ program
       const absolutePath = path.resolve(packagePath);
 
       // Create temporary services for validation
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -164,7 +163,6 @@ program
       const absolutePath = path.resolve(packagePath);
 
       // Create temporary services for building
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -216,7 +214,6 @@ program
       const absolutePath = path.resolve(packagePath);
 
       // Create services for testing
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -303,7 +300,6 @@ program
   .description("List all loaded custom nodes")
   .action(async () => {
     try {
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -343,7 +339,6 @@ program
     try {
       const absolutePath = path.resolve(packagePath);
 
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -381,7 +376,6 @@ program
   .argument("<name>", "Name of the node package")
   .action(async (packageName) => {
     try {
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
@@ -410,7 +404,6 @@ program
     try {
       const absolutePath = path.resolve(packagePath);
 
-      const prisma = new PrismaClient();
       const nodeService = new NodeService(prisma);
       const credentialService = new CredentialService();
       const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);

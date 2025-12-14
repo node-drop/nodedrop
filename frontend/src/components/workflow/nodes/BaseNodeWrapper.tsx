@@ -1,7 +1,7 @@
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useReactFlowUIStore, useWorkflowStore, useNodeTypes } from '@/stores'
-import { NodeExecutionStatus } from '@/types/execution'
+import { NodeExecutionStatus } from '@nodedrop/types'
 import { useReactFlow, useStore } from '@xyflow/react'
 import { LucideIcon } from 'lucide-react'
 import React, { ReactNode, useCallback, useMemo } from 'react'
@@ -250,14 +250,14 @@ export function BaseNodeWrapper({
   // AND (current node can be grouped OR there are selected nodes that can be grouped)
   const canGroup = !isInGroup && (currentNodeCanBeGrouped || selectedNodesForGrouping.length >= 1)
 
-  // Check if we can create template (need at least 1 selected node, including groups)
+  // Check if we can create custom node (need at least 1 selected node, including groups)
   const selectedNodesForTemplate = getNodes().filter(node => node.selected)
   const canCreateTemplate = selectedNodesForTemplate.length >= 1
 
-  // Get template dialog action from store
+  // Get template dialog action from store (opens custom node creation)
   const openTemplateDialog = useWorkflowStore(state => state.openTemplateDialog)
   
-  // Handle create template
+  // Handle create custom node
   const handleCreateTemplate = useCallback(() => {
     openTemplateDialog()
   }, [openTemplateDialog])
@@ -332,7 +332,7 @@ export function BaseNodeWrapper({
   const nodeOutputs = nodeConfig?.outputs || data.outputs || (showOutputHandle ? ['main'] : [])
   const nodeInputNames = nodeConfig?.inputNames || data.inputNames
   const nodeOutputNames = nodeConfig?.outputNames || data.outputNames
-  const isTrigger = data.executionCapability === 'trigger'
+  const isTrigger = nodeConfig?.isTrigger || data.executionCapability === 'trigger'
   
   // Show input labels if inputNames are provided
   const showInputLabels = !!nodeInputNames && nodeInputNames.length > 0
@@ -534,7 +534,7 @@ export function BaseNodeWrapper({
             <NodeHeader
               label={data.label}
               headerInfo={headerInfo}
-              icon={Icon ? { Icon, iconColor } : undefined}
+              icon={Icon ? { Icon, iconColor } : nodeConfig ? { config: { ...nodeConfig, isTrigger } } : undefined}
               isExpanded={true}
               canExpand={canExpand}
               onToggleExpand={handleToggleExpandClick}

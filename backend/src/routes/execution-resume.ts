@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -31,7 +31,7 @@ function getExecutionPauseManager() {
  * POST /api/executions/:executionId/resume
  * Resume a paused execution with user's response
  */
-router.post('/:executionId/resume', authenticateToken, async (req: Request, res: Response) => {
+router.post('/:executionId/resume', requireAuth, async (req: Request, res: Response) => {
   try {
     const { executionId } = req.params;
     const { response } = req.body;
@@ -81,7 +81,7 @@ router.post('/:executionId/resume', authenticateToken, async (req: Request, res:
  * GET /api/executions/:executionId/status
  * Check if execution is paused and waiting for response
  */
-router.get('/:executionId/status', authenticateToken, async (req: Request, res: Response) => {
+router.get('/:executionId/status', requireAuth, async (req: Request, res: Response) => {
   try {
     const { executionId } = req.params;
     const manager = getExecutionPauseManager();
@@ -108,7 +108,7 @@ router.get('/:executionId/status', authenticateToken, async (req: Request, res: 
  * GET /api/executions/paused
  * Get all paused executions
  */
-router.get('/paused', authenticateToken, async (req: Request, res: Response) => {
+router.get('/paused', requireAuth, async (req: Request, res: Response) => {
   try {
     const manager = getExecutionPauseManager();
     const pausedExecutions = manager.getAllPausedExecutions();
@@ -131,7 +131,7 @@ router.get('/paused', authenticateToken, async (req: Request, res: Response) => 
  * POST /api/executions/:executionId/cancel
  * Cancel a paused execution
  */
-router.post('/:executionId/cancel', authenticateToken, async (req: Request, res: Response) => {
+router.post('/:executionId/cancel', requireAuth, async (req: Request, res: Response) => {
   try {
     const { executionId } = req.params;
     const { reason } = req.body;

@@ -1,7 +1,7 @@
 import { workflowService } from "@/services";
 import { useAuthStore, useWorkflowStore, useNodeTypes } from "@/stores";
 import { Workflow } from "@/types";
-import { extractTriggersFromNodes } from "@/utils/triggerUtils";
+import { extractTriggersFromNodes } from "@nodedrop/utils";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 

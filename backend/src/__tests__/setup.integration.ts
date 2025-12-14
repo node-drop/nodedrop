@@ -1,10 +1,9 @@
-import { PrismaClient } from "@prisma/client";
 import { createServer } from "http";
+import prisma from "../config/database";
 import app from "../index";
 
 // Integration test specific setup
 let testServer: any;
-let prisma: PrismaClient;
 
 beforeAll(async () => {
   // Set up test server
@@ -19,7 +18,6 @@ beforeAll(async () => {
   });
 
   // Set up database connection
-  prisma = new PrismaClient();
   await prisma.$connect();
 
   // Run database migrations if needed

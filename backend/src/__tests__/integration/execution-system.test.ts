@@ -1,22 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../config/database';
 import { ExecutionService } from '../../services/ExecutionService';
 import { NodeService } from '../../services/NodeService';
 import { WorkflowService } from '../../services/WorkflowService';
 import {
-  ExecutionStatus,
-  NodeExecutionStatus,
-  UserRole
+    ExecutionStatus,
+    NodeExecutionStatus
 } from '../../types/database';
-import { NodeDefinition, BuiltInNodeTypes } from '../../types/node.types';
-
-// This test requires a test database
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/node_drop_test'
-    }
-  }
-});
+import { BuiltInNodeTypes, NodeDefinition } from '../../types/node.types';
 
 describe('Execution System Integration', () => {
   let executionService: ExecutionService;

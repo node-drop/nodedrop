@@ -4,12 +4,20 @@
  * Shared utility functions for processing node output data.
  * These functions ensure consistent data handling across the frontend.
  * 
- * TODO: Consider moving this to a shared @node-drop/utils package
- * that can be used by both frontend and backend to ensure true
- * single source of truth. See also:
+ * Types are imported from @nodedrop/types for consistency with backend.
+ * See also:
  * - backend/src/services/SecureExecutionService.ts (createSecureContext)
  *   which has equivalent logic for runtime expression resolution.
  */
+
+import type { 
+  ExpressionContext, 
+  VariableCategory, 
+  VariableCategoryItem 
+} from '@nodedrop/types';
+
+// Re-export types for backward compatibility
+export type { VariableCategory, VariableCategoryItem };
 
 /**
  * Merge all items from a node's output array into a single object.
@@ -100,34 +108,18 @@ export function formatValuePreview(val: unknown): string {
 /**
  * Default mock data structure used by expression inputs.
  * Provides the base context for expression evaluation.
+ * Conforms to ExpressionContext type from @nodedrop/types.
  */
-export const DEFAULT_MOCK_DATA: Record<string, unknown> = {
+export const DEFAULT_MOCK_DATA: ExpressionContext = {
   $json: {},
+  $node: {},
   $workflow: { id: 'workflow-id', name: 'Workflow Name', active: true },
   $execution: { id: 'execution-id', mode: 'manual' },
   $vars: {},
+  $itemIndex: 0,
   $now: new Date().toISOString(),
   $today: new Date().toISOString().split('T')[0],
 };
-
-/**
- * Variable category item type for autocomplete
- */
-export interface VariableCategoryItem {
-  label: string;
-  type: 'variable' | 'property';
-  description: string;
-  insertText: string;
-}
-
-/**
- * Variable category type for autocomplete grouping
- */
-export interface VariableCategory {
-  name: string;
-  icon: string;
-  items: VariableCategoryItem[];
-}
 
 /**
  * Create a fallback variable category for nodes with no/empty data.

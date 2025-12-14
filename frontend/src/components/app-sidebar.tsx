@@ -9,6 +9,15 @@ import { ManageMembersDialog } from "@/components/team/ManageMembersDialog"
 import { TeamSettingsModal } from "@/components/team/TeamSettingsModal"
 import { TeamsList } from "@/components/team/TeamsList"
 import { TeamSwitcher } from "@/components/team/TeamSwitcher"
+import { 
+  WorkspaceSwitcher, 
+  CreateWorkspaceModal, 
+  WorkspacesList,
+  WorkspaceSettingsModal,
+  ManageMembersDialog as WorkspaceManageMembersDialog,
+  InviteMemberModal
+} from "@/components/workspace"
+import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import {
@@ -27,11 +36,12 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { VariablesList } from "@/components/variable/VariablesList"
 import { WorkflowsList } from "@/components/workflow/WorkflowsList"
-import { useSidebarContext, useTeam, useTheme } from "@/contexts"
+import { useSidebarContext, useTeam, useTheme, useWorkspace } from "@/contexts"
 import { useAuthStore, useReactFlowUIStore, useSystemStore, useWorkflowStore } from "@/stores"
 import {
   Activity,
   ArrowLeft,
+  Building2,
   CalendarClock,
   Database,
   Home,
@@ -49,7 +59,7 @@ import {
   ZoomOut,
 } from "lucide-react"
 import * as React from "react"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams } from "react-router"
 
 // This is sample data for the workflow editor
 const data = {
@@ -102,6 +112,12 @@ const data = {
   ],
   bottomItems: [
     {
+      title: "Workspaces",
+      url: "#",
+      icon: Building2,
+      isActive: false,
+    },
+    {
       title: "Teams",
       url: "#",
       icon: Users,
@@ -148,10 +164,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   
   // Team hook
   const { teams } = useTeam()
+  
+  // Workspace hook
+  const { workspaces } = useWorkspace()
 
   // Get workflow state to check for unsaved changes
   const { isDirty, isTitleDirty } = useWorkflowStore()
   const { showConfirm, ConfirmDialog } = useConfirmDialog()
+
+  // Workspace modal state
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = React.useState(false)
+  const [isWorkspaceSettingsModalOpen, setIsWorkspaceSettingsModalOpen] = React.useState(false)
+  const [isWorkspaceManageMembersOpen, setIsWorkspaceManageMembersOpen] = React.useState(false)
+  const [isWorkspaceInviteMemberOpen, setIsWorkspaceInviteMemberOpen] = React.useState(false)
+  const [selectedWorkspace, setSelectedWorkspace] = React.useState<{ id: string; name: string; userRole: string } | null>(null)
 
   // Team modals state
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = React.useState(false)
@@ -297,7 +323,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroup className="mt-auto">
             <SidebarGroupContent className="px-1.5 md:px-0">
               <SidebarMenu>
-                {data.bottomItems.map((item) => (
+                {data.bottomItems
+                  .filter((item) => {
+                    // Hide Teams in community edition (still accessible but shows upgrade prompt)
+                    // Hide Workspaces list in community edition (single workspace)
+                    if (item.title === "Teams" && !editionConfig.isFeatureEnabled('teamCollaboration')) {
+                      return false;
+                    }
+                    if (item.title === "Workspaces" && !editionConfig.isFeatureEnabled('multiWorkspace')) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       tooltip={{
@@ -355,8 +393,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarHeader>
         ) : (
           <SidebarHeader className="gap-3.5 border-b p-4">
-            {/* Team Switcher - Only show for context-aware views and when user has teams */}
-            {teams.length > 0 && (activeWorkflowItem?.title === "All Workflows" || 
+            {/* Workspace Switcher - Show in cloud edition when user has workspaces */}
+            {editionConfig.isFeatureEnabled('multiWorkspace') && workspaces.length > 0 && (
+              <WorkspaceSwitcher 
+                onWorkspaceChange={(workspaceId) => {
+                  console.log("Workspace changed to:", workspaceId)
+                }}
+                onCreateWorkspace={() => setIsCreateWorkspaceModalOpen(true)}
+              />
+            )}
+            
+            {/* Team Switcher - Only show in cloud edition for context-aware views and when user has teams */}
+            {editionConfig.isFeatureEnabled('teamCollaboration') && teams.length > 0 && (activeWorkflowItem?.title === "All Workflows" || 
               activeWorkflowItem?.title === "All Credentials") && (
               <TeamSwitcher 
                 onTeamChange={(teamId) => {
@@ -402,6 +450,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   
                   {activeWorkflowItem?.title === "Executions" && (
                     <ExecutionsList />
+                  )}
+                  
+                  {activeWorkflowItem?.title === "Workspaces" && (
+                    <WorkspacesList 
+                      onWorkspaceSelect={() => {
+                        // Navigate to workspace page when selected
+                        navigate('/workspace')
+                      }}
+                      onCreateWorkspace={() => {
+                        setIsCreateWorkspaceModalOpen(true)
+                      }}
+                      onManageMembers={(workspace) => {
+                        setSelectedWorkspace({
+                          id: workspace.id,
+                          name: workspace.name,
+                          userRole: workspace.userRole || 'VIEWER'
+                        })
+                        setIsWorkspaceManageMembersOpen(true)
+                      }}
+                      onWorkspaceSettings={(workspace) => {
+                        setSelectedWorkspace({
+                          id: workspace.id,
+                          name: workspace.name,
+                          userRole: workspace.userRole || 'VIEWER'
+                        })
+                        setIsWorkspaceSettingsModalOpen(true)
+                      }}
+                    />
                   )}
                   
                   {activeWorkflowItem?.title === "Teams" && (
@@ -505,6 +581,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </Sidebar>
       </div>
       <ConfirmDialog />
+      <CreateWorkspaceModal
+        open={isCreateWorkspaceModalOpen}
+        onOpenChange={setIsCreateWorkspaceModalOpen}
+        onSuccess={(workspaceId) => {
+          console.log("Workspace created:", workspaceId)
+        }}
+      />
+      {selectedWorkspace && (
+        <>
+          <WorkspaceSettingsModal
+            open={isWorkspaceSettingsModalOpen}
+            onOpenChange={setIsWorkspaceSettingsModalOpen}
+            workspace={workspaces.find(w => w.id === selectedWorkspace.id)!}
+          />
+          <WorkspaceManageMembersDialog
+            open={isWorkspaceManageMembersOpen}
+            onOpenChange={setIsWorkspaceManageMembersOpen}
+            workspaceId={selectedWorkspace.id}
+            workspaceName={selectedWorkspace.name}
+            userRole={selectedWorkspace.userRole as any}
+            onAddMember={() => {
+              setIsWorkspaceManageMembersOpen(false)
+              setIsWorkspaceInviteMemberOpen(true)
+            }}
+          />
+          <InviteMemberModal
+            open={isWorkspaceInviteMemberOpen}
+            onOpenChange={setIsWorkspaceInviteMemberOpen}
+            workspaceId={selectedWorkspace.id}
+            workspaceName={selectedWorkspace.name}
+            onSuccess={() => {
+              setIsWorkspaceManageMembersOpen(true)
+            }}
+          />
+        </>
+      )}
       <CreateTeamModal 
         open={isCreateTeamModalOpen}
         onOpenChange={setIsCreateTeamModalOpen}
@@ -607,12 +719,14 @@ function CanvasViewSettings() {
     panOnDrag,
     zoomOnScroll,
     editableConnections,
+    showRightSidebar,
     toggleMinimap,
     toggleBackground,
     toggleControls,
     togglePanOnDrag,
     toggleZoomOnScroll,
     toggleEditableConnections,
+    toggleRightSidebar,
     changeBackgroundVariant,
   } = useReactFlowUIStore()
 
@@ -641,6 +755,10 @@ function CanvasViewSettings() {
       <div className="flex justify-between items-center">
         <span>Editable Connections</span>
         <Switch checked={editableConnections} onCheckedChange={toggleEditableConnections} />
+      </div>
+      <div className="flex justify-between items-center">
+        <span>Show Right Sidebar</span>
+        <Switch checked={showRightSidebar} onCheckedChange={toggleRightSidebar} />
       </div>
       
       {/* Background Pattern Selector */}

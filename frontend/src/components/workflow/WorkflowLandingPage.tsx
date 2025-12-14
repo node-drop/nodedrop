@@ -5,7 +5,7 @@ import { useSystemStore } from '@/stores'
 import { Workflow as WorkflowType } from '@/types'
 import { ArrowRight, Clock, FileText, Loader2, Settings, Star, Workflow } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 
 export function WorkflowLandingPage() {
   const navigate = useNavigate()

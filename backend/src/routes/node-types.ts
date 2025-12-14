@@ -1,14 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
 import { promises as fs } from "fs";
 import multer from "multer";
 import path from "path";
-import { authenticateToken } from "../middleware/auth";
+import prisma from "../config/database";
 import { CustomNodeUploadHandler } from "../services/CustomNodeUploadHandler";
 import { logger } from "../utils/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Configure multer for file uploads
 const upload = multer({
@@ -29,7 +27,7 @@ const upload = multer({
 });
 
 // Apply authentication middleware to all routes
-// router.use(authenticateToken); // Temporarily disabled for testing
+// router.use(requireAuth); // Temporarily disabled for testing
 
 /**
  * GET /api/node-types
@@ -571,7 +569,8 @@ router.get("/groups/list", async (req: Request, res: Response) => {
 
 /**
  * POST /api/node-types/templates
- * Create a new template from selected nodes
+ * Create a new custom node type from selected workflow nodes
+ * Note: "templates" endpoint name kept for backward compatibility
  */
 router.post("/templates", async (req: Request, res: Response) => {
   try {
@@ -600,7 +599,7 @@ router.post("/templates", async (req: Request, res: Response) => {
       });
     }
 
-    // Check if template with this type already exists
+    // Check if custom node with this type already exists
     const existing = await prisma.nodeType.findUnique({
       where: { identifier: type },
     });
@@ -608,12 +607,12 @@ router.post("/templates", async (req: Request, res: Response) => {
     if (existing) {
       return res.status(409).json({
         success: false,
-        error: `Template with type '${type}' already exists`,
+        error: `Custom node with type '${type}' already exists`,
       });
     }
 
-    // Create the template node type
-    const template = await prisma.nodeType.create({
+    // Create the custom node type
+    const customNode = await prisma.nodeType.create({
       data: {
         identifier: type,
         displayName,
@@ -621,7 +620,7 @@ router.post("/templates", async (req: Request, res: Response) => {
         description: description || "",
         icon: icon || "📦",
         color: color || "#6366f1",
-        group: group || ["Templates"],
+        group: group || ["Custom Nodes"],
         version: version || 1,
         defaults: defaults || {},
         inputs: inputs || ["main"],
@@ -633,48 +632,49 @@ router.post("/templates", async (req: Request, res: Response) => {
       },
     });
 
-    logger.info("Template created successfully", {
-      type: template.identifier,
-      displayName: template.displayName,
+    logger.info("Custom node created successfully", {
+      type: customNode.identifier,
+      displayName: customNode.displayName,
       nodesCount: templateData?.nodes?.length || 0,
       connectionsCount: templateData?.connections?.length || 0,
     });
 
     res.json({
       success: true,
-      data: template,
-      message: "Template created successfully",
+      data: customNode,
+      message: "Custom node created successfully",
     });
   } catch (error) {
-    logger.error("Failed to create template", { error });
+    logger.error("Failed to create custom node", { error });
     res.status(500).json({
       success: false,
-      error: "Failed to create template",
+      error: "Failed to create custom node",
     });
   }
 });
 
 /**
  * GET /api/node-types/templates
- * Get all templates
+ * Get all custom node types (templates)
+ * Note: "templates" endpoint name kept for backward compatibility
  */
 router.get("/templates", async (req: Request, res: Response) => {
   try {
-    const templates = await prisma.nodeType.findMany({
+    const customNodes = await prisma.nodeType.findMany({
       where: { isTemplate: true },
       orderBy: { displayName: "asc" },
     });
 
     res.json({
       success: true,
-      data: templates,
-      count: templates.length,
+      data: customNodes,
+      count: customNodes.length,
     });
   } catch (error) {
-    logger.error("Failed to get templates", { error });
+    logger.error("Failed to get custom nodes", { error });
     res.status(500).json({
       success: false,
-      error: "Failed to get templates",
+      error: "Failed to get custom nodes",
     });
   }
 });

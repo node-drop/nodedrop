@@ -11,6 +11,7 @@ export interface UserPreferences {
     zoomOnScroll?: boolean;
     canvasBoundaryX?: number;
     canvasBoundaryY?: number;
+    showRightSidebar?: boolean;
   };
   theme?: "light" | "dark" | "system";
   pinnedNodes?: string[]; // Array of node type identifiers
@@ -21,7 +22,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "USER";
+  role: "admin" | "user";
   createdAt: string;
   updatedAt: string;
 }

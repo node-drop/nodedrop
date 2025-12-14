@@ -1,29 +1,53 @@
 /**
  * Workflow Environment Types
  *
- * Types for managing workflows across different environments
- * (development, staging, production)
+ * Re-exports shared types from @nodedrop/types and defines backend-specific types.
+ * Backend-specific types use Date objects for timestamps (as returned by Prisma).
  */
 
-export enum EnvironmentType {
-  DEVELOPMENT = "DEVELOPMENT",
-  STAGING = "STAGING",
-  PRODUCTION = "PRODUCTION",
-}
+// Re-export shared types from @nodedrop/types
+export {
+  // Enums
+  EnvironmentType,
+  EnvironmentStatus,
+  DeploymentStatus,
+  // Types (API response format with string timestamps)
+  type EnvironmentComparison,
+  type DeployEnvironmentInput,
+  type UpdateEnvironmentInput,
+  type PromoteEnvironmentInput,
+  type RollbackEnvironmentInput,
+  // Schemas
+  WorkflowEnvironmentSchema,
+  WorkflowEnvironmentDeploymentSchema,
+  EnvironmentSummarySchema,
+  EnvironmentComparisonSchema,
+  DeployEnvironmentInputSchema,
+  UpdateEnvironmentInputSchema,
+  PromoteEnvironmentInputSchema,
+  RollbackEnvironmentInputSchema,
+} from "@nodedrop/types";
 
-export enum EnvironmentStatus {
-  DRAFT = "DRAFT",
-  ACTIVE = "ACTIVE",
-  INACTIVE = "INACTIVE",
-  ARCHIVED = "ARCHIVED",
-}
+// Import CreateEnvironmentInput schema to extend it
+import { CreateEnvironmentInputSchema as BaseCreateEnvironmentInputSchema } from "@nodedrop/types";
+import { z } from "zod";
 
-export enum DeploymentStatus {
-  SUCCESS = "SUCCESS",
-  FAILED = "FAILED",
-  ROLLBACK = "ROLLBACK",
-}
+// Backend-specific CreateEnvironmentInput that includes workflowId
+export const CreateEnvironmentInputSchema = BaseCreateEnvironmentInputSchema.extend({
+  workflowId: z.string(),
+});
 
+export type CreateEnvironmentInput = z.infer<typeof CreateEnvironmentInputSchema>;
+
+import { EnvironmentType, EnvironmentStatus, DeploymentStatus } from "@nodedrop/types";
+
+// =============================================================================
+// Backend-specific types (use Date objects as returned by Prisma)
+// =============================================================================
+
+/**
+ * Workflow environment as stored in database (uses Date objects)
+ */
 export interface WorkflowEnvironment {
   id: string;
   workflowId: string;
@@ -43,6 +67,9 @@ export interface WorkflowEnvironment {
   updatedAt: Date;
 }
 
+/**
+ * Workflow environment deployment as stored in database (uses Date objects)
+ */
 export interface WorkflowEnvironmentDeployment {
   id: string;
   environmentId: string;
@@ -57,76 +84,9 @@ export interface WorkflowEnvironmentDeployment {
   createdAt: Date;
 }
 
-export interface CreateEnvironmentInput {
-  workflowId: string;
-  environment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-}
-
-export interface DeployEnvironmentInput {
-  sourceEnvironment: EnvironmentType;
-  targetEnvironment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-  copyVariables?: boolean;
-  activateAfterDeploy?: boolean;
-}
-
-export interface UpdateEnvironmentInput {
-  environment: EnvironmentType;
-  version?: string;
-  deploymentNote?: string;
-  copyVariables?: boolean;
-}
-
-export interface PromoteEnvironmentInput {
-  version?: string;
-  deploymentNote?: string;
-  activateAfterDeploy?: boolean;
-}
-
-export interface RollbackEnvironmentInput {
-  deploymentId: string;
-  deploymentNote?: string;
-}
-
-export interface EnvironmentComparison {
-  workflowId: string;
-  sourceEnvironment: EnvironmentType;
-  targetEnvironment: EnvironmentType;
-  differences: {
-    nodes: {
-      added: any[];
-      removed: any[];
-      modified: any[];
-    };
-    connections: {
-      added: any[];
-      removed: any[];
-    };
-    triggers: {
-      added: any[];
-      removed: any[];
-      modified: any[];
-    };
-    settings: {
-      changed: Array<{
-        key: string;
-        sourceValue: any;
-        targetValue: any;
-      }>;
-    };
-    variables: {
-      added: string[];
-      removed: string[];
-      modified: string[];
-    };
-  };
-  sourceVersion: string;
-  targetVersion: string;
-}
-
+/**
+ * Environment summary with Date objects for backend use
+ */
 export interface EnvironmentSummary {
   environment: EnvironmentType;
   version: string;
@@ -140,6 +100,9 @@ export interface EnvironmentSummary {
   };
 }
 
+/**
+ * Paginated deployment history response
+ */
 export interface EnvironmentDeploymentHistory {
   deployments: WorkflowEnvironmentDeployment[];
   totalCount: number;
