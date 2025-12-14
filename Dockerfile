@@ -62,9 +62,15 @@ RUN npm run build --workspace=packages/utils
 WORKDIR /app/backend
 COPY backend/ ./
 
+# Ensure output directory exists for Prisma client generation
+RUN mkdir -p src/generated
+
 # Generate Prisma client FIRST (before TypeScript compilation)
 # Explicitly set schema path to ensure it's found
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma || (echo "Prisma generation failed" && exit 1)
+
+# Verify Prisma client was generated
+RUN test -f src/generated/index.d.ts || (echo "Prisma client not generated" && ls -la src/generated && exit 1)
 
 # Build TypeScript
 RUN npm run build
@@ -96,9 +102,15 @@ RUN npm install --workspace=packages/types --workspace=packages/utils --workspac
 RUN npm run build --workspace=packages/types
 RUN npm run build --workspace=packages/utils
 
+# Ensure output directory exists for Prisma client generation
+RUN mkdir -p /app/backend/src/generated
+
 # Generate Prisma client
 WORKDIR /app/backend
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma || (echo "Prisma generation failed" && exit 1)
+
+# Verify Prisma client was generated
+RUN test -f /app/backend/src/generated/index.d.ts || (echo "Prisma client not generated" && ls -la /app/backend/src/generated && exit 1)
 
 # Now prune dev dependencies
 WORKDIR /app
