@@ -1,6 +1,10 @@
-import { usePlaceholderNodeStore, useWorkflowStore } from '@/stores';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { NodeSelectorContent } from '@/components/workflow/NodeSelectorPopover';
+import { useWorkflowStore } from '@/stores';
+import { NodeType } from '@/types';
+import { createWorkflowNode } from '@/utils/nodeCreation';
 import { EdgeLabelRenderer, useReactFlow } from '@xyflow/react';
-import { Plus, Trash2, GitBranch, Spline } from 'lucide-react';
+import { GitBranch, Plus, Spline, Trash2 } from 'lucide-react';
 import { CSSProperties, useCallback, useState } from 'react';
 import { Algorithm } from '../EditableEdge/constants';
 
@@ -31,7 +35,6 @@ export function EdgeButton({
   onMouseEnter,
   onMouseLeave,
 }: EdgeButtonProps) {
-  const { showPlaceholder } = usePlaceholderNodeStore();
   const { setEdges } = useReactFlow();
   // OPTIMIZATION: Use Zustand selectors to prevent unnecessary re-renders
   const workflow = useWorkflowStore(state => state.workflow);
@@ -42,53 +45,61 @@ export function EdgeButton({
   const readOnly = useWorkflowStore(state => state.readOnly);
   
   const [showEdgeTypes, setShowEdgeTypes] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
   // Don't render buttons in read-only mode (only when viewing past execution)
   const isReadOnly = readOnly;
 
   /**
-   * Handle clicking the + button on an edge (connection line)
-   * Creates a node-selector node to insert a new node between two connected nodes
-   * 
-   * Position calculation:
-   * - Uses the edge button position (x, y) which is at the midpoint of the edge
-   * - The node-selector node will appear at this position for node selection
+   * Handle selecting a node from the popover
+   * Inserts the new node between the source and target nodes
    */
-  const handleAddClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
+  const handleSelectNode = useCallback(
+    (nodeType: NodeType) => {
+      if (!source || !target) return;
+
+      const position = { x, y };
       
-      if (source && target) {
-        // The x, y are already in flow coordinates (passed from edge component)
-        const position = { x, y };
+      // Create new node
+      const newNode = createWorkflowNode(nodeType, position);
+      addNode(newNode);
 
-        // Create a node-selector node at the edge midpoint
-        const selectorNodeId = `node-selector-${Date.now()}`;
-        const selectorNode = {
-          id: selectorNodeId,
-          type: "node-selector",
-          name: "Select Node",
-          parameters: {},
-          position,
-          disabled: false,
-        };
+      // Remove existing connection
+      const existingConnection = workflow?.connections.find(
+        conn =>
+          conn.sourceNodeId === source &&
+          conn.targetNodeId === target &&
+          (conn.sourceOutput === sourceHandleId || (!conn.sourceOutput && !sourceHandleId)) &&
+          (conn.targetInput === targetHandleId || (!conn.targetInput && !targetHandleId))
+      );
 
-        // Add the selector node to workflow
-        addNode(selectorNode);
-
-        // Store insertion context for when user selects a node
-        // Note: For "insert between" case, we don't create a temp connection
-        // The existing edge stays visible until user selects a node
-        showPlaceholder(position, {
-          sourceNodeId: source,
-          targetNodeId: target,
-          sourceOutput: sourceHandleId || undefined,
-          targetInput: targetHandleId || undefined,
-        });
+      if (existingConnection) {
+        removeConnection(existingConnection.id);
       }
+
+      // Create connection from source to new node
+      const sourceToNewConnection = {
+        id: `${source}-${newNode.id}-${Date.now()}`,
+        sourceNodeId: source,
+        sourceOutput: sourceHandleId || 'main',
+        targetNodeId: newNode.id,
+        targetInput: nodeType.inputs?.[0] || 'main',
+      };
+      addConnection(sourceToNewConnection);
+
+      // Create connection from new node to target
+      const newToTargetConnection = {
+        id: `${newNode.id}-${target}-${Date.now() + 1}`,
+        sourceNodeId: newNode.id,
+        sourceOutput: nodeType.outputs?.[0] || 'main',
+        targetNodeId: target,
+        targetInput: targetHandleId || 'main',
+      };
+      addConnection(newToTargetConnection);
+
+      setIsPopoverOpen(false);
     },
-    [x, y, source, target, sourceHandleId, targetHandleId, addNode, showPlaceholder]
+    [x, y, source, target, sourceHandleId, targetHandleId, workflow, addNode, removeConnection, addConnection]
   );
 
   const handleDeleteClick = useCallback(
@@ -169,13 +180,34 @@ export function EdgeButton({
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        <button
-          onClick={handleAddClick}
-          className="flex h-3 w-3 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          title="Add node"
-        >
-          <Plus className="h-2 w-2" />
-        </button>
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+          <PopoverTrigger asChild>
+            <button
+              onClick={(e) => {
+                // Prevent default behavior if any
+              }}
+              className="flex h-3 w-3 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="Add node"
+            >
+              <Plus className="h-2 w-2" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent 
+            className="w-auto p-0" 
+            align="center" 
+            side="top"
+            sideOffset={10}
+            onPointerDownOutside={(e) => {
+               // Optional: specific closing logic? Default should work
+            }}
+          >
+            <NodeSelectorContent 
+              onSelectNode={handleSelectNode} 
+              onClose={() => setIsPopoverOpen(false)} 
+            />
+          </PopoverContent>
+        </Popover>
+
         <div className="h-2 w-px bg-border" />
         
         {/* Edge type selector */}
