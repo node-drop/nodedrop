@@ -46,8 +46,9 @@ COPY package*.json ./
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 
-# Copy backend package files
+# Copy backend package files and prisma schema
 COPY backend/package*.json ./backend/
+COPY backend/prisma ./backend/prisma
 
 # Install workspace dependencies
 RUN npm install -g typescript
