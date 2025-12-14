@@ -13,11 +13,14 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "../config/auth";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { asyncHandler, AppError } from "../middleware/errorHandler";
+import { validateBody } from "../middleware/validation";
 import { ApiResponse } from "../types/api";
 import { prisma } from "../config/database";
-import { checkSetupStatus } from "../utils/setup";
 import { mapBetterAuthError } from "../utils/auth-error-mapper";
 import { createPasswordResetService } from "../services/password-reset.service";
+import { z } from "zod";
+import bcryptjs from "bcryptjs";
+import { randomBytes } from "crypto";
 import {
   loginRateLimiter,
   registrationRateLimiter,
@@ -25,6 +28,14 @@ import {
 } from "../rate-limit/auth-rate-limiters";
 
 const router = Router();
+
+/**
+ * Validation schemas for authentication endpoints
+ */
+const LoginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
 
 /**
  * GET /api/auth - Auth endpoints info
@@ -67,133 +78,25 @@ router.get("/", (_req: Request, res: Response) => {
 router.get(
   "/setup-status",
   asyncHandler(async (req: Request, res: Response) => {
-    const { email, password, firstName, lastName } = req.body;
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (existingUser) {
-      throw new AppError('User already exists with this email', 400, 'USER_EXISTS');
-    }
-
-    // Check if this is the first user (make them admin)
+    // Check if any users exist
     const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
-
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name: `${firstName} ${lastName}`,
-        role: isFirstUser ? 'ADMIN' : 'USER'
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true
-      }
-    });
-
-    // Note: Password hashing should be handled by a database trigger or separate service
-    // The Prisma client excludes password fields for security
-
-    // If first user, mark setup as complete
-    if (isFirstUser) {
-      const { markSetupComplete } = require('../utils/setup');
-      markSetupComplete({
-        siteName: 'Node-Drop',
-        adminEmail: email,
-      });
-    }
-
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret not configured', 500, 'CONFIG_ERROR');
-    }
-
-    const token = signToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      jwtSecret,
-      process.env.JWT_EXPIRES_IN || '7d'
-    );
-
-    const response: ApiResponse = {
-      success: true,
-      data: status
-    };
-
-    res.status(201).json(response);
-  })
-);
-
-// POST /api/auth/login - Login user
-router.post(
-  '/login',
-  validateBody(LoginSchema),
-  asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (!user) {
-      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
-    }
-
-    // Note: Password verification should be handled by a dedicated authentication service
-    // The Prisma client excludes password fields for security
-    // TODO: Implement password verification through a separate service or database function
-
-    // Generate JWT token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret not configured', 500, 'CONFIG_ERROR');
-    }
-
-    const token = signToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      jwtSecret,
-      process.env.JWT_EXPIRES_IN || '7d'
-    );
-
-    // Note: lastLoginAt field not implemented in current schema
+    const setupNeeded = userCount === 0;
 
     const response: ApiResponse = {
       success: true,
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          createdAt: user.createdAt
-        },
-        token
+        setupNeeded,
+        message: setupNeeded ? "System setup required - first user registration needed" : "System is already set up"
       }
     };
 
     res.json(response);
   })
 );
+
+// Note: Login is handled by better-auth sign-in endpoint
+// This custom endpoint is kept for reference but better-auth handles authentication
+// POST /api/auth/sign-in/email is the primary login endpoint
 
 /**
  * GET /api/auth/me - Get current authenticated user
@@ -264,40 +167,6 @@ router.post(
         message: result.message
       }
     };
-
-    // If user doesn't exist, still return success but don't send email
-    if (!user) {
-      res.json(response);
-      return;
-    }
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
-
-    // Save reset token to database
-    // Note: resetToken field is excluded from Prisma client for security
-    // TODO: Implement password reset through a separate service or database function
-    try {
-      // This will fail because resetToken is excluded from Prisma client
-      // await prisma.user.update({
-      //   where: { id: user.id },
-      //   data: {
-      //     resetToken: resetToken,
-      //     resetTokenExpiry: resetTokenExpiry
-      //   }
-      // });
-
-      // TODO: Send email with reset link
-      // For now, we'll just log it (in production, integrate with email service)
-      console.log(`Password reset requested for ${email}`);
-      console.log(`Reset token: ${resetToken}`);
-      console.log(`Reset link: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`);
-
-    } catch (error) {
-      // If database update fails, still return success to prevent information leakage
-      console.error('Failed to save reset token:', error);
-    }
 
     res.json(response);
   })
