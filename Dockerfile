@@ -15,6 +15,7 @@ COPY packages/utils ./packages/utils
 COPY frontend/package*.json ./frontend/
 
 # Install workspace dependencies
+RUN npm install -g typescript
 RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=frontend && npm cache clean --force
 
 # Build workspace packages first
@@ -49,6 +50,7 @@ COPY packages/utils ./packages/utils
 COPY backend/package*.json ./backend/
 
 # Install workspace dependencies
+RUN npm install -g typescript
 RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
 
 # Build workspace packages first (types, then utils which depends on types)
@@ -82,6 +84,7 @@ COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma
 
 # Install all dependencies first (needed to build packages)
+RUN npm install -g typescript
 RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
 
 # Build workspace packages (needed for production runtime)
