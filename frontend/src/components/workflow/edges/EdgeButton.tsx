@@ -183,7 +183,7 @@ export function EdgeButton({
         <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
             <button
-              onClick={(e) => {
+              onClick={(_e) => {
                 // Prevent default behavior if any
               }}
               className="flex h-3 w-3 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -197,7 +197,7 @@ export function EdgeButton({
             align="center" 
             side="top"
             sideOffset={10}
-            onPointerDownOutside={(e) => {
+            onPointerDownOutside={(_e) => {
                // Optional: specific closing logic? Default should work
             }}
           >
