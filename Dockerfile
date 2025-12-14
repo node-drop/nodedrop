@@ -49,6 +49,7 @@ COPY packages/utils ./packages/utils
 # Copy backend package files and prisma schema
 COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma
+COPY prisma.config.ts ./
 
 # Install workspace dependencies
 RUN npm install -g typescript
@@ -86,6 +87,7 @@ COPY packages/utils ./packages/utils
 # Copy backend package files and prisma schema
 COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma
+COPY prisma.config.ts ./
 
 # Install all dependencies first (needed to build packages)
 RUN npm install -g typescript
@@ -125,6 +127,7 @@ RUN apk add --no-cache curl openssl openssl-dev docker-cli docker-cli-compose
 COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/prisma ./prisma
+COPY --from=backend-builder /app/prisma.config.ts ./
 
 # Copy production node_modules (including workspace packages)
 COPY --from=prod-deps /app/backend/node_modules ./node_modules
@@ -156,4 +159,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 
 # Start application
 # Run migrations and start server
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy --config ./prisma.config.ts && npm start"]
