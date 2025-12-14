@@ -1,10 +1,9 @@
-import { PrismaClient } from '@prisma/client'
-import { Router, Response } from 'express'
-import { requireAuth, AuthenticatedRequest } from '../middleware/auth'
+import { Response, Router } from 'express'
+import prisma from '../config/database'
+import { requireAuth } from '../middleware/auth'
 import { WorkspaceRequest, requireWorkspace } from '../middleware/workspace'
 import { WebhookRequestLogService } from '../services/WebhookRequestLogService'
 
-const prisma = new PrismaClient()
 const router = Router()
 const webhookLogService = new WebhookRequestLogService(prisma)
 

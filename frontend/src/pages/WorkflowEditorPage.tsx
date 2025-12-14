@@ -32,8 +32,8 @@ export function WorkflowEditorPage() {
   } = useWorkflowStore()
   const { user } = useAuthStore()
   const [error, setError] = useState<string | null>(null)
-  // Use global node types store instead of local state
-  const { activeNodeTypes: nodeTypes, isLoading: isLoadingNodeTypes } = useNodeTypes()
+  // Use global node types store - node types load lazily when needed
+  const { activeNodeTypes: nodeTypes } = useNodeTypes()
   const [execution, setExecution] = useState<ExecutionDetails | null>(null)
   const [isLoadingExecution, setIsLoadingExecution] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -352,13 +352,16 @@ export function WorkflowEditorPage() {
   }, [id, executionId, setWorkflow, setLoading, user?.id])
 
   const renderContent = () => {
-    if (isLoading || isLoadingNodeTypes || isLoadingExecution) {
+    // Note: isLoadingNodeTypes is intentionally NOT included here
+    // Node types load lazily when user opens add node dialog or nodes sidebar
+    // This improves initial page load performance
+    if (isLoading || isLoadingExecution) {
       return (
         <div className="flex items-center justify-center h-full w-full bg-background">
           <div className="flex items-center space-x-2">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
             <span className="text-muted-foreground">
-              {isLoadingExecution ? 'Loading execution...' : isLoadingNodeTypes ? 'Loading node types...' : 'Loading workflow...'}
+              {isLoadingExecution ? 'Loading execution...' : 'Loading workflow...'}
             </span>
           </div>
         </div>

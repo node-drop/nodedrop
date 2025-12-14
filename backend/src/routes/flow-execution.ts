@@ -1,14 +1,13 @@
-import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import {
-  WorkspaceRequest,
-  requireWorkspace,
+    WorkspaceRequest,
+    requireWorkspace,
 } from "../middleware/workspace";
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 /**
  * Start flow execution from a specific node

@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
@@ -6,7 +5,6 @@ import { CredentialService } from "../services/CredentialService";
 import { GoogleSheetsHelper } from "../services/GoogleSheetsHelper";
 
 const router = Router();
-const prisma = new PrismaClient();
 const credentialService = new CredentialService();
 
 /**

@@ -1,11 +1,11 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import {
-  rateLimitConfig,
-  shouldSkipRateLimit,
+    rateLimitConfig,
+    shouldSkipRateLimit,
 } from "../rate-limit/rate-limit.config";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
@@ -14,14 +14,13 @@ import { SocketService } from "../services/SocketService";
 import { WebhookRequestLogService } from "../services/WebhookRequestLogService";
 import { WorkflowService } from "../services/WorkflowService";
 import {
-  getTriggerService,
-  initializeTriggerService,
+    getTriggerService,
+    initializeTriggerService,
 } from "../services/triggerServiceSingleton";
 import {
-  getWebhookOptions,
-  validateWebhookRequest,
-  applyCorsHeaders,
-  shouldLogRequest,
+    getWebhookOptions,
+    shouldLogRequest,
+    validateWebhookRequest
 } from "../utils/webhookValidation";
 
 const router = Router();
@@ -77,7 +76,8 @@ const formSubmitLimiter = rateLimit({
     });
   },
 });
-const prisma = new PrismaClient();
+
+
 const webhookLogService = new WebhookRequestLogService(prisma);
 
 /**

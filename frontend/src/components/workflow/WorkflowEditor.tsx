@@ -34,7 +34,7 @@ import { TemplateVariableDialog } from './TemplateVariableDialog'
 import { CustomNode } from './CustomNode'
 import { ExecutionPanel } from './ExecutionPanel'
 import { NodeConfigDialog } from './NodeConfigDialog'
-import { AnnotationNode, ChatInterfaceNode, DataPreviewNode, FormGeneratorNode, GroupNode, ImagePreviewNode } from './nodes'
+import { AnnotationNode, ChatInterfaceNode, DataPreviewNode, FormGeneratorNode, GroupNode, ImagePreviewNode, NodeSelectorNode } from './nodes'
 import { WorkflowCanvas } from './WorkflowCanvas'
 import { WorkflowErrorBoundary } from './WorkflowErrorBoundary'
 import {
@@ -88,6 +88,7 @@ export function WorkflowEditor({
             'forms': FormGeneratorNode as any,
             group: GroupNode as any,
             annotation: AnnotationNode as any,
+            'node-selector': NodeSelectorNode as any,
           //  'ai-agent': AIAgentNode,
         }
 
@@ -102,8 +103,8 @@ export function WorkflowEditor({
         return baseNodeTypes
     }, [storeNodeTypes])
 
-    // Command dialog state
-    const { isOpen: showAddNodeDialog, openDialog, closeDialog, position } = useAddNodeDialogStore()
+    // Command dialog state (keeping for backward compatibility, may be removed later)
+    const { isOpen: showAddNodeDialog, closeDialog, position } = useAddNodeDialogStore()
 
     // Use custom hooks for better organization
     const {
@@ -259,20 +260,49 @@ export function WorkflowEditor({
         await refetchNodeTypes()
     }, [workflow, selectedNodes, showSuccess, showError, refetchNodeTypes])
 
-    // Memoize add node handler - calculate viewport center position
+    // Memoize add node handler - create NodeSelectorNode at viewport center
     const handleAddNode = useCallback(() => {
-        if (reactFlowInstance) {
-            // Calculate center of viewport
-            const viewportCenter = reactFlowInstance.screenToFlowPosition({
-                x: window.innerWidth / 2,
-                y: window.innerHeight / 2,
-            })
-            openDialog(viewportCenter)
-        } else {
-            // Fallback if instance not ready
-            openDialog()
+        if (!reactFlowInstance) return
+        
+        // Calculate center of viewport
+        const viewportCenter = reactFlowInstance.screenToFlowPosition({
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+        })
+        
+        // Create a node-selector node at viewport center
+        const selectorNodeId = `node-selector-${Date.now()}`
+        const selectorNode = {
+            id: selectorNodeId,
+            type: 'node-selector',
+            name: 'Select Node',
+            parameters: {},
+            position: viewportCenter,
+            disabled: false,
         }
-    }, [openDialog, reactFlowInstance])
+
+        // Add node to workflow store
+        const { workflow: currentWorkflow, updateWorkflow } = useWorkflowStore.getState()
+        if (currentWorkflow) {
+            updateWorkflow({
+                nodes: [...currentWorkflow.nodes, selectorNode],
+            }, true) // Skip history for temporary selector node
+        }
+
+        // Add node directly to React Flow for immediate rendering
+        setNodes((nodes) => [
+            ...nodes,
+            {
+                id: selectorNodeId,
+                type: 'node-selector',
+                position: viewportCenter,
+                data: {
+                    label: 'Select Node',
+                    nodeType: 'node-selector',
+                },
+            },
+        ])
+    }, [reactFlowInstance, setNodes])
 
     // Keyboard shortcuts - disabled in read-only mode
     useKeyboardShortcuts({
@@ -599,6 +629,8 @@ export function WorkflowEditor({
                     onSubmit={handleTemplateVariableSubmit}
                 />
             )}
+
+
         </div>
     )
 }

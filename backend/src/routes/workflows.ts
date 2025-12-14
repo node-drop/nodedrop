@@ -1,31 +1,30 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
-import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import prisma from "../config/database";
+import { requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../middleware/errorHandler";
 import {
-  validateBody,
-  validateParams,
-  validateQuery,
+    validateBody,
+    validateParams,
+    validateQuery,
 } from "../middleware/validation";
 import {
-  WorkspaceRequest,
-  requireWorkspace,
-  checkWorkspaceLimit,
+    WorkspaceRequest,
+    checkWorkspaceLimit,
+    requireWorkspace,
 } from "../middleware/workspace";
-import { WorkflowService } from "../services/WorkflowService";
 import { CategoryService } from "../services/CategoryService";
-import { validateWorkflow } from "../utils/workflowValidator";
+import { WorkflowService } from "../services/WorkflowService";
 import {
-  ApiResponse,
-  CreateWorkflowSchema,
-  IdParamSchema,
-  LimitQuerySchema,
-  UpdateWorkflowSchema,
-  WorkflowQuerySchema,
+    ApiResponse,
+    CreateWorkflowSchema,
+    IdParamSchema,
+    LimitQuerySchema,
+    UpdateWorkflowSchema,
+    WorkflowQuerySchema,
 } from "../types/api";
+import { validateWorkflow } from "../utils/workflowValidator";
 
 const router = Router();
-const prisma = new PrismaClient();
 const workflowService = new WorkflowService(prisma);
 const categoryService = new CategoryService(prisma);
 

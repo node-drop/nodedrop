@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../config/database";
 import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
@@ -31,10 +31,9 @@ interface WorkspaceQueryOptions {
 }
 
 export class VariableService {
-  private prisma: PrismaClient;
+  private prisma = prisma;
 
   constructor() {
-    this.prisma = new PrismaClient();
   }
 
   /**

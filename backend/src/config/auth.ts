@@ -92,9 +92,13 @@ const COOKIE_CACHE_MAX_AGE_SECONDS = 60 * 5; // 5 minutes
 
 /**
  * Rate limiting configuration
+ * Note: Better Auth's built-in rate limiting applies to ALL endpoints including get-session.
+ * Since get-session fires on every tab focus, we need high limits here.
+ * Sensitive endpoints (login/signup/password-reset) have their own stricter rate limiters
+ * defined in auth-rate-limiters.ts
  */
-const RATE_LIMIT_WINDOW_SECONDS = parseInt(process.env.AUTH_WINDOW_MS || "900000") / 1000; // 15 minutes default
-const RATE_LIMIT_MAX_REQUESTS = parseInt(process.env.AUTH_MAX_REQUESTS || "5"); // 5 attempts default
+const RATE_LIMIT_WINDOW_SECONDS = 60; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute (handles multiple tabs)
 
 /**
  * better-auth instance configured with:

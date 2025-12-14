@@ -2,7 +2,7 @@ import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useAddNodeDialogStore, useNodeTypes, usePinnedNodesStore, useWorkflowStore } from '@/stores'
+import { useNodeTypes, usePinnedNodesStore, useWorkflowStore } from '@/stores'
 import { NodeType, WorkflowNode } from '@/types'
 import { createWorkflowNode } from '@/utils/nodeCreation'
 import { canExecuteWorkflow } from '@/utils/workflowExecutionGuards'
@@ -10,6 +10,7 @@ import { useReactFlow, useStore } from '@xyflow/react'
 import { Box, ChevronLeft, ChevronRight, Maximize2, MessageSquare, PinOff, Plus, Redo, Undo, ZoomIn, ZoomOut } from 'lucide-react'
 import { ReactNode, useCallback, useMemo, useState } from 'react'
 import { WorkflowExecuteButton } from './WorkflowExecuteButton'
+import { NodeSelectorPopover } from './NodeSelectorPopover'
 
 interface WorkflowControlsProps {
   className?: string
@@ -20,9 +21,9 @@ interface WorkflowControlsProps {
 
 export function WorkflowControls({ className, showAddNode = true, showExecute = true, showUndoRedo = true }: WorkflowControlsProps) {
   const { zoomIn, zoomOut, fitView, screenToFlowPosition, setNodes, getNodes, getNodesBounds } = useReactFlow()
-  const { openDialog } = useAddNodeDialogStore()
   const { workflow, undo, redo, canUndo, canRedo, updateWorkflow, saveToHistory, setDirty, addNode } = useWorkflowStore()
   const [isSaving] = useState(false)
+  const [showNodeSelector, setShowNodeSelector] = useState(false)
   const { pinnedNodeIds, unpinNode, reorderPinnedNodes } = usePinnedNodesStore()
   const { getNodeTypeById } = useNodeTypes()
 
@@ -52,16 +53,36 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
   })
   const selectedNodeCount = selectedNodes.length
 
-  const handleAddNode = () => {
-    // Calculate center of viewport
-    const viewportCenter = screenToFlowPosition({
+  // Get viewport center position for new nodes
+  const getViewportCenter = useCallback(() => {
+    return screenToFlowPosition({
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
     })
-    
-    // Open add node dialog at center
-    openDialog(viewportCenter)
-  }
+  }, [screenToFlowPosition])
+
+  // Handle node selection from popover
+  const handleSelectNodeFromPopover = useCallback((nodeType: NodeType, position: { x: number; y: number }) => {
+    // Take snapshot for undo/redo
+    saveToHistory(`Add node: ${nodeType.displayName}`)
+
+    // Create the workflow node
+    const workflowNode = createWorkflowNode(nodeType, position)
+
+    // Add to Zustand workflow store
+    addNode(workflowNode)
+    setDirty(true)
+
+    // Auto-select the newly added node
+    setTimeout(() => {
+      setNodes((nodes) =>
+        nodes.map((node) => ({
+          ...node,
+          selected: node.id === workflowNode.id,
+        }))
+      )
+    }, 50)
+  }, [saveToHistory, addNode, setDirty, setNodes])
 
   const handleAddPinnedNode = useCallback((nodeType: NodeType) => {
     // Take snapshot for undo/redo
@@ -477,20 +498,21 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       {/* Add Node */}
       {showAddNode && (
         <>
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <NodeSelectorPopover
+            open={showNodeSelector}
+            onOpenChange={setShowNodeSelector}
+            onSelectNode={handleSelectNodeFromPopover}
+            getPosition={getViewportCenter}
+            trigger={
               <button
-                onClick={handleAddNode}
                 className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                 aria-label="Add Node"
+                title="Add Node"
               >
                 <Plus className="h-4 w-4" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>Add Node</p>
-            </TooltipContent>
-          </Tooltip>
+            }
+          />
 
           {/* Group Selected Nodes / Add Group */}
           {selectedNodeCount >= 2 ? (

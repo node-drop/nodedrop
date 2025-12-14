@@ -1,11 +1,11 @@
-import { PrismaClient } from "@prisma/client";
 import { Response, Router } from "express";
-import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import prisma from "../config/database";
+import { requireAuth } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { validateParams, validateQuery } from "../middleware/validation";
 import {
-  WorkspaceRequest,
-  requireWorkspace,
+    WorkspaceRequest,
+    requireWorkspace,
 } from "../middleware/workspace";
 import { ExecutionService } from "../services";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
@@ -13,7 +13,6 @@ import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQu
 import { logger } from "../utils/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 // Use lazy initialization to get services when needed
 let localNodeService: any = null;
 

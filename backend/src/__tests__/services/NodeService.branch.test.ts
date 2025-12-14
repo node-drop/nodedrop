@@ -3,8 +3,8 @@
  * Tests the standardizeNodeOutput function with various node types
  */
 
+import prisma from '../../config/database';
 import { NodeService } from '../../services/NodeService';
-import { PrismaClient } from '@prisma/client';
 import { NodeOutputData } from '../../types/node.types';
 
 // Mock isolated-vm
@@ -20,11 +20,10 @@ jest.mock('@prisma/client');
 
 describe('NodeService - Branch Execution', () => {
   let nodeService: NodeService;
-  let mockPrisma: jest.Mocked<PrismaClient>;
 
   beforeEach(() => {
-    mockPrisma = new PrismaClient() as jest.Mocked<PrismaClient>;
-    nodeService = new NodeService(mockPrisma);
+    process.env.CREDENTIAL_ENCRYPTION_KEY = 'a'.repeat(64);
+    nodeService = new NodeService(prisma);
   });
 
   describe('standardizeNodeOutput', () => {

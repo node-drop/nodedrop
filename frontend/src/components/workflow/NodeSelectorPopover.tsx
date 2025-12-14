@@ -1,0 +1,206 @@
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useNodeTypes } from '@/stores'
+import { NodeType } from '@/types'
+import { NodeIcon } from './components/NodeIcon'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+
+interface NodeSelectorContentProps {
+  onSelectNode: (nodeType: NodeType) => void
+  onClose: () => void
+  inputRef?: React.RefObject<HTMLInputElement>
+}
+
+/**
+ * Shared content component for node selection - used by both NodeSelectorNode and NodeSelectorPopover
+ */
+export const NodeSelectorContent = memo(function NodeSelectorContent({
+  onSelectNode,
+  onClose,
+  inputRef: externalInputRef,
+}: NodeSelectorContentProps) {
+  const { activeNodeTypes, fetchNodeTypes, isLoading, hasFetched } = useNodeTypes()
+  const [searchQuery, setSearchQuery] = useState('')
+  const internalInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = externalInputRef || internalInputRef
+
+  // Fetch node types if not loaded
+  useEffect(() => {
+    if (activeNodeTypes.length === 0 && !isLoading && !hasFetched) {
+      fetchNodeTypes()
+    }
+  }, [activeNodeTypes.length, isLoading, hasFetched, fetchNodeTypes])
+
+  // Focus input when mounted
+  useEffect(() => {
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 100)
+  }, [inputRef])
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  // Filter nodes based on search query
+  const filteredNodes = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return activeNodeTypes.slice(0, 50)
+    }
+
+    const query = searchQuery.toLowerCase()
+    return activeNodeTypes
+      .filter(
+        node =>
+          node.displayName.toLowerCase().includes(query) ||
+          node.description?.toLowerCase().includes(query) ||
+          node.group.some(g => g.toLowerCase().includes(query))
+      )
+      .slice(0, 50)
+  }, [activeNodeTypes, searchQuery])
+
+  // Group nodes by category
+  const groupedNodes = useMemo(() => {
+    const groups: Record<string, NodeType[]> = {}
+
+    filteredNodes.forEach(node => {
+      const groupName = node.group[0] || 'Other'
+      if (!groups[groupName]) {
+        groups[groupName] = []
+      }
+      groups[groupName].push(node)
+    })
+
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+  }, [filteredNodes])
+
+  return (
+    <div className="flex flex-col w-[320px]">
+      {/* Search input */}
+      <div className="p-3 border-b">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            placeholder="Search nodes..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+      </div>
+
+      {/* Node list */}
+      <ScrollArea className="h-[300px]">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-20 text-muted-foreground">
+            Loading nodes...
+          </div>
+        ) : filteredNodes.length === 0 ? (
+          <div className="flex items-center justify-center h-20 text-muted-foreground">
+            No nodes found
+          </div>
+        ) : (
+          <div className="p-2">
+            {groupedNodes.map(([groupName, nodes]) => (
+              <div key={groupName} className="mb-3">
+                <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {groupName}
+                </div>
+                {nodes.map(node => (
+                  <button
+                    key={node.identifier}
+                    onClick={() => onSelectNode(node)}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-2 rounded-md',
+                      'hover:bg-accent transition-colors',
+                      'text-left'
+                    )}
+                  >
+                    <NodeIcon
+                      config={{
+                        icon: node.icon,
+                        nodeType: node.identifier,
+                        nodeGroup: node.group,
+                        displayName: node.displayName,
+                        color: node.color || '#6b7280',
+                        isTrigger: node.nodeCategory === 'trigger',
+                      }}
+                      size="sm"
+                      className="flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{node.displayName}</div>
+                      {node.description && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {node.description}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+})
+
+interface NodeSelectorPopoverProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSelectNode: (nodeType: NodeType, position: { x: number; y: number }) => void
+  trigger: React.ReactNode
+  /** Position to place the new node (viewport center) */
+  getPosition: () => { x: number; y: number }
+}
+
+/**
+ * Popover version of node selector - used by toolbar button
+ */
+export function NodeSelectorPopover({
+  open,
+  onOpenChange,
+  onSelectNode,
+  trigger,
+  getPosition,
+}: NodeSelectorPopoverProps) {
+  const handleSelectNode = useCallback(
+    (nodeType: NodeType) => {
+      const position = getPosition()
+      onSelectNode(nodeType, position)
+      onOpenChange(false)
+    },
+    [onSelectNode, onOpenChange, getPosition]
+  )
+
+  const handleClose = useCallback(() => {
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent 
+        className="w-auto p-0" 
+        align="center" 
+        side="top"
+        sideOffset={8}
+      >
+        <NodeSelectorContent onSelectNode={handleSelectNode} onClose={handleClose} />
+      </PopoverContent>
+    </Popover>
+  )
+}

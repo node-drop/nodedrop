@@ -1,14 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
 import { promises as fs } from "fs";
 import multer from "multer";
 import path from "path";
-import { requireAuth } from "../middleware/auth";
+import prisma from "../config/database";
 import { CustomNodeUploadHandler } from "../services/CustomNodeUploadHandler";
 import { logger } from "../utils/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Configure multer for file uploads
 const upload = multer({

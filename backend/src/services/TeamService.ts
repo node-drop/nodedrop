@@ -1,8 +1,9 @@
-import { PrismaClient, TeamRole } from "@prisma/client";
+import { TeamRole } from "@prisma/client";
+import prisma from "../config/database";
 import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
-const prisma = new PrismaClient();
+
 
 /**
  * Options for workspace-scoped queries

@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import AdmZip from "adm-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
+import prisma from "../config/database";
 import { logger } from "../utils/logger";
 
 interface UploadResult {
@@ -39,12 +39,11 @@ interface PackageInfo {
 }
 
 export class CustomNodeUploadHandler {
-  private prisma: PrismaClient;
+  private prisma = prisma;
   private extractPath: string;
   private nodesPath: string; // Changed from customNodesPath to nodesPath
 
   constructor() {
-    this.prisma = new PrismaClient();
     this.extractPath = path.join(process.cwd(), "temp/extract");
     this.nodesPath = path.join(process.cwd(), "custom-nodes"); // Point to custom nodes directory
   }

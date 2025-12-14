@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../config/database';
 import { NodeService } from '../../services/NodeService';
-import { NodeDefinition, BuiltInNodeTypes } from '../../types/node.types';
-
-const prisma = new PrismaClient();
+import { BuiltInNodeTypes, NodeDefinition } from '../../types/node.types';
 
 describe('Node System Integration Tests', () => {
   let nodeService: NodeService;

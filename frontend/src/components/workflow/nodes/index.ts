@@ -24,3 +24,6 @@ export { default as AnnotationNode } from "./AnnotationNode";
 
 // AI Agent node
 export { AIAgentNode } from "./AIAgentNode";
+
+// Node selector node (for adding nodes via connection drag)
+export { NodeSelectorNode } from "./NodeSelectorNode";

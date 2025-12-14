@@ -1,10 +1,10 @@
-import { PrismaClient } from "@prisma/client";
 import { Response } from "express";
+import prisma from "../config/database";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { ApiResponse } from "../types/api";
 
-const prisma = new PrismaClient();
+
 
 /**
  * GET /api/users/preferences

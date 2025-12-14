@@ -1,13 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import express, { Response } from "express";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService, {
-  ExecutionHistoryQuery,
+    ExecutionHistoryQuery,
 } from "../services/ExecutionHistoryService";
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const historyService = new ExecutionHistoryService(prisma);
 
 /**

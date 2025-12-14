@@ -7,15 +7,15 @@
  * 3. Delete/pause operations persist
  */
 
-import { PrismaClient } from '@prisma/client';
-import { ScheduleJobManager } from './ScheduleJobManager';
+import prisma from "../config/database";
+import ExecutionHistoryService from '../services/ExecutionHistoryService';
 import { ExecutionService } from '../services/ExecutionService';
 import { NodeService } from '../services/NodeService';
-import ExecutionHistoryService from '../services/ExecutionHistoryService';
 import { logger } from '../utils/logger';
+import { ScheduleJobManager } from './ScheduleJobManager';
 
 async function testtriggerJobsDatabase() {
-    const prisma = new PrismaClient();
+
     const nodeService = new NodeService(prisma);
     const executionHistoryService = new ExecutionHistoryService(prisma);
     const executionService = new ExecutionService(prisma, nodeService, executionHistoryService);

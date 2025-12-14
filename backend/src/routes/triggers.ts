@@ -1,15 +1,14 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
-import { body, param, query, validationResult } from "express-validator";
+import { body, param, validationResult } from "express-validator";
 import { createServer } from "http";
+import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { validateQuery } from "../middleware/validation";
-import { TriggerEventsQuerySchema } from "../types/api";
 import {
-  WorkspaceRequest,
-  requireWorkspace,
+    WorkspaceRequest,
+    requireWorkspace,
 } from "../middleware/workspace";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
@@ -17,9 +16,9 @@ import { ExecutionService } from "../services/ExecutionService";
 import { SocketService } from "../services/SocketService";
 import { TriggerService } from "../services/TriggerService";
 import { WorkflowService } from "../services/WorkflowService";
+import { TriggerEventsQuerySchema } from "../types/api";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Use lazy initialization to get services when needed
 const getNodeService = () => {

@@ -1,9 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../../config/database";
 import { WorkflowService } from "../../services/WorkflowService";
 import { NodePropertyOption } from "../../types/node.types";
 
 export class WorkflowTriggerHelper {
-  private static prisma = new PrismaClient();
+  private static prisma = prisma;
+
   private static workflowService = new WorkflowService(this.prisma);
 
   /**

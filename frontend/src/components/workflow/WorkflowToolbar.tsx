@@ -17,7 +17,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
+import { useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
 import { useEnvironmentStore } from '@/stores/environment'
 import { getEnvironmentLabel } from '@/types/environment'
 import { validateImportFile } from '@nodedrop/utils'
@@ -55,10 +55,51 @@ export function WorkflowToolbar({
   const { selectedEnvironment, summaries } = useEnvironmentStore()
   
   // Sidebar from ReactFlowUI store
-  const { showRightSidebar, toggleRightSidebar, openRightSidebar } = useReactFlowUIStore()
-  
-  // Add Node Dialog store
-  const { openDialog } = useAddNodeDialogStore()
+  const { showRightSidebar, toggleRightSidebar, openRightSidebar, reactFlowInstance } = useReactFlowUIStore()
+
+  // Helper to create node selector at viewport center
+  const createNodeSelectorAtCenter = () => {
+    if (!reactFlowInstance) return
+    
+    // Calculate center of viewport
+    const viewportCenter = reactFlowInstance.screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    })
+    
+    // Create a node-selector node at viewport center
+    const selectorNodeId = `node-selector-${Date.now()}`
+    const selectorNode = {
+      id: selectorNodeId,
+      type: 'node-selector',
+      name: 'Select Node',
+      parameters: {},
+      position: viewportCenter,
+      disabled: false,
+    }
+
+    // Add node to workflow store
+    const { workflow, updateWorkflow } = useWorkflowStore.getState()
+    if (workflow) {
+      updateWorkflow({
+        nodes: [...workflow.nodes, selectorNode],
+      }, true) // Skip history for temporary selector node
+    }
+
+    // Add node directly to React Flow for immediate rendering
+    reactFlowInstance.setNodes((nodes: any[]) => [
+      ...nodes,
+      {
+        id: selectorNodeId,
+        type: 'node-selector',
+        position: viewportCenter,
+        data: {
+          label: 'Select Node',
+          nodeType: 'node-selector',
+        },
+      },
+    ])
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -67,13 +108,13 @@ export function WorkflowToolbar({
       if ((event.metaKey || event.ctrlKey) && event.key === 'k' && !event.shiftKey) {
         event.preventDefault()
         event.stopPropagation()
-        openDialog()
+        createNodeSelectorAtCenter()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [openDialog])
+  }, [reactFlowInstance])
   
   // Get main workflow store for title synchronization, import/export, AND isDirty state
   const { 

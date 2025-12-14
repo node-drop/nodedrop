@@ -1,9 +1,7 @@
-import request from 'supertest';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import request from 'supertest';
+import prisma from '../../config/database';
 import app from '../../index';
-
-const prisma = new PrismaClient();
 
 describe('Workflows API', () => {
   let authToken: string;

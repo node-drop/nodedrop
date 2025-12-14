@@ -241,6 +241,8 @@ export function transformWorkflowNodesToReactFlow(
         ? "forms"
         : node.type === "annotation"
         ? "annotation"
+        : node.type === "node-selector"
+        ? "node-selector"
         : "custom";
 
     // Build the base node
