@@ -89,7 +89,7 @@ COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma
 COPY prisma.config.js ./
 
-# Install all dependencies first (needed to build packages)
+# Install all dependencies (including dev for workspace build)
 RUN npm install -g typescript
 RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
 
@@ -101,9 +101,9 @@ RUN npm run build --workspace=packages/utils
 WORKDIR /app/backend
 RUN npx prisma generate
 
-# Now prune dev dependencies
-WORKDIR /app
-RUN npm prune --omit=dev --workspace=packages/types --workspace=packages/utils --workspace=backend
+# Prune dev dependencies ONLY from backend (keep workspace packages intact)
+WORKDIR /app/backend
+RUN npm prune --omit=dev
 
 # Stage 4: Final production image
 FROM node:22-alpine AS production
