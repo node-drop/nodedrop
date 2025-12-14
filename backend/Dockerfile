@@ -6,8 +6,11 @@ RUN apk add --no-cache openssl openssl-dev
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy root package files and prisma config
+COPY package*.json prisma.config.ts ./
+
+# Copy backend package files
+COPY backend/package*.json ./backend/
 
 # Install all dependencies (including dev dependencies for build)
 RUN npm ci && npm cache clean --force
@@ -16,7 +19,7 @@ RUN npm ci && npm cache clean --force
 COPY . .
 
 # Generate Prisma client and build
-RUN npx prisma generate --config ../prisma.config.ts && npm run build
+RUN npx prisma generate --config ./prisma.config.ts && npm run build --workspace=backend
 
 # Production dependencies stage
 FROM node:22-alpine AS prod-deps
@@ -26,8 +29,11 @@ RUN apk add --no-cache openssl openssl-dev
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy root package files and prisma config
+COPY package*.json prisma.config.ts ./
+
+# Copy backend package files
+COPY backend/package*.json ./backend/
 
 # Install only production dependencies
 RUN npm ci --omit=dev && npm cache clean --force
@@ -51,6 +57,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -72,4 +79,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 
 # Start application with migrations only
 # Node registration happens after server starts to avoid blocking and race conditions
-CMD ["sh", "-c", "npx prisma migrate deploy --config ../prisma.config.ts && npm start"]
+CMD ["sh", "-c", "npx prisma migrate deploy --config ./prisma.config.ts && npm start"]
