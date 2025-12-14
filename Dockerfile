@@ -126,7 +126,7 @@ RUN apk add --no-cache curl openssl openssl-dev docker-cli docker-cli-compose
 # Copy backend built files
 COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/package*.json ./
-COPY --from=backend-builder /app/backend/prisma ./prisma
+COPY --from=backend-builder /app/backend/prisma ./backend/prisma
 COPY --from=backend-builder /app/prisma.config.js ./
 
 # Copy production node_modules (including workspace packages)
