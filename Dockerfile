@@ -61,8 +61,11 @@ RUN npm run build --workspace=packages/utils
 WORKDIR /app/backend
 COPY backend/ ./
 
-# Generate Prisma client and build TypeScript
-RUN npx prisma generate && npm run build
+# Generate Prisma client FIRST (before TypeScript compilation)
+RUN npx prisma generate
+
+# Build TypeScript
+RUN npm run build
 
 # Stage 3: Production dependencies
 FROM node:22-alpine AS prod-deps
