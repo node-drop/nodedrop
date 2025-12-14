@@ -85,16 +85,46 @@ async function main() {
   }
 
   // Check for existing containers
+  let existingComposePath = null;
+  let existingSuffix = null;
   try {
     const existingContainers = execSync('docker ps -a --filter "name=nodedrop" --format "{{.Names}}"', { encoding: 'utf8' });
     if (existingContainers.trim()) {
       log.blank();
       log.warning('Found existing Node-Drop containers:');
       console.log(existingContainers);
+      
+      // Try to find the existing docker-compose.yml to extract the suffix
+      const os = require('os');
+      const homeDir = os.homedir();
+      const defaultDir = path.join(homeDir, 'nodedrop');
+      const possibleComposePath = path.join(defaultDir, 'docker-compose.yml');
+      
+      if (fs.existsSync(possibleComposePath)) {
+        existingComposePath = possibleComposePath;
+        const composeContent = fs.readFileSync(possibleComposePath, 'utf8');
+        const suffixMatch = composeContent.match(/nodedrop-postgres-([a-z0-9]+)/);
+        if (suffixMatch) {
+          existingSuffix = suffixMatch[1];
+          log.info(`Found existing installation with suffix: ${existingSuffix}`);
+        }
+      }
+      
       const cleanup = await question('Do you want to remove them and start fresh? (y/n) [y]: ') || 'y';
       if (cleanup.toLowerCase() === 'y') {
         log.section('Cleaning up existing containers...');
-        execSync('docker rm -f nodedrop-postgres nodedrop-redis nodedrop 2>nul || true', { stdio: 'inherit' });
+        // Use docker-compose down if we found the compose file, otherwise force remove
+        if (existingComposePath) {
+          try {
+            execSync(`docker-compose -f "${existingComposePath}" down`, { stdio: 'inherit' });
+            log.success('Stopped and removed containers using docker-compose');
+          } catch (e) {
+            log.warning('docker-compose down failed, attempting force removal...');
+            execSync('docker rm -f $(docker ps -a --filter "name=nodedrop" -q) 2>nul || true', { stdio: 'inherit' });
+          }
+        } else {
+          execSync('docker rm -f $(docker ps -a --filter "name=nodedrop" -q) 2>nul || true', { stdio: 'inherit' });
+        }
         log.success('Cleanup complete');
       }
     }

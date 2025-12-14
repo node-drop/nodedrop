@@ -171,10 +171,17 @@ router.post('/updates/install', requireAuth, requireRole(["admin"]), async (req,
       setTimeout(() => {
         console.log('[Update] Executing update command...');
         
-        // Try docker-compose first (v1), fall back to docker compose (v2)
-        // Build the update command - properly stop containers first to avoid name conflicts
-        // Then pull new image and start with fresh containers
-        const updateCommand = `docker pull ${imageName} && (docker-compose -f ${installDir}/docker-compose.yml down && docker-compose -f ${installDir}/docker-compose.yml up -d || docker compose -f ${installDir}/docker-compose.yml down && docker compose -f ${installDir}/docker-compose.yml up -d)`;
+        // Build the update command with proper cleanup:
+        // 1. Pull the new image
+        // 2. Force remove ALL nodedrop containers (handles orphaned containers from previous installations)
+        // 3. Remove dangling volumes
+        // 4. Bring up fresh containers with docker-compose
+        const updateCommand = `
+          docker pull ${imageName} && \
+          docker-compose -f ${installDir}/docker-compose.yml down --remove-orphans 2>/dev/null || docker compose -f ${installDir}/docker-compose.yml down --remove-orphans 2>/dev/null || true && \
+          docker rm -f $(docker ps -a --filter "name=nodedrop" -q) 2>/dev/null || true && \
+          (docker-compose -f ${installDir}/docker-compose.yml up -d || docker compose -f ${installDir}/docker-compose.yml up -d)
+        `;
         console.log('[Update] Command:', updateCommand);
         
         // Use spawn with detached mode for better reliability
