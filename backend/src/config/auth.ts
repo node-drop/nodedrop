@@ -110,6 +110,8 @@ const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute (handles multipl
  * - Custom role plugin for ADMIN/USER assignment
  */
 export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET || "default-secret-change-in-production",
+  
   database: prismaAdapter(prisma, {
     provider: "postgresql"
   }),

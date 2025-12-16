@@ -56,7 +56,7 @@ export function WorkflowOnboardingDialog({
         name: name.trim(),
         category,
         saveExecutionHistory,
-        teamId: currentTeamId, // Pass the selected team ID
+        teamId: currentTeamId || undefined, // Only pass teamId if actually selected
       })
     }
   }

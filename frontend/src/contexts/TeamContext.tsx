@@ -43,9 +43,17 @@ export function TeamProvider({ children }: TeamProviderProps) {
   useEffect(() => {
     const savedTeamId = localStorage.getItem('currentTeamId')
     if (savedTeamId && savedTeamId !== 'null') {
-      setCurrentTeam(savedTeamId)
+      // Validate that the saved team still exists in the teams list
+      const teamExists = teams.some(t => t.id === savedTeamId)
+      if (teamExists) {
+        setCurrentTeam(savedTeamId)
+      } else {
+        // Clear invalid team from localStorage
+        localStorage.removeItem('currentTeamId')
+        setCurrentTeam(null)
+      }
     }
-  }, [setCurrentTeam])
+  }, [setCurrentTeam, teams])
 
   // Save current team to localStorage when it changes
   useEffect(() => {

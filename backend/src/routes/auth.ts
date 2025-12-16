@@ -13,14 +13,11 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "../config/auth";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { asyncHandler, AppError } from "../middleware/errorHandler";
-import { validateBody } from "../middleware/validation";
 import { ApiResponse } from "../types/api";
 import { prisma } from "../config/database";
+import { checkSetupStatus } from "../utils/setup";
 import { mapBetterAuthError } from "../utils/auth-error-mapper";
 import { createPasswordResetService } from "../services/password-reset.service";
-import { z } from "zod";
-import bcryptjs from "bcryptjs";
-import { randomBytes } from "crypto";
 import {
   loginRateLimiter,
   registrationRateLimiter,
@@ -28,14 +25,6 @@ import {
 } from "../rate-limit/auth-rate-limiters";
 
 const router = Router();
-
-/**
- * Validation schemas for authentication endpoints
- */
-const LoginSchema = z.object({
-  email: z.string().email("Invalid email format"),
-  password: z.string().min(8, "Password must be at least 8 characters")
-});
 
 /**
  * GET /api/auth - Auth endpoints info
@@ -78,25 +67,16 @@ router.get("/", (_req: Request, res: Response) => {
 router.get(
   "/setup-status",
   asyncHandler(async (req: Request, res: Response) => {
-    // Check if any users exist
-    const userCount = await prisma.user.count();
-    const setupNeeded = userCount === 0;
-
+    const status = await checkSetupStatus(prisma);
+    
     const response: ApiResponse = {
       success: true,
-      data: {
-        setupNeeded,
-        message: setupNeeded ? "System setup required - first user registration needed" : "System is already set up"
-      }
+      data: status
     };
-
+    
     res.json(response);
   })
 );
-
-// Note: Login is handled by better-auth sign-in endpoint
-// This custom endpoint is kept for reference but better-auth handles authentication
-// POST /api/auth/sign-in/email is the primary login endpoint
 
 /**
  * GET /api/auth/me - Get current authenticated user
@@ -120,7 +100,8 @@ router.get(
         image: true,
         createdAt: true,
         updatedAt: true,
-        preferences: true
+        preferences: true,
+        active: true
       }
     });
 

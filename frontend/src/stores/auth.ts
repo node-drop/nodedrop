@@ -255,6 +255,9 @@ export const useAuthStore = createWithEqualityFn<AuthStore>()(
         } finally {
           apiClient.clearToken();
           
+          // Clear team-related localStorage for new user login
+          localStorage.removeItem('currentTeamId');
+          
           // Reset workspace store to clear stale workspace data
           const { useWorkspaceStore } = await import("./workspace");
           useWorkspaceStore.getState().reset();
