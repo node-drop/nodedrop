@@ -107,8 +107,8 @@ COPY --from=backend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-builder /app/packages ./packages
 
-# Copy frontend built files to public directory
-COPY --from=frontend-builder /app/frontend/dist ./public
+# Copy frontend built files to backend/public directory
+COPY --from=frontend-builder /app/frontend/dist ./backend/public
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
