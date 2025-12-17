@@ -6,9 +6,52 @@
  */
 
 import Bull, { Job, Queue } from 'bull';
-import { PrismaClient } from '@prisma/client';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq, and } from 'drizzle-orm';
+import * as schema from '../db/schema';
 import { logger } from '../utils/logger';
 import { ExecutionService } from '../services/ExecutionService';
+import { await } from 'effect/Deferred';
+import { await } from 'effect/Deferred';
+import { shutdown } from 'effect/Queue';
+import { async } from 'effect/Stream';
+import { await } from 'effect/Deferred';
+import { error } from 'console';
+import { error } from 'console';
+import { error } from 'console';
+import { any } from 'zod';
+import { error } from 'console';
+import { boolean } from 'zod';
+import { success } from 'better-auth/*';
+import { string } from 'zod';
+import { string } from 'zod';
+import { async } from 'effect/Stream';
+import { string } from 'zod';
+import { string } from 'zod';
+import { async } from 'effect/Stream';
+import { string } from 'zod';
+import { async } from 'effect/Stream';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { string } from 'zod';
+import { async } from 'effect/Stream';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { async } from 'effect/Stream';
+import { async } from 'effect/Stream';
+import { await } from 'effect/Deferred';
+import { success } from 'better-auth/*';
+import { async } from 'effect/Stream';
+import { async } from 'effect/Stream';
+import { async } from 'effect/Stream';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { async } from 'effect/Stream';
+import { triggerJobs } from '../db/schema';
+import { triggerJobs } from '../db/schema';
+import { async } from 'effect/Stream';
 
 export interface ScheduleJobData {
     workflowId: string;
@@ -36,15 +79,15 @@ export interface ScheduleJobInfo {
 
 export class ScheduleJobManager {
     private scheduleQueue: Queue<ScheduleJobData>;
-    private prisma: PrismaClient;
+    private db: NodePgDatabase<typeof schema>;
     private executionService: ExecutionService;
 
     constructor(
-        prisma: PrismaClient,
+        db: NodePgDatabase<typeof schema>,
         executionService: ExecutionService,
         redisConfig?: Bull.QueueOptions
     ) {
-        this.prisma = prisma;
+        this.db = db;
         this.executionService = executionService;
 
         // Initialize Bull queue for scheduled jobs
@@ -80,11 +123,11 @@ export class ScheduleJobManager {
             await this.clearAllRedisJobs();
 
             // Load active jobs from database
-            const triggerJobs = await this.prisma.triggerJob.findMany({
-                where: { active: true },
-                include: {
+            const triggerJobs = await this.db.query.triggerJobs.findMany({
+                where: eq(schema.triggerJobs.active, true),
+                with: {
                     workflow: {
-                        select: {
+                        columns: {
                             id: true,
                             name: true,
                             userId: true,
@@ -191,32 +234,14 @@ export class ScheduleJobManager {
         const jobKey = `${workflowId}-${trigger.id}`;
 
         // Create or update database record
-        const triggerJob = await this.prisma.triggerJob.upsert({
-            where: {
-                workflowId_triggerId: {
-                    workflowId,
-                    triggerId: trigger.id,
-                },
-            },
-            create: {
-                workflowId,
-                triggerId: trigger.id,
-                jobKey,
-                cronExpression,
-                timezone,
-                description,
-                active: true,
-            },
-            update: {
-                cronExpression,
-                timezone,
-                description,
-                active: true,
-                jobKey,
-            },
-            include: {
+        const existingJob = await this.db.query.triggerJobs.findFirst({
+            where: and(
+                eq(schema.triggerJobs.workflowId, workflowId),
+                eq(schema.triggerJobs.triggerId, trigger.id)
+            ),
+            with: {
                 workflow: {
-                    select: {
+                    columns: {
                         id: true,
                         name: true,
                         userId: true,
@@ -225,6 +250,33 @@ export class ScheduleJobManager {
                 },
             },
         });
+
+        let triggerJob: any;
+        if (existingJob) {
+            await this.db
+                .update(schema.triggerJobs)
+                .set({
+                    cronExpression,
+                    timezone,
+                    description,
+                    active: true,
+                    jobKey,
+                    updatedAt: new Date(),
+                })
+                .where(eq(schema.triggerJobs.id, existingJob.id));
+            triggerJob = { ...existingJob, cronExpression, timezone, description, active: true, jobKey };
+        } else {
+            const result = await this.db.insert(schema.triggerJobs).values({
+                workflowId,
+                triggerId: trigger.id,
+                jobKey,
+                cronExpression,
+                timezone,
+                description,
+                active: true,
+            }).returning();
+            triggerJob = result[0];
+        }
 
         // Remove existing Bull job if it exists
         await this.removeBullJob(jobKey);
@@ -279,11 +331,11 @@ export class ScheduleJobManager {
             logger.info(`Attempting to delete trigger job: ${jobId} (workflowId: ${workflowId}, triggerId: ${triggerId})`);
 
             // Check if job exists before deleting
-            const existingJob = await this.prisma.triggerJob.findFirst({
-                where: {
-                    workflowId,
-                    triggerId,
-                },
+            const existingJob = await this.db.query.triggerJobs.findFirst({
+                where: and(
+                    eq(schema.triggerJobs.workflowId, workflowId),
+                    eq(schema.triggerJobs.triggerId, triggerId)
+                ),
             });
 
             if (existingJob) {
@@ -299,14 +351,14 @@ export class ScheduleJobManager {
                 }
                 
                 // Delete from database
-                const deleteResult = await this.prisma.triggerJob.deleteMany({
-                    where: {
-                        workflowId,
-                        triggerId,
-                    },
-                });
+                await this.db
+                    .delete(schema.triggerJobs)
+                    .where(and(
+                        eq(schema.triggerJobs.workflowId, workflowId),
+                        eq(schema.triggerJobs.triggerId, triggerId)
+                    ));
 
-                logger.info(`Deleted ${deleteResult.count} job(s) from database`);
+                logger.info(`Deleted job from database`);
             } else {
                 logger.warn(`No job found in database for ${jobId}`);
             }
@@ -327,14 +379,14 @@ export class ScheduleJobManager {
     async removeWorkflowJobs(workflowId: string): Promise<void> {
         try {
             // Get all jobs for this workflow from database
-            const triggerJobs = await this.prisma.triggerJob.findMany({
-                where: { workflowId },
+            const triggerJobs = await this.db.query.triggerJobs.findMany({
+                where: eq(schema.triggerJobs.workflowId, workflowId),
             });
 
             // Delete from database
-            await this.prisma.triggerJob.deleteMany({
-                where: { workflowId },
-            });
+            await this.db
+                .delete(schema.triggerJobs)
+                .where(eq(schema.triggerJobs.workflowId, workflowId));
 
             // Remove from Redis
             for (const job of triggerJobs) {
@@ -354,9 +406,9 @@ export class ScheduleJobManager {
     async syncWorkflowJobs(workflowId: string): Promise<void> {
         try {
             // Get workflow
-            const workflow = await this.prisma.workflow.findUnique({
-                where: { id: workflowId },
-                select: {
+            const workflow = await this.db.query.workflows.findFirst({
+                where: eq(schema.workflows.id, workflowId),
+                columns: {
                     id: true,
                     name: true,
                     userId: true,
@@ -378,8 +430,8 @@ export class ScheduleJobManager {
             });
 
             // Get existing scheduled jobs from database
-            const existingJobs = await this.prisma.triggerJob.findMany({
-                where: { workflowId },
+            const existingJobs = await this.db.query.triggerJobs.findMany({
+                where: eq(schema.triggerJobs.workflowId, workflowId),
             });
 
             const existingTriggerIds = new Set(existingJobs.map((j: any) => j.triggerId));
@@ -399,10 +451,10 @@ export class ScheduleJobManager {
                 }
             } else {
                 // If workflow is inactive, mark all jobs as inactive
-                await this.prisma.triggerJob.updateMany({
-                    where: { workflowId },
-                    data: { active: false },
-                });
+                await this.db
+                    .update(schema.triggerJobs)
+                    .set({ active: false })
+                    .where(eq(schema.triggerJobs.workflowId, workflowId));
 
                 // Remove from Redis
                 for (const job of existingJobs) {
@@ -422,26 +474,22 @@ export class ScheduleJobManager {
      */
     async getAllScheduleJobs(): Promise<ScheduleJobInfo[]> {
         try {
-            const triggerJobs = await this.prisma.triggerJob.findMany({
-                where: {
-                    type: 'schedule',
-                },
-                include: {
+            const triggerJobs = await this.db.query.triggerJobs.findMany({
+                where: eq(schema.triggerJobs.type, 'schedule'),
+                with: {
                     workflow: {
-                        select: {
+                        columns: {
                             name: true,
                         },
                     },
                 },
-                orderBy: {
-                    createdAt: 'desc',
-                },
+                orderBy: (fields: any) => [fields.createdAt],
             });
 
             return triggerJobs.map((job: any) => ({
                 id: job.jobKey,
                 workflowId: job.workflowId,
-                workflowName: job.workflow.name,
+                workflowName: job.workflow?.name,
                 triggerId: job.triggerId,
                 cronExpression: job.cronExpression,
                 timezone: job.timezone,
@@ -462,14 +510,14 @@ export class ScheduleJobManager {
      */
     async getWorkflowScheduleJobs(workflowId: string): Promise<ScheduleJobInfo[]> {
         try {
-            const triggerJobs = await this.prisma.triggerJob.findMany({
-                where: { 
-                    workflowId,
-                    type: 'schedule',
-                },
-                include: {
+            const triggerJobs = await this.db.query.triggerJobs.findMany({
+                where: and(
+                    eq(schema.triggerJobs.workflowId, workflowId),
+                    eq(schema.triggerJobs.type, 'schedule')
+                ),
+                with: {
                     workflow: {
-                        select: {
+                        columns: {
                             name: true,
                         },
                     },
@@ -479,7 +527,7 @@ export class ScheduleJobManager {
             return triggerJobs.map((job: any) => ({
                 id: job.jobKey,
                 workflowId: job.workflowId,
-                workflowName: job.workflow.name,
+                workflowName: job.workflow?.name,
                 triggerId: job.triggerId,
                 cronExpression: job.cronExpression,
                 timezone: job.timezone,
@@ -510,15 +558,13 @@ export class ScheduleJobManager {
             const triggerId = jobId.substring(firstDashIndex + 1);
 
             // Update database
-            await this.prisma.triggerJob.updateMany({
-                where: {
-                    workflowId,
-                    triggerId,
-                },
-                data: {
-                    active: false,
-                },
-            });
+            await this.db
+                .update(schema.triggerJobs)
+                .set({ active: false })
+                .where(and(
+                    eq(schema.triggerJobs.workflowId, workflowId),
+                    eq(schema.triggerJobs.triggerId, triggerId)
+                ));
 
             // Remove from Redis
             await this.removeBullJob(jobId);
@@ -536,9 +582,9 @@ export class ScheduleJobManager {
     async resumeScheduleJob(workflowId: string, triggerId: string): Promise<void> {
         try {
             // Get workflow and trigger
-            const workflow = await this.prisma.workflow.findUnique({
-                where: { id: workflowId },
-                select: {
+            const workflow = await this.db.query.workflows.findFirst({
+                where: eq(schema.workflows.id, workflowId),
+                columns: {
                     id: true,
                     name: true,
                     userId: true,
@@ -563,15 +609,13 @@ export class ScheduleJobManager {
             }
 
             // Update database
-            await this.prisma.triggerJob.updateMany({
-                where: {
-                    workflowId,
-                    triggerId,
-                },
-                data: {
-                    active: true,
-                },
-            });
+            await this.db
+                .update(schema.triggerJobs)
+                .set({ active: true })
+                .where(and(
+                    eq(schema.triggerJobs.workflowId, workflowId),
+                    eq(schema.triggerJobs.triggerId, triggerId)
+                ));
 
             // Add to Redis
             await this.addScheduleJob(workflow.id, workflow.name, workflow.userId, trigger);
@@ -605,13 +649,13 @@ export class ScheduleJobManager {
                 updateData.lastError = error ? JSON.parse(JSON.stringify(error)) : null;
             }
 
-            await this.prisma.triggerJob.updateMany({
-                where: {
-                    workflowId,
-                    triggerId,
-                },
-                data: updateData,
-            });
+            await this.db
+                .update(schema.triggerJobs)
+                .set(updateData)
+                .where(and(
+                    eq(schema.triggerJobs.workflowId, workflowId),
+                    eq(schema.triggerJobs.triggerId, triggerId)
+                ));
         } catch (error) {
             logger.error('Error updating job stats:', error);
         }

@@ -1,5 +1,4 @@
 import { Response, Router } from "express";
-import prisma from "../config/database";
 import { requireAuth } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { validateParams, validateQuery } from "../middleware/validation";
@@ -7,8 +6,9 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { ExecutionService } from "../services";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
+import { workflowServiceDrizzle } from "../services/WorkflowService";
 import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQuerySchema } from "../types/api";
 import { logger } from "../utils/logger";
 
@@ -26,7 +26,7 @@ const getNodeService = () => {
     // Create a local instance as fallback
     if (!localNodeService) {
       const { NodeService } = require("../services/NodeService");
-      localNodeService = new NodeService(prisma);
+      localNodeService = new NodeService(null);
       logger.info("Created local NodeService instance as fallback");
     }
     return localNodeService;
@@ -35,18 +35,9 @@ const getNodeService = () => {
 };
 
 let executionHistoryService: ExecutionHistoryService;
-let executionService: ExecutionService;
 
 const getExecutionService = () => {
-  if (!executionService) {
-    executionHistoryService = new ExecutionHistoryService(prisma);
-    executionService = new ExecutionService(
-      prisma,
-      getNodeService(),
-      executionHistoryService
-    );
-  }
-  return executionService;
+  return executionServiceDrizzle;
 };
 
 // POST /api/executions - Execute a workflow or single node
@@ -136,8 +127,7 @@ router.get(
     const workspaceId = req.workspace?.workspaceId;
 
     // Import WorkflowService
-    const { WorkflowService } = await import("../services/WorkflowService");
-    const workflowService = new WorkflowService(prisma);
+    const { workflowService } = await import("../services/WorkflowService");
 
     let workflows: any[] = [];
 
@@ -151,18 +141,8 @@ router.get(
       workflows = [workflow];
     } else {
       // Get all workflows (not just active ones) with schedule triggers
-      const allWorkflows = await prisma.workflow.findMany({
-        where: {
-          userId: req.user!.id,
-          ...(workspaceId && { workspaceId }),
-        },
-        select: {
-          id: true,
-          name: true,
-          active: true,
-          triggers: true,
-        },
-      });
+      const result = await workflowServiceDrizzle.listWorkflows(req.user!.id, {}, { workspaceId });
+      const allWorkflows = result.workflows || [];
 
       logger.info(`Found ${allWorkflows.length} workflows for user ${req.user!.id}`);
 

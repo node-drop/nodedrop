@@ -1,12 +1,53 @@
 import winston from 'winston'
 
+/**
+ * Custom serializer for Error objects to ensure they're properly logged
+ */
+function serializeError(error: any): any {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      code: (error as any).code,
+      detail: (error as any).detail,
+    };
+  }
+  return error;
+}
+
 // Create logger instance
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
-    winston.format.json()
+    winston.format.printf((info: any) => {
+      // Custom formatter to handle Error objects
+      const meta: Record<string, any> = {};
+      
+      // Copy all properties except standard ones
+      for (const key in info) {
+        if (!['message', 'level', 'timestamp', 'service'].includes(key)) {
+          meta[key] = info[key];
+        }
+      }
+      
+      // Serialize any Error objects in the metadata
+      for (const key in meta) {
+        if (meta[key] instanceof Error) {
+          meta[key] = serializeError(meta[key]);
+        }
+      }
+      
+      return JSON.stringify({
+        timestamp: info.timestamp,
+        level: info.level,
+        message: info.message,
+        service: info.service,
+        ...meta,
+      });
+    })
   ),
   defaultMeta: { service: 'node-drop-backend' },
   transports: [
@@ -23,7 +64,25 @@ if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
-      winston.format.simple()
+      winston.format.printf((info: any) => {
+        // Serialize Error objects for console output
+        const meta: Record<string, any> = {};
+        
+        for (const key in info) {
+          if (!['message', 'level', 'timestamp', 'service'].includes(key)) {
+            meta[key] = info[key];
+          }
+        }
+        
+        for (const key in meta) {
+          if (meta[key] instanceof Error) {
+            meta[key] = serializeError(meta[key]);
+          }
+        }
+        
+        const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+        return `${info.level}: ${info.message}${metaStr}`;
+      })
     )
   }))
 }

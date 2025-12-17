@@ -1,11 +1,9 @@
 import { Response, Router } from 'express'
-import prisma from '../config/database'
 import { requireAuth } from '../middleware/auth'
 import { WorkspaceRequest, requireWorkspace } from '../middleware/workspace'
-import { WebhookRequestLogService } from '../services/WebhookRequestLogService'
+import { webhookRequestLogService } from '../services/WebhookRequestLogService.factory'
 
 const router = Router()
-const webhookLogService = new WebhookRequestLogService(prisma)
 
 // Get all webhook logs for the authenticated user
 router.get('/webhook-logs', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {

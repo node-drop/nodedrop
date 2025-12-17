@@ -17,9 +17,8 @@ import {
   wrapJsonData,
 } from "@nodedrop/utils";
 import type { ExpressionContext } from "@nodedrop/types";
-import { CredentialService } from "./CredentialService";
-
-import { VariableService } from "./VariableService";
+import { getCredentialService } from "./CredentialService.factory";
+import { variableServiceDrizzle } from "./VariableService.factory";
 
 export interface SecureExecutionOptions {
   timeout?: number;
@@ -52,14 +51,14 @@ export interface ValidationResult {
 export class SecureExecutionService {
   private prisma: PrismaClient;
   private credentialService: CredentialService;
-  private variableService: VariableService;
+  private variableService: any;
   private defaultLimits: ExecutionLimits;
   private activeRequests: Map<string, number>;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
-    this.credentialService = new CredentialService();
-    this.variableService = new VariableService();
+    this.credentialService = getCredentialService();
+    this.variableService = variableServiceDrizzle;
     this.activeRequests = new Map();
 
     // Set default security limits

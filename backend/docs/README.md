@@ -1,5 +1,12 @@
 # Backend Documentation
 
+## Configuration & Deployment
+
+### Environment Configuration
+- **[Environment Variables Reference](./ENVIRONMENT_VARIABLES.md)** - Complete reference for all environment variables
+- **[Drizzle Production Configuration](./DRIZZLE_PRODUCTION_CONFIG.md)** - Production-ready database configuration
+- **[Production Deployment Checklist](./PRODUCTION_DEPLOYMENT_CHECKLIST.md)** - Pre-deployment verification steps
+
 ## AI Features Documentation
 
 ### Quick Start
@@ -36,10 +43,15 @@
 
 ```
 backend/docs/
-├── README.md                 # This file
-├── QUICK_REFERENCE.md        # Quick reference guide
-├── OPENAI_NODE_GUIDE.md      # OpenAI node documentation
-└── AI_MEMORY_API.md          # Memory management API docs
+├── README.md                              # This file
+├── ENVIRONMENT_VARIABLES.md               # Environment variables reference
+├── DRIZZLE_PRODUCTION_CONFIG.md           # Drizzle ORM production configuration
+├── PRODUCTION_DEPLOYMENT_CHECKLIST.md     # Deployment verification checklist
+├── QUICK_REFERENCE.md                     # Quick reference guide
+├── OPENAI_NODE_GUIDE.md                   # OpenAI node documentation
+├── AI_MEMORY_API.md                       # Memory management API docs
+├── MULTI_TENANCY.md                       # Multi-tenancy implementation
+└── DRIZZLE_SCHEMA.md                      # Drizzle schema documentation (coming soon)
 ```
 
 ---

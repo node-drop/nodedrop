@@ -1,5 +1,4 @@
 import { Response, Router } from "express";
-import prisma from "../config/database";
 import { requireAuth } from "../middleware/auth";
 import { asyncHandler } from "../middleware/errorHandler";
 import {
@@ -12,8 +11,8 @@ import {
     checkWorkspaceLimit,
     requireWorkspace,
 } from "../middleware/workspace";
-import { CategoryService } from "../services/CategoryService";
-import { WorkflowService } from "../services/WorkflowService";
+import { CategoryServiceDrizzle } from "../services/CategoryService.drizzle";
+import { workflowService } from "../services/WorkflowService";
 import {
     ApiResponse,
     CreateWorkflowSchema,
@@ -25,8 +24,7 @@ import {
 import { validateWorkflow } from "../utils/workflowValidator";
 
 const router = Router();
-const workflowService = new WorkflowService(prisma);
-const categoryService = new CategoryService(prisma);
+const categoryService = new CategoryServiceDrizzle();
 
 // GET /api/workflows/for-trigger - Get workflows with active triggers for triggering
 router.get(
@@ -37,24 +35,14 @@ router.get(
     const workspaceId = req.workspace?.workspaceId;
     
     // Get workflows with triggers field included
-    const workflows = await prisma.workflow.findMany({
-      where: { 
-        userId: req.user!.id,
-        ...(workspaceId && { workspaceId }),
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        active: true,
-        triggers: true,
-      },
-    });
-
+    const result = await workflowService.listWorkflows(
+      req.user!.id,
+      { limit: 100 },
+      { workspaceId }
+    );
+    
     // Filter workflows that have active triggers and format for node options
-    const workflowOptions = workflows
+    const workflowOptions = result.workflows
       .filter((workflow: any) => {
         const triggers = (workflow.triggers as any[]) || [];
         return triggers.some((trigger: any) => trigger.active === true);

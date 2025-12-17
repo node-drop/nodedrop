@@ -5,7 +5,9 @@
  * No blocking, no polling - pure event-driven execution.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
 import { ExecutionStatus, NodeExecutionStatus } from "../types/database";
@@ -49,16 +51,16 @@ interface ExecutionContext {
 }
 
 export class RealtimeExecutionEngine extends EventEmitter {
-    private prisma: PrismaClient;
+    private db: NodePgDatabase<typeof schema>;
     private nodeService: NodeService;
     private activeExecutions: Map<string, ExecutionContext> = new Map();
     
     // Memory leak prevention
     private readonly MAX_ACTIVE_EXECUTIONS = 50;
 
-    constructor(prisma: PrismaClient, nodeService: NodeService) {
+    constructor(db: NodePgDatabase<typeof schema>, nodeService: NodeService) {
         super();
-        this.prisma = prisma;
+        this.db = db;
         this.nodeService = nodeService;
     }
 
@@ -174,16 +176,16 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
         // Create execution record in database (unless saveToDatabase is false)
         if (saveToDatabase) {
-            await this.prisma.execution.create({
-                data: {
+            await this.db
+                .insert(schema.executions)
+                .values({
                     id: executionId,
                     workflowId, // Direct field assignment instead of connect
-                    workspaceId: options?.workspaceId || undefined, // Denormalized for efficient workspace-level queries
+                    workspaceId: options?.workspaceId || null, // Denormalized for efficient workspace-level queries
                     status: ExecutionStatus.RUNNING,
                     startedAt: new Date(),
-                    triggerData: triggerData || {},
-                },
-            });
+                    triggerData: triggerData || null,
+                });
         } else {
             console.log(`⏭️  Skipping database save for realtime execution ${executionId} (saveToDatabase: false)`);
             logger.info(`Skipping database save for realtime execution`, {
@@ -452,14 +454,16 @@ export class RealtimeExecutionEngine extends EventEmitter {
         // Create node execution record (if saveToDatabase is enabled)
         let nodeExecution: any = null;
         if (context.saveToDatabase !== false) {
-            nodeExecution = await this.prisma.nodeExecution.create({
-                data: {
+            const result = await this.db
+                .insert(schema.nodeExecutions)
+                .values({
                     nodeId,
                     executionId,
                     status: NodeExecutionStatus.RUNNING,
                     startedAt: new Date(),
-                },
-            });
+                })
+                .returning();
+            nodeExecution = result[0];
         }
 
         try {
@@ -520,14 +524,14 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
             // Update node execution record (if saveToDatabase is enabled)
             if (context.saveToDatabase !== false && nodeExecution) {
-                await this.prisma.nodeExecution.update({
-                    where: { id: nodeExecution.id },
-                    data: {
+                await this.db
+                    .update(schema.nodeExecutions)
+                    .set({
                         status: NodeExecutionStatus.SUCCESS,
                         outputData: result.data as any,
                         finishedAt: new Date(),
-                    },
-                });
+                    })
+                    .where(eq(schema.nodeExecutions.id, nodeExecution.id));
             }
 
             // Find which edges/connections will be activated by this node
@@ -592,17 +596,17 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
             // Update node execution record (if saveToDatabase is enabled)
             if (context.saveToDatabase !== false && nodeExecution) {
-                await this.prisma.nodeExecution.update({
-                    where: { id: nodeExecution.id },
-                    data: {
+                await this.db
+                    .update(schema.nodeExecutions)
+                    .set({
                         status: NodeExecutionStatus.ERROR,
                         error: {
                             message: error.message,
                             stack: error.stack,
                         },
                         finishedAt: new Date(),
-                    },
-                });
+                    })
+                    .where(eq(schema.nodeExecutions.id, nodeExecution.id));
             }
 
             // Emit node failed event
@@ -701,14 +705,16 @@ export class RealtimeExecutionEngine extends EventEmitter {
             // Create node execution record (if saveToDatabase is enabled)
             let nodeExecution: any = null;
             if (context.saveToDatabase !== false) {
-                nodeExecution = await this.prisma.nodeExecution.create({
-                    data: {
+                const result = await this.db
+                    .insert(schema.nodeExecutions)
+                    .values({
                         nodeId,
                         executionId,
                         status: NodeExecutionStatus.RUNNING,
                         startedAt: new Date(),
-                    },
-                });
+                    })
+                    .returning();
+                nodeExecution = result[0];
             }
 
             try {
@@ -745,14 +751,14 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
                 // Update node execution record (if saveToDatabase is enabled)
                 if (context.saveToDatabase !== false && nodeExecution) {
-                    await this.prisma.nodeExecution.update({
-                        where: { id: nodeExecution.id },
-                        data: {
+                    await this.db
+                        .update(schema.nodeExecutions)
+                        .set({
                             status: NodeExecutionStatus.SUCCESS,
                             outputData: result.data as any,
                             finishedAt: new Date(),
-                        },
-                    });
+                        })
+                        .where(eq(schema.nodeExecutions.id, nodeExecution.id));
                 }
 
                 // Check loop and done outputs
@@ -820,17 +826,17 @@ export class RealtimeExecutionEngine extends EventEmitter {
                 logger.error(`[RealtimeExecution] Loop node ${nodeId} failed:`, error);
 
                 if (context.saveToDatabase !== false && nodeExecution) {
-                    await this.prisma.nodeExecution.update({
-                        where: { id: nodeExecution.id },
-                        data: {
+                    await this.db
+                        .update(schema.nodeExecutions)
+                        .set({
                             status: NodeExecutionStatus.ERROR,
                             error: {
                                 message: error.message,
                                 stack: error.stack,
                             },
                             finishedAt: new Date(),
-                        },
-                    });
+                        })
+                        .where(eq(schema.nodeExecutions.id, nodeExecution.id));
                 }
 
                 this.emit("node-failed", {
@@ -1056,9 +1062,9 @@ export class RealtimeExecutionEngine extends EventEmitter {
                                     // Check if this is a valid credential ID (any non-empty string)
                                     if (credentialId && typeof credentialId === 'string' && credentialId.trim().length > 0) {
                                         // Verify credential exists and get its actual type
-                                        const cred = await this.prisma.credential.findUnique({
-                                            where: { id: credentialId },
-                                            select: { type: true, userId: true }
+                                        const cred = await this.db.query.credentials.findFirst({
+                                            where: eq(schema.credentials.id, credentialId),
+                                            columns: { type: true, userId: true }
                                         });
 
                                         if (cred) {
@@ -1292,13 +1298,13 @@ export class RealtimeExecutionEngine extends EventEmitter {
         context.status = "completed";
 
         if (context.saveToDatabase !== false) {
-            await this.prisma.execution.update({
-                where: { id: executionId },
-                data: {
+            await this.db
+                .update(schema.executions)
+                .set({
                     status: ExecutionStatus.SUCCESS,
                     finishedAt: new Date(),
-                },
-            });
+                })
+                .where(eq(schema.executions.id, executionId));
         }
 
         this.emit("execution-completed", {
@@ -1337,9 +1343,9 @@ export class RealtimeExecutionEngine extends EventEmitter {
         let failedNodeType: string | undefined;
         
         try {
-            const workflow = await this.prisma.workflow.findUnique({
-                where: { id: context.workflowId },
-                select: { name: true, nodes: true },
+            const workflow = await this.db.query.workflows.findFirst({
+                where: eq(schema.workflows.id, context.workflowId),
+                columns: { name: true, nodes: true },
             });
             if (workflow) {
                 workflowName = workflow.name;
@@ -1360,17 +1366,17 @@ export class RealtimeExecutionEngine extends EventEmitter {
         }
 
         if (context.saveToDatabase !== false) {
-            await this.prisma.execution.update({
-                where: { id: executionId },
-                data: {
+            await this.db
+                .update(schema.executions)
+                .set({
                     status: ExecutionStatus.ERROR,
                     finishedAt: new Date(),
                     error: {
                         message: error.message,
                         stack: error.stack,
                     },
-                },
-            });
+                })
+                .where(eq(schema.executions.id, executionId));
         }
 
         // Emit detailed execution-failed event for error triggers
@@ -1421,13 +1427,13 @@ export class RealtimeExecutionEngine extends EventEmitter {
         context.status = "cancelled";
 
         if (context.saveToDatabase !== false) {
-            await this.prisma.execution.update({
-                where: { id: executionId },
-                data: {
+            await this.db
+                .update(schema.executions)
+                .set({
                     status: ExecutionStatus.CANCELLED,
                     finishedAt: new Date(),
-                },
-            });
+                })
+                .where(eq(schema.executions.id, executionId));
         }
 
         this.emit("execution-cancelled", {

@@ -1,10 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import * as schema from "../db/schema";
 import { CredentialService } from "./CredentialService";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import { ExecutionService } from "./ExecutionService";
 import { SocketService } from "./SocketService";
 import { TriggerService } from "./TriggerService";
-import { WorkflowService } from "./WorkflowService";
+import { IWorkflowService } from "./WorkflowService";
 
 let triggerServiceInstance: TriggerService | null = null;
 
@@ -26,8 +27,8 @@ export function getTriggerService(): TriggerService {
  * Should be called once during application startup
  */
 export async function initializeTriggerService(
-  prisma: PrismaClient,
-  workflowService: WorkflowService,
+  db: NodePgDatabase<typeof schema>,
+  workflowService: IWorkflowService,
   executionService: ExecutionService,
   socketService: SocketService,
   nodeService: any,
@@ -39,7 +40,7 @@ export async function initializeTriggerService(
   }
 
   triggerServiceInstance = new TriggerService(
-    prisma,
+    db,
     workflowService,
     executionService,
     socketService,

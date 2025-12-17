@@ -1,11 +1,11 @@
 import { Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
-import { CredentialService } from "../services/CredentialService";
+import { getCredentialService } from "../services/CredentialService.factory";
 import { GoogleSheetsHelper } from "../services/GoogleSheetsHelper";
 
 const router = Router();
-const credentialService = new CredentialService();
+const credentialService = getCredentialService();
 
 /**
  * GET /api/google/spreadsheets

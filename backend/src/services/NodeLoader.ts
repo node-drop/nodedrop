@@ -121,21 +121,68 @@ export class NodeLoader {
 
       // Register nodes with NodeService
       const registrationResults: NodeLoadResult[] = [];
+      const failedNodes: Array<{ nodeType: string; errors: string[] }> = [];
+      
       for (const nodeDefinition of nodeDefinitions) {
-        const result = await this.nodeService.registerNode(nodeDefinition);
-        registrationResults.push({
-          success: result.success,
-          nodeType: result.identifier,
-          errors: result.errors,
-        });
+        try {
+          const result = await this.nodeService.registerNode(nodeDefinition);
+          registrationResults.push({
+            success: result.success,
+            nodeType: result.identifier,
+            errors: result.errors,
+          });
+          
+          if (!result.success) {
+            failedNodes.push({
+              nodeType: result.identifier || 'unknown',
+              errors: result.errors || ['Unknown error'],
+            });
+            logger.error(`Failed to register node from package ${packageInfo.name}`, {
+              nodeType: result.identifier,
+              errors: result.errors,
+              packageName: packageInfo.name,
+              packagePath,
+            });
+          }
+        } catch (registrationError) {
+          const errorMsg = registrationError instanceof Error ? registrationError.message : String(registrationError);
+          registrationResults.push({
+            success: false,
+            nodeType: nodeDefinition.identifier,
+            errors: [errorMsg],
+          });
+          failedNodes.push({
+            nodeType: nodeDefinition.identifier,
+            errors: [errorMsg],
+          });
+          logger.error(`Exception during node registration from package ${packageInfo.name}`, {
+            nodeType: nodeDefinition.identifier,
+            error: {
+              message: errorMsg,
+              name: registrationError instanceof Error ? registrationError.name : typeof registrationError,
+              stack: registrationError instanceof Error ? registrationError.stack : undefined,
+            },
+            packageName: packageInfo.name,
+            packagePath,
+          });
+        }
       }
 
       // Check if all registrations were successful
       const failedRegistrations = registrationResults.filter((r) => !r.success);
       if (failedRegistrations.length > 0) {
+        const errorMessages = failedRegistrations.flatMap((r) => r.errors || []);
+        logger.warn(`Package ${packageInfo.name} had registration failures`, {
+          packageName: packageInfo.name,
+          totalNodes: nodeDefinitions.length,
+          failedCount: failedRegistrations.length,
+          failedNodes: failedNodes,
+          errors: errorMessages,
+        });
+        
         return {
           success: false,
-          errors: failedRegistrations.flatMap((r) => r.errors || []),
+          errors: errorMessages,
         };
       }
 
@@ -494,6 +541,8 @@ export class NodeLoader {
     packageInfo: NodePackageInfo
   ): Promise<NodeDefinition[]> {
     const nodeDefinitions: NodeDefinition[] = [];
+    const failedCredentials: Array<{ path: string; error: string }> = [];
+    const failedNodes: Array<{ path: string; error: string }> = [];
 
     // First, load credentials if any
     if (packageInfo.credentials && Array.isArray(packageInfo.credentials)) {
@@ -503,9 +552,19 @@ export class NodeLoader {
             path.join(packagePath, credentialPath)
           );
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          failedCredentials.push({
+            path: credentialPath,
+            error: errorMsg,
+          });
           logger.error("Failed to load credential type", {
-            error,
+            error: {
+              message: errorMsg,
+              name: error instanceof Error ? error.name : typeof error,
+              stack: error instanceof Error ? error.stack : undefined,
+            },
             credentialPath,
+            packageName: packageInfo.name,
           });
           // Don't throw - continue loading other credentials
         }
@@ -522,13 +581,34 @@ export class NodeLoader {
           nodeDefinitions.push(nodeDefinition);
         }
       } catch (error) {
-        logger.error("Failed to load node definition", { error, nodePath });
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        failedNodes.push({
+          path: nodePath,
+          error: errorMsg,
+        });
+        logger.error("Failed to load node definition", {
+          error: {
+            message: errorMsg,
+            name: error instanceof Error ? error.name : typeof error,
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          nodePath,
+          packageName: packageInfo.name,
+          packagePath,
+        });
         throw new Error(
-          `Failed to load node from ${nodePath}: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
+          `Failed to load node from ${nodePath}: ${errorMsg}`
         );
       }
+    }
+
+    // Log summary if there were credential failures
+    if (failedCredentials.length > 0) {
+      logger.warn("Some credentials failed to load", {
+        packageName: packageInfo.name,
+        failedCount: failedCredentials.length,
+        failedCredentials,
+      });
     }
 
     return nodeDefinitions;
@@ -593,35 +673,64 @@ export class NodeLoader {
   ): Promise<void> {
     try {
       // Clear require cache to ensure fresh load
-      delete require.cache[require.resolve(credentialPath)];
+      try {
+        delete require.cache[require.resolve(credentialPath)];
+      } catch (cacheError) {
+        logger.debug("Could not clear require cache for credential", {
+          credentialPath,
+          error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+        });
+      }
 
       // Load the credential module
-      const credentialModule = require(credentialPath);
+      let credentialModule;
+      try {
+        credentialModule = require(credentialPath);
+      } catch (requireError) {
+        const errorMsg = requireError instanceof Error ? requireError.message : String(requireError);
+        throw new Error(`Failed to require credential module: ${errorMsg}`);
+      }
 
       // Extract credential definition
       const credentialType = credentialModule.default || credentialModule;
 
       if (!credentialType || typeof credentialType !== "object") {
-        throw new Error("Invalid credential type format");
+        throw new Error(
+          `Invalid credential type format. Expected object, got ${typeof credentialType}`
+        );
       }
 
       // Validate credential type has required fields
-      if (
-        !credentialType.name ||
-        !credentialType.displayName ||
-        !credentialType.properties
-      ) {
+      const missingFields: string[] = [];
+      if (!credentialType.name) missingFields.push("name");
+      if (!credentialType.displayName) missingFields.push("displayName");
+      if (!credentialType.properties) missingFields.push("properties");
+
+      if (missingFields.length > 0) {
         throw new Error(
-          "Credential type must have name, displayName, and properties"
+          `Credential type missing required fields: ${missingFields.join(", ")}`
         );
       }
 
       // Register with credential service
-      this.credentialService.registerCredentialType(credentialType);
+      try {
+        this.credentialService.registerCredentialType(credentialType);
+      } catch (registrationError) {
+        const errorMsg = registrationError instanceof Error ? registrationError.message : String(registrationError);
+        throw new Error(`Failed to register credential type: ${errorMsg}`);
+      }
 
       // Silently loaded - only log errors
     } catch (error) {
-      logger.error("Failed to load credential type", { error, credentialPath });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to load credential type", {
+        error: {
+          message: errorMsg,
+          name: error instanceof Error ? error.name : typeof error,
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        credentialPath,
+      });
       throw error;
     }
   }
@@ -634,34 +743,53 @@ export class NodeLoader {
   ): Promise<NodeDefinition | null> {
     try {
       // Clear require cache to ensure fresh load
-      delete require.cache[require.resolve(nodePath)];
+      try {
+        delete require.cache[require.resolve(nodePath)];
+      } catch (cacheError) {
+        logger.debug("Could not clear require cache for node", {
+          nodePath,
+          error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+        });
+      }
 
       // Load the node module
-      const nodeModule = require(nodePath);
+      let nodeModule;
+      try {
+        nodeModule = require(nodePath);
+      } catch (requireError) {
+        const errorMsg = requireError instanceof Error ? requireError.message : String(requireError);
+        throw new Error(`Failed to require node module: ${errorMsg}`);
+      }
 
       // Extract node definition (could be default export or named export)
       const nodeDefinition =
         nodeModule.default || nodeModule.nodeDefinition || nodeModule;
 
       if (!nodeDefinition || typeof nodeDefinition !== "object") {
-        throw new Error("Invalid node definition format");
+        throw new Error(
+          `Invalid node definition format. Expected object, got ${typeof nodeDefinition}`
+        );
       }
 
       // Validate the node definition
       const validation =
         this.nodeService.validateNodeDefinition(nodeDefinition);
       if (!validation.valid) {
-        throw new Error(
-          `Node validation failed: ${validation.errors
-            .map((e) => e.message)
-            .join(", ")}`
-        );
+        const validationErrors = validation.errors
+          .map((e) => `${e.property}: ${e.message}`)
+          .join("; ");
+        throw new Error(`Node validation failed: ${validationErrors}`);
       }
 
       return nodeDefinition;
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error("Failed to load single node definition", {
-        error,
+        error: {
+          message: errorMsg,
+          name: error instanceof Error ? error.name : typeof error,
+          stack: error instanceof Error ? error.stack : undefined,
+        },
         nodePath,
       });
       return null;

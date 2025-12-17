@@ -28,7 +28,7 @@ export const IdParamSchema = z.object({
     .string()
     .min(1, "ID is required")
     .regex(
-      /^(c[a-z0-9]{24}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i,
+      /^(c[a-z0-9]{24,}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i,
       "Invalid ID format"
     ),
 });
@@ -129,7 +129,7 @@ export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordSchema>;
  */
 export const CreateWorkflowSchema = z.object({
   name: z.string().min(1, "Workflow name is required").max(255),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   category: z
     .string()
     .nullish()

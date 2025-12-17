@@ -9,13 +9,15 @@
  */
 
 import bcrypt from "bcryptjs";
-import prisma from "../../config/database";
-import { PasswordResetService, createPasswordResetService } from "../../services/password-reset.service";
+import { PasswordResetServiceDrizzle, passwordResetServiceDrizzle } from "../../services/password-reset.service.drizzle";
+import { db } from "../../db/client";
+import { users, accounts, verifications, sessions } from "../../db/schema/auth";
+import { eq } from "drizzle-orm";
 
 // Use the actual database URL from environment
 const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/node_drop";
 
-let passwordResetService: PasswordResetService;
+let passwordResetService: PasswordResetServiceDrizzle;
 
 // Test user data
 const testUser = {
@@ -26,17 +28,12 @@ const testUser = {
 
 describe("Password Reset Flow - Database State Tests", () => {
   beforeAll(async () => {
-    await prisma.$connect();
-    
-    // Initialize password reset service
-    passwordResetService = createPasswordResetService(prisma);
+    // Initialize password reset service (Drizzle)
+    passwordResetService = passwordResetServiceDrizzle;
   });
 
   afterAll(async () => {
-    // Disconnect Prisma
-    if (prisma) {
-      await prisma.$disconnect();
-    }
+    // Drizzle doesn't require explicit disconnect
   });
 
   beforeEach(async () => {
@@ -51,61 +48,56 @@ describe("Password Reset Flow - Database State Tests", () => {
 
   async function cleanupTestData() {
     try {
-      // Delete verifications first
-      await prisma.verification.deleteMany({
-        where: { identifier: testUser.email.toLowerCase() }
+      // Find user first
+      const user = await db.query.users.findFirst({
+        where: eq(users.email, testUser.email)
       });
 
-      // Delete sessions
-      await prisma.session.deleteMany({
-        where: {
-          user: {
-            email: testUser.email
-          }
-        }
-      });
+      if (user) {
+        // Delete verifications
+        await db.delete(verifications).where(
+          eq(verifications.identifier, testUser.email.toLowerCase())
+        );
 
-      // Delete accounts
-      await prisma.account.deleteMany({
-        where: {
-          user: {
-            email: testUser.email
-          }
-        }
-      });
+        // Delete sessions
+        await db.delete(sessions).where(
+          eq(sessions.userId, user.id)
+        );
 
-      // Delete users
-      await prisma.user.deleteMany({
-        where: {
-          email: testUser.email
-        }
-      });
+        // Delete accounts
+        await db.delete(accounts).where(
+          eq(accounts.userId, user.id)
+        );
+
+        // Delete users
+        await db.delete(users).where(
+          eq(users.id, user.id)
+        );
+      }
     } catch (error) {
       // Ignore cleanup errors
     }
   }
 
   async function createTestUser() {
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email: testUser.email,
-        name: testUser.name,
-        role: "USER",
-        emailVerified: false,
-        active: true
-      }
-    });
+    // Create user using Drizzle
+    const userResult = await db.insert(users).values({
+      email: testUser.email,
+      name: testUser.name,
+      role: "user",
+      emailVerified: false,
+      active: true
+    }).returning();
+
+    const user = userResult[0];
 
     // Create account with hashed password
     const hashedPassword = await bcrypt.hash(testUser.password, 10);
-    await prisma.account.create({
-      data: {
-        userId: user.id,
-        providerId: "credential",
-        accountId: user.id,
-        password: hashedPassword
-      }
+    await db.insert(accounts).values({
+      userId: user.id,
+      providerId: "credential",
+      accountId: user.id,
+      password: hashedPassword
     });
 
     return user;
@@ -154,8 +146,8 @@ describe("Password Reset Flow - Database State Tests", () => {
       await passwordResetService.requestPasswordReset(testUser.email);
 
       // Check verification record exists
-      const verification = await prisma.verification.findFirst({
-        where: { identifier: testUser.email.toLowerCase() }
+      const verification = await db.query.verifications.findFirst({
+        where: eq(verifications.identifier, testUser.email.toLowerCase())
       });
 
       expect(verification).toBeTruthy();
@@ -189,11 +181,11 @@ describe("Password Reset Flow - Database State Tests", () => {
       await passwordResetService.requestPasswordReset(testUser.email);
 
       // Should only have one verification record
-      const verifications = await prisma.verification.findMany({
-        where: { identifier: testUser.email.toLowerCase() }
+      const verificationsList = await db.query.verifications.findMany({
+        where: eq(verifications.identifier, testUser.email.toLowerCase())
       });
 
-      expect(verifications.length).toBe(1);
+      expect(verificationsList.length).toBe(1);
     });
   });
 
@@ -283,11 +275,12 @@ describe("Password Reset Flow - Database State Tests", () => {
       expect(resetResult.success).toBe(true);
 
       // Verify password was updated
-      const account = await prisma.account.findFirst({
-        where: {
-          user: { email: testUser.email },
-          providerId: "credential"
-        }
+      const user = await db.query.users.findFirst({
+        where: eq(users.email, testUser.email)
+      });
+
+      const account = await db.query.accounts.findFirst({
+        where: eq(accounts.userId, user!.id)
       });
 
       expect(account).toBeTruthy();
@@ -303,26 +296,22 @@ describe("Password Reset Flow - Database State Tests", () => {
       const user = await createTestUser();
 
       // Create some sessions
-      await prisma.session.create({
-        data: {
-          userId: user.id,
-          token: "session-1-" + Date.now(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        }
+      await db.insert(sessions).values({
+        userId: user.id,
+        token: "session-1-" + Date.now(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       });
-      await prisma.session.create({
-        data: {
-          userId: user.id,
-          token: "session-2-" + Date.now(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        }
+      await db.insert(sessions).values({
+        userId: user.id,
+        token: "session-2-" + Date.now(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       });
 
       // Verify sessions exist
-      const sessionsBefore = await prisma.session.count({
-        where: { userId: user.id }
+      const sessionsBefore = await db.query.sessions.findMany({
+        where: eq(sessions.userId, user.id)
       });
-      expect(sessionsBefore).toBe(2);
+      expect(sessionsBefore.length).toBe(2);
 
       // Request and complete password reset
       const requestResult = await passwordResetService.requestPasswordReset(testUser.email);
@@ -333,10 +322,10 @@ describe("Password Reset Flow - Database State Tests", () => {
       );
 
       // Verify all sessions are invalidated
-      const sessionsAfter = await prisma.session.count({
-        where: { userId: user.id }
+      const sessionsAfter = await db.query.sessions.findMany({
+        where: eq(sessions.userId, user.id)
       });
-      expect(sessionsAfter).toBe(0);
+      expect(sessionsAfter.length).toBe(0);
     });
 
     /**
@@ -348,8 +337,8 @@ describe("Password Reset Flow - Database State Tests", () => {
       const requestResult = await passwordResetService.requestPasswordReset(testUser.email);
       
       // Verify token exists
-      const tokenBefore = await prisma.verification.findFirst({
-        where: { identifier: testUser.email.toLowerCase() }
+      const tokenBefore = await db.query.verifications.findFirst({
+        where: eq(verifications.identifier, testUser.email.toLowerCase())
       });
       expect(tokenBefore).toBeTruthy();
 
@@ -361,10 +350,10 @@ describe("Password Reset Flow - Database State Tests", () => {
       );
 
       // Verify token is deleted
-      const tokenAfter = await prisma.verification.findFirst({
-        where: { identifier: testUser.email.toLowerCase() }
+      const tokenAfter = await db.query.verifications.findFirst({
+        where: eq(verifications.identifier, testUser.email.toLowerCase())
       });
-      expect(tokenAfter).toBeNull();
+      expect(tokenAfter).toBeUndefined();
     });
 
     /**
@@ -404,28 +393,22 @@ describe("Password Reset Flow - Database State Tests", () => {
      */
     it("should clean up expired verification tokens", async () => {
       // Create some expired tokens
-      await prisma.verification.create({
-        data: {
-          identifier: "expired1@example.com",
-          value: "expired-token-1",
-          expiresAt: new Date(Date.now() - 1000)
-        }
+      await db.insert(verifications).values({
+        identifier: "expired1@example.com",
+        value: "expired-token-1",
+        expiresAt: new Date(Date.now() - 1000)
       });
-      await prisma.verification.create({
-        data: {
-          identifier: "expired2@example.com",
-          value: "expired-token-2",
-          expiresAt: new Date(Date.now() - 1000)
-        }
+      await db.insert(verifications).values({
+        identifier: "expired2@example.com",
+        value: "expired-token-2",
+        expiresAt: new Date(Date.now() - 1000)
       });
 
       // Create a valid token
-      await prisma.verification.create({
-        data: {
-          identifier: "valid@example.com",
-          value: "valid-token",
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
-        }
+      await db.insert(verifications).values({
+        identifier: "valid@example.com",
+        value: "valid-token",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000)
       });
 
       const deletedCount = await passwordResetService.cleanupExpiredTokens();
@@ -433,19 +416,21 @@ describe("Password Reset Flow - Database State Tests", () => {
       expect(deletedCount).toBe(2);
 
       // Verify valid token still exists
-      const validToken = await prisma.verification.findFirst({
-        where: { identifier: "valid@example.com" }
+      const validToken = await db.query.verifications.findFirst({
+        where: eq(verifications.identifier, "valid@example.com")
       });
       expect(validToken).toBeTruthy();
 
       // Clean up
-      await prisma.verification.deleteMany({
-        where: {
-          identifier: {
-            in: ["expired1@example.com", "expired2@example.com", "valid@example.com"]
-          }
-        }
-      });
+      await db.delete(verifications).where(
+        eq(verifications.identifier, "expired1@example.com")
+      );
+      await db.delete(verifications).where(
+        eq(verifications.identifier, "expired2@example.com")
+      );
+      await db.delete(verifications).where(
+        eq(verifications.identifier, "valid@example.com")
+      );
     });
   });
 });

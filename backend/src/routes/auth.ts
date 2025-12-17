@@ -14,10 +14,10 @@ import { auth } from "../config/auth";
 import { requireAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
 import { asyncHandler, AppError } from "../middleware/errorHandler";
 import { ApiResponse } from "../types/api";
-import { prisma } from "../config/database";
 import { checkSetupStatus } from "../utils/setup";
 import { mapBetterAuthError } from "../utils/auth-error-mapper";
-import { createPasswordResetService } from "../services/password-reset.service";
+import { passwordResetServiceDrizzle } from "../services/password-reset.service.drizzle";
+import { userServiceDrizzle } from "../services/UserService.drizzle";
 import {
   loginRateLimiter,
   registrationRateLimiter,
@@ -67,7 +67,7 @@ router.get("/", (_req: Request, res: Response) => {
 router.get(
   "/setup-status",
   asyncHandler(async (req: Request, res: Response) => {
-    const status = await checkSetupStatus(prisma);
+    const status = await checkSetupStatus();
     
     const response: ApiResponse = {
       success: true,
@@ -88,22 +88,8 @@ router.get(
   "/me",
   requireAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    // Fetch full user data from database
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        emailVerified: true,
-        image: true,
-        createdAt: true,
-        updatedAt: true,
-        preferences: true,
-        active: true
-      }
-    });
+    // Fetch full user data from database using Drizzle
+    const user = await userServiceDrizzle.getUserById(req.user!.id);
 
     if (!user) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
@@ -118,8 +104,8 @@ router.get(
   })
 );
 
-// Initialize password reset service
-const passwordResetService = createPasswordResetService(prisma);
+// Use the Drizzle-based password reset service
+const passwordResetService = passwordResetServiceDrizzle;
 
 /**
  * POST /api/auth/forgot-password - Request password reset
@@ -257,11 +243,8 @@ router.post(
       throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
     }
 
-    // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, name: true, role: true }
-    });
+    // Check if target user exists using Drizzle
+    const targetUser = await userServiceDrizzle.getUserById(userId);
 
     if (!targetUser) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
@@ -276,16 +259,14 @@ router.post(
       );
     }
 
-    // Delete all sessions for the target user
-    const deleteResult = await prisma.session.deleteMany({
-      where: { userId: userId }
-    });
+    // Delete all sessions for the target user using Drizzle
+    const revokedCount = await userServiceDrizzle.deleteUserSessions(userId);
 
     const response: ApiResponse = {
       success: true,
       data: {
-        message: `Successfully revoked ${deleteResult.count} session(s) for user ${targetUser.email}`,
-        revokedCount: deleteResult.count,
+        message: `Successfully revoked ${revokedCount} session(s) for user ${targetUser.email}`,
+        revokedCount: revokedCount,
         userId: targetUser.id,
         userEmail: targetUser.email
       }
@@ -313,11 +294,8 @@ router.post(
       throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
     }
 
-    // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, active: true }
-    });
+    // Check if target user exists using Drizzle
+    const targetUser = await userServiceDrizzle.getUserById(userId);
 
     if (!targetUser) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
@@ -332,25 +310,18 @@ router.post(
       );
     }
 
-    // Deactivate user and delete all their sessions in a transaction
-    const [updatedUser, deleteResult] = await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: { active: false }
-      }),
-      prisma.session.deleteMany({
-        where: { userId: userId }
-      })
-    ]);
+    // Deactivate user and delete all their sessions
+    const updatedUser = await userServiceDrizzle.deactivateUser(userId);
+    const revokedSessionCount = await userServiceDrizzle.deleteUserSessions(userId);
 
     const response: ApiResponse = {
       success: true,
       data: {
-        message: `Successfully deactivated user ${targetUser.email} and revoked ${deleteResult.count} session(s)`,
-        userId: updatedUser.id,
-        userEmail: updatedUser.email,
-        active: updatedUser.active,
-        revokedSessionCount: deleteResult.count
+        message: `Successfully deactivated user ${targetUser.email} and revoked ${revokedSessionCount} session(s)`,
+        userId: updatedUser!.id,
+        userEmail: updatedUser!.email,
+        active: updatedUser!.active,
+        revokedSessionCount: revokedSessionCount
       }
     };
 
@@ -376,11 +347,8 @@ router.post(
       throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
     }
 
-    // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, active: true }
-    });
+    // Check if target user exists using Drizzle
+    const targetUser = await userServiceDrizzle.getUserById(userId);
 
     if (!targetUser) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
@@ -390,19 +358,16 @@ router.post(
       throw new AppError("User is already active", 400, "USER_ALREADY_ACTIVE");
     }
 
-    // Reactivate user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { active: true }
-    });
+    // Reactivate user using Drizzle
+    const updatedUser = await userServiceDrizzle.activateUser(userId);
 
     const response: ApiResponse = {
       success: true,
       data: {
         message: `Successfully reactivated user ${targetUser.email}`,
-        userId: updatedUser.id,
-        userEmail: updatedUser.email,
-        active: updatedUser.active
+        userId: updatedUser!.id,
+        userEmail: updatedUser!.email,
+        active: updatedUser!.active
       }
     };
 
@@ -446,9 +411,7 @@ router.post("/sign-out", async (req: Request, res: Response) => {
       
       if (session?.session?.id) {
         // Delete the session from database
-        await prisma.session.delete({
-          where: { id: session.session.id }
-        }).catch(err => {
+        await userServiceDrizzle.deleteUserSessions(session.session.userId).catch((err: any) => {
           console.log(`[Auth] Session already deleted or not found: ${err.message}`);
         });
         console.log(`[Auth] Deleted session ${session.session.id} from database`);

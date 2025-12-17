@@ -6,6 +6,7 @@ export * from './ExecutionEngine';
 export * from './SecureExecutionService';
 export * from './SocketService';
 export { CredentialService } from './CredentialService';
+export * from './TeamService';
 export * from './NodeLoader';
 export * from './NodeTemplateGenerator';
 export * from './NodeMarketplace';

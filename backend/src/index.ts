@@ -38,21 +38,19 @@ import workspaceRoutes from "./routes/workspaces";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 // Import services
-import { PrismaClient } from "@prisma/client";
-import { CredentialService } from "./services/CredentialService";
+import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
 import { ExecutionService } from "./services/ExecutionService";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
+import { NodeServiceDrizzle } from "./services/NodeService.drizzle";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
 
-
-
 // Import database after dotenv is loaded
-import prisma from "./config/database";
+import { db, checkDatabaseConnection, disconnectDatabase } from "./db/client";
 
 const app = express();
 const httpServer = createServer(app);
@@ -64,8 +62,8 @@ httpServer.keepAliveTimeout = 65000; // 65 seconds (slightly higher than typical
 httpServer.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
 
 // Initialize services
-const nodeService = new NodeService(prisma);
-const credentialService = new CredentialService();
+const nodeService = new NodeServiceDrizzle();
+const credentialService = getCredentialService();
 
 // Register core credentials (OAuth2, HTTP Basic Auth, API Key, etc.)
 try {
@@ -84,22 +82,22 @@ try {
   console.error("❌ Failed to initialize OAuth providers:", error);
 }
 
-const nodeLoader = new NodeLoader(nodeService, credentialService, prisma);
+const nodeLoader = new NodeLoader(nodeService as any, credentialService as any, db as any);
 const socketService = new SocketService(httpServer);
 
 // Initialize ExecutionService (for HTTP endpoints)
-const executionHistoryService = new ExecutionHistoryService(prisma);
+const executionHistoryService = new ExecutionHistoryService(db as any);
 const executionService = new ExecutionService(
-  prisma,
-  nodeService,
+  db as any,
+  nodeService as any,
   executionHistoryService
 );
 
 // Initialize RealtimeExecutionEngine (for WebSocket execution)
-const realtimeExecutionEngine = new RealtimeExecutionEngine(prisma, nodeService);
+const realtimeExecutionEngine = new RealtimeExecutionEngine(db as any, nodeService as any);
 
 // Initialize ErrorTriggerService (for workflow failure monitoring)
-const errorTriggerService = new ErrorTriggerService(prisma);
+const errorTriggerService = new ErrorTriggerService(db as any);
 
 // Import WorkflowService, TriggerService singleton, and ScheduleJobManager
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
@@ -107,11 +105,11 @@ import { WorkflowService } from "./services/WorkflowService";
 import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
 
 // Initialize WorkflowService (needed by TriggerService)
-const workflowService = new WorkflowService(prisma);
+const workflowService = new WorkflowService(db as any);
 
 // Initialize ScheduleJobManager (for persistent schedule jobs)
 const scheduleJobManager = new ScheduleJobManager(
-  prisma,
+  db as any,
   executionService,
   {
     redis: {
@@ -263,26 +261,26 @@ realtimeExecutionEngine.on("execution-log", (logEntry) => {
 declare global {
   var socketService: SocketService;
   var nodeLoader: NodeLoader;
-  var nodeService: NodeService;
-  var credentialService: CredentialService;
+  var nodeService: NodeServiceDrizzle;
+  var credentialService: any;
   var executionService: ExecutionService;
   var realtimeExecutionEngine: RealtimeExecutionEngine;
   var errorTriggerService: ErrorTriggerService;
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
   var triggerService: any;
-  var prisma: PrismaClient;
+  var db: any;
 }
 global.socketService = socketService;
 global.nodeLoader = nodeLoader;
 global.nodeService = nodeService;
-global.credentialService = credentialService;
+global.credentialService = credentialService as any;
 global.executionService = executionService;
 global.realtimeExecutionEngine = realtimeExecutionEngine;
 global.errorTriggerService = errorTriggerService;
 global.workflowService = workflowService;
 global.scheduleJobManager = scheduleJobManager;
-global.prisma = prisma;
+global.db = db;
 
 // Initialize node systems
 async function initializeNodeSystems() {
@@ -566,13 +564,13 @@ httpServer.listen(PORT, async () => {
   // Initialize TriggerService singleton to load active triggers
   try {
     await initializeTriggerService(
-      prisma,
+      db,
       workflowService,
       executionService,
       socketService,
       nodeService,
       executionHistoryService,
-      credentialService
+      credentialService as any
     );
     global.triggerService = getTriggerService();
     console.log(`✅ Initialized triggers & webhooks`);
@@ -634,10 +632,17 @@ process.on("SIGTERM", async () => {
   // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();
   
+  // Import drain function for graceful connection pool shutdown
+  const { drainConnectionPool } = await import('./db/client');
+  
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
-  await prisma.$disconnect();
+  
+  // Drain connection pool before closing
+  await drainConnectionPool(30000);
+  await disconnectDatabase();
+  
   httpServer.close(() => {
     console.log("Server closed");
     process.exit(0);
@@ -653,7 +658,12 @@ process.on("SIGINT", async () => {
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
-  await prisma.$disconnect();
+  
+  // Drain connection pool before closing
+  const { drainConnectionPool } = await import('./db/client');
+  await drainConnectionPool(30000);
+  await disconnectDatabase();
+  
   httpServer.close(() => {
     console.log("Server closed");
     process.exit(0);

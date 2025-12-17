@@ -1,17 +1,19 @@
 /**
  * better-auth Configuration
  * 
- * This module configures the better-auth instance with Prisma adapter,
+ * This module configures the better-auth instance with Drizzle adapter,
  * email/password authentication, session management, and rate limiting.
  * 
  * Requirements: 3.1, 7.1, 7.2, 14.1
  */
 
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins/admin";
-import { prisma } from "./database";
-import { WorkspaceRole } from "@prisma/client";
+import { db } from "../db/client";
+import * as schema from "../db/schema/auth";
+import { workspaces, workspaceMembers } from "../db/schema/workspace";
+import { eq } from "drizzle-orm";
 
 /**
  * Generate a URL-friendly slug from a string
@@ -33,39 +35,38 @@ async function createDefaultWorkspace(userId: string, userName: string | null, u
     let slug = generateSlug(workspaceName);
     
     // Ensure slug is unique by appending random suffix if needed
-    const existingWorkspace = await prisma.workspace.findUnique({ where: { slug } });
+    const existingWorkspace = await db.query.workspaces.findFirst({
+      where: eq(workspaces.slug, slug)
+    });
     if (existingWorkspace) {
       slug = `${slug}-${Math.random().toString(36).substring(2, 8)}`;
     }
 
     // Create workspace
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: workspaceName,
-        slug,
-        ownerId: userId,
-        plan: "free",
-        maxMembers: 1,
-        maxWorkflows: 5,
-        maxExecutionsPerMonth: 1000,
-        maxCredentials: 10,
-      },
-    });
+    const workspaceResult = await db.insert(workspaces).values({
+      name: workspaceName,
+      slug,
+      ownerId: userId,
+      plan: "free",
+      maxMembers: 1,
+      maxWorkflows: 5,
+      maxExecutionsPerMonth: 1000,
+      maxCredentials: 10,
+    }).returning();
+
+    const workspace = workspaceResult[0];
 
     // Add user as workspace member with OWNER role
-    await prisma.workspaceMember.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: userId,
-        role: WorkspaceRole.OWNER,
-      },
+    await db.insert(workspaceMembers).values({
+      workspaceId: workspace.id,
+      userId: userId,
+      role: "owner",
     });
 
     // Set as user's default workspace
-    await prisma.user.update({
-      where: { id: userId },
-      data: { defaultWorkspaceId: workspace.id },
-    });
+    await db.update(schema.users)
+      .set({ defaultWorkspaceId: workspace.id })
+      .where(eq(schema.users.id, userId));
 
     console.log(`[Auth] Created default workspace "${workspaceName}" for user ${userEmail}`);
   } catch (error) {
@@ -102,7 +103,7 @@ const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute (handles multipl
 
 /**
  * better-auth instance configured with:
- * - Prisma adapter for PostgreSQL
+ * - Drizzle adapter for PostgreSQL
  * - Email/password authentication
  * - 7-day session expiration
  * - httpOnly cookies (secure in production)
@@ -112,8 +113,14 @@ const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute (handles multipl
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || "default-secret-change-in-production",
   
-  database: prismaAdapter(prisma, {
-    provider: "postgresql"
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema: {
+      user: schema.users,
+      session: schema.sessions,
+      account: schema.accounts,
+      verification: schema.verifications,
+    }
   }),
   
   // User model configuration

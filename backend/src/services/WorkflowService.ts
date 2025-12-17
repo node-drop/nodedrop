@@ -1,3 +1,16 @@
+/**
+ * WorkflowService Factory
+ * 
+ * This file provides a factory function to switch between Prisma and Drizzle
+ * implementations of the WorkflowService based on the USE_DRIZZLE_WORKFLOW_SERVICE
+ * environment variable.
+ * 
+ * This allows for gradual migration from Prisma to Drizzle without breaking
+ * existing code.
+ */
+
+import { WorkflowServiceDrizzle } from './WorkflowService.drizzle';
+import { logger } from '../utils/logger';
 import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import {
@@ -26,7 +39,25 @@ interface WorkspaceQueryOptions {
   workspaceId?: string;
 }
 
-export class WorkflowService {
+// Type definitions for the service interface
+export interface IWorkflowService {
+  createWorkflow(userId: string, data: CreateWorkflowRequest, options?: WorkspaceQueryOptions): Promise<any>;
+  getWorkflow(id: string, userId?: string, options?: WorkspaceQueryOptions): Promise<any>;
+  updateWorkflow(id: string, userId: string, data: UpdateWorkflowRequest): Promise<any>;
+  deleteWorkflow(id: string, userId: string): Promise<any>;
+  listWorkflows(userId: string, query: WorkflowQueryRequest, options?: WorkspaceQueryOptions): Promise<any>;
+  searchWorkflows(userId: string, filters: any, options?: WorkspaceQueryOptions): Promise<any>;
+  duplicateWorkflow(id: string, userId: string, newName?: string, options?: WorkspaceQueryOptions): Promise<any>;
+  getWorkflowStats(userId: string, options?: WorkspaceQueryOptions): Promise<any>;
+  bulkUpdateWorkflows(userId: string, workflowIds: string[], updates: Partial<UpdateWorkflowRequest>): Promise<any>;
+  bulkDeleteWorkflows(userId: string, workflowIds: string[]): Promise<any>;
+  getUpcomingExecutions(workflow: any, limit?: number): Promise<any>;
+}
+
+/**
+ * Prisma-based WorkflowService (legacy implementation)
+ */
+export class WorkflowServicePrisma implements IWorkflowService {
   private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
@@ -696,3 +727,39 @@ export class WorkflowService {
     }
   }
 }
+
+/**
+ * Get the appropriate WorkflowService implementation based on environment variable
+ */
+function getWorkflowService(): IWorkflowService {
+  const useDrizzle = process.env.USE_DRIZZLE_WORKFLOW_SERVICE === 'true';
+
+  if (useDrizzle) {
+    logger.info('Using Drizzle WorkflowService');
+    return new WorkflowServiceDrizzle();
+  }
+
+  // Fallback to Prisma implementation
+  logger.info('Using Prisma WorkflowService');
+  const prisma = new PrismaClient();
+  return new WorkflowServicePrisma(prisma);
+}
+
+/**
+ * Export the service instance
+ */
+export const workflowService = getWorkflowService();
+
+// Re-export types from Drizzle implementation
+export type {
+  WorkflowData,
+  WorkflowListItem,
+  WorkflowSearchResult,
+  WorkflowStats,
+} from './WorkflowService.drizzle';
+
+export { WorkflowServiceDrizzle };
+
+// Backward compatibility: export WorkflowService as an alias for WorkflowServicePrisma
+// This allows existing code that does `new WorkflowService(prisma)` to continue working
+export { WorkflowServicePrisma as WorkflowService };

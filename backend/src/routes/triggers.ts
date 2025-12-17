@@ -1,7 +1,6 @@
 import { Request, Response, Router } from "express";
 import { body, param, validationResult } from "express-validator";
 import { createServer } from "http";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
@@ -10,12 +9,13 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { CredentialService } from "../services/CredentialService";
+import { db } from "../db/client";
+import { getCredentialService } from "../services/CredentialService.factory";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { ExecutionService } from "../services/ExecutionService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 import { SocketService } from "../services/SocketService";
 import { TriggerService } from "../services/TriggerService";
-import { WorkflowService } from "../services/WorkflowService";
+import { workflowServiceDrizzle } from "../services/WorkflowService";
 import { TriggerEventsQuerySchema } from "../types/api";
 
 const router = Router();
@@ -31,32 +31,21 @@ const getNodeService = () => {
 };
 
 // Initialize non-dependent services immediately
-const workflowService = new WorkflowService(prisma);
-const executionHistoryService = new ExecutionHistoryService(prisma);
-const credentialService = new CredentialService();
+const executionHistoryService = new ExecutionHistoryService();
+const credentialService = getCredentialService();
 const httpServer = createServer();
 const socketService = new SocketService(httpServer);
-
-// Lazy initialization for services that depend on NodeService
-let executionService: ExecutionService;
 let triggerService: TriggerService;
 
 const getExecutionService = () => {
-  if (!executionService) {
-    executionService = new ExecutionService(
-      prisma,
-      getNodeService(),
-      executionHistoryService
-    );
-  }
-  return executionService;
+  return executionServiceDrizzle;
 };
 
 const getTriggerService = () => {
   if (!triggerService) {
     triggerService = new TriggerService(
-      prisma,
-      workflowService,
+      db,
+      workflowServiceDrizzle,
       getExecutionService(),
       socketService,
       getNodeService(),

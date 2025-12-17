@@ -6,11 +6,15 @@
  */
 
 import { Response, NextFunction } from "express";
-import { WorkspaceRole } from "@prisma/client";
 import { AuthenticatedRequest } from "./auth";
 import { AppError } from "./errorHandler";
-import { prisma } from "../config/database";
+import { db } from "../db/client";
+import { workspaceMembers, workspaces } from "../db/schema/workspace";
+import { eq, and } from "drizzle-orm";
 import { WorkspaceContext } from "../types/workspace.types";
+
+// Workspace role type
+type WorkspaceRole = "owner" | "admin" | "member";
 
 /**
  * Extended Request interface with workspace context
@@ -55,9 +59,10 @@ export const requireWorkspace = async (
 
     // 3. Fall back to user's default workspace
     if (!workspaceId) {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { defaultWorkspaceId: true },
+      const { users } = await import("../db/schema/auth");
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, req.user.id),
+        columns: { defaultWorkspaceId: true },
       });
 
       if (user?.defaultWorkspaceId) {
@@ -73,50 +78,50 @@ export const requireWorkspace = async (
       ));
     }
 
-    // Verify user has access to workspace
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId,
-          userId: req.user.id,
-        },
-      },
-      include: {
-        workspace: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            plan: true,
-            maxMembers: true,
-            maxWorkflows: true,
-            maxExecutionsPerMonth: true,
-            maxCredentials: true,
-            currentMonthExecutions: true,
-          },
-        },
-      },
+    // Verify user has access to workspace using Drizzle
+    const membership = await db.query.workspaceMembers.findFirst({
+      where: and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, req.user.id)
+      ),
+      with: {
+        workspace: true
+      }
     });
 
     if (!membership) {
-      return next(new AppError("Access denied to workspace", 403, "WORKSPACE_ACCESS_DENIED"));
+      return next(new AppError(
+        "User does not have access to this workspace",
+        403,
+        "WORKSPACE_ACCESS_DENIED"
+      ));
+    }
+
+    // Extract workspace data
+    const workspace = membership.workspace;
+    if (!workspace) {
+      return next(new AppError(
+        "Workspace not found",
+        404,
+        "WORKSPACE_NOT_FOUND"
+      ));
     }
 
     // Attach workspace context to request
     req.workspace = {
-      workspaceId: membership.workspace.id,
-      workspaceSlug: membership.workspace.slug,
-      workspaceName: membership.workspace.name,
-      userRole: membership.role,
-      plan: membership.workspace.plan,
+      workspaceId: workspace.id,
+      workspaceSlug: workspace.slug,
+      workspaceName: workspace.name,
+      userRole: membership.role as WorkspaceRole,
+      plan: workspace.plan as any,
       limits: {
-        maxMembers: membership.workspace.maxMembers,
-        maxWorkflows: membership.workspace.maxWorkflows,
-        maxExecutionsPerMonth: membership.workspace.maxExecutionsPerMonth,
-        maxCredentials: membership.workspace.maxCredentials,
+        maxMembers: workspace.maxMembers,
+        maxWorkflows: workspace.maxWorkflows,
+        maxExecutionsPerMonth: workspace.maxExecutionsPerMonth,
+        maxCredentials: workspace.maxCredentials,
       },
       usage: {
-        currentMonthExecutions: membership.workspace.currentMonthExecutions,
+        currentMonthExecutions: workspace.currentMonthExecutions,
       },
     };
 
@@ -174,37 +179,43 @@ export const checkWorkspaceLimit = (resourceType: "workflow" | "credential" | "m
       const { workspaceId, limits } = req.workspace;
 
       // Get current counts
-      const workspace = await prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        include: {
-          _count: {
-            select: { members: true, workflows: true, credentials: true },
-          },
-        },
+      const { workflows: workflowsTable } = await import("../db/schema/workflows");
+      const { credentials } = await import("../db/schema/credentials");
+      const { count } = await import("drizzle-orm");
+
+      const workspace = await db.query.workspaces.findFirst({
+        where: eq(workspaces.id, workspaceId),
       });
 
       if (!workspace) {
         return next(new AppError("Workspace not found", 404, "WORKSPACE_NOT_FOUND"));
       }
 
+      // Get counts for each resource type
+      const [workflowCount, credentialCount, memberCount] = await Promise.all([
+        db.select({ count: count() }).from(workflowsTable).where(eq(workflowsTable.workspaceId, workspaceId)),
+        db.select({ count: count() }).from(credentials).where(eq(credentials.workspaceId, workspaceId)),
+        db.select({ count: count() }).from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId)),
+      ]);
+
       let limitReached = false;
       let limitName = "";
 
       switch (resourceType) {
         case "workflow":
-          if (limits.maxWorkflows !== -1 && workspace._count.workflows >= limits.maxWorkflows) {
+          if (limits.maxWorkflows !== -1 && (workflowCount[0]?.count || 0) >= limits.maxWorkflows) {
             limitReached = true;
             limitName = "workflow";
           }
           break;
         case "credential":
-          if (limits.maxCredentials !== -1 && workspace._count.credentials >= limits.maxCredentials) {
+          if (limits.maxCredentials !== -1 && (credentialCount[0]?.count || 0) >= limits.maxCredentials) {
             limitReached = true;
             limitName = "credential";
           }
           break;
         case "member":
-          if (limits.maxMembers !== -1 && workspace._count.members >= limits.maxMembers) {
+          if (limits.maxMembers !== -1 && (memberCount[0]?.count || 0) >= limits.maxMembers) {
             limitReached = true;
             limitName = "member";
           }
@@ -254,9 +265,10 @@ export const optionalWorkspace = async (
     }
 
     if (!workspaceId) {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { defaultWorkspaceId: true },
+      const { users } = await import("../db/schema/auth");
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, req.user.id),
+        columns: { defaultWorkspaceId: true },
       });
 
       if (user?.defaultWorkspaceId) {
@@ -268,48 +280,38 @@ export const optionalWorkspace = async (
       return next();
     }
 
-    // Try to get membership
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        workspaceId_userId: {
-          workspaceId,
-          userId: req.user.id,
-        },
-      },
-      include: {
-        workspace: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            plan: true,
-            maxMembers: true,
-            maxWorkflows: true,
-            maxExecutionsPerMonth: true,
-            maxCredentials: true,
-            currentMonthExecutions: true,
-          },
-        },
-      },
+    // Try to get membership with workspace details
+    const membership = await db.query.workspaceMembers.findFirst({
+      where: and(
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, req.user.id)
+      ),
     });
 
     if (membership) {
-      req.workspace = {
-        workspaceId: membership.workspace.id,
-        workspaceSlug: membership.workspace.slug,
-        workspaceName: membership.workspace.name,
-        userRole: membership.role,
-        plan: membership.workspace.plan,
-        limits: {
-          maxMembers: membership.workspace.maxMembers,
-          maxWorkflows: membership.workspace.maxWorkflows,
-          maxExecutionsPerMonth: membership.workspace.maxExecutionsPerMonth,
-          maxCredentials: membership.workspace.maxCredentials,
-        },
-        usage: {
-          currentMonthExecutions: membership.workspace.currentMonthExecutions,
-        },
-      };
+      // Get workspace details
+      const workspace = await db.query.workspaces.findFirst({
+        where: eq(workspaces.id, workspaceId),
+      });
+
+      if (workspace) {
+        req.workspace = {
+          workspaceId: workspace.id,
+          workspaceSlug: workspace.slug,
+          workspaceName: workspace.name,
+          userRole: membership.role as WorkspaceRole,
+          plan: workspace.plan,
+          limits: {
+            maxMembers: workspace.maxMembers,
+            maxWorkflows: workspace.maxWorkflows,
+            maxExecutionsPerMonth: workspace.maxExecutionsPerMonth,
+            maxCredentials: workspace.maxCredentials,
+          },
+          usage: {
+            currentMonthExecutions: workspace.currentMonthExecutions,
+          },
+        };
+      }
     }
 
     next();

@@ -1,5 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { eq, and, gte, lte, desc, count } from "drizzle-orm";
+import * as schema from "../db/schema";
 import {
   Execution,
   ExecutionFilters,
@@ -34,18 +36,18 @@ interface WorkspaceQueryOptions {
 }
 
 export class ExecutionService {
-  private prisma: PrismaClient;
+  private db: NodePgDatabase<typeof schema>;
   private executionEngine: ExecutionEngine;
   private flowExecutionEngine: FlowExecutionEngine;
   private nodeService: NodeService;
   private executionHistoryService: ExecutionHistoryService;
 
   constructor(
-    prisma: PrismaClient,
+    db: NodePgDatabase<typeof schema>,
     nodeService: NodeService,
     executionHistoryService: ExecutionHistoryService
   ) {
-    this.prisma = prisma;
+    this.db = db;
     this.nodeService = nodeService;
     this.executionHistoryService = executionHistoryService;
 
@@ -72,12 +74,12 @@ export class ExecutionService {
     };
 
     this.executionEngine = new ExecutionEngine(
-      prisma,
+      db as any,
       nodeService,
       queueConfig
     );
     this.flowExecutionEngine = new FlowExecutionEngine(
-      prisma,
+      db as any,
       nodeService,
       executionHistoryService
     );
@@ -122,11 +124,11 @@ export class ExecutionService {
 
       } else {
         // Load workflow from database (existing behavior)
-        const workflow = await this.prisma.workflow.findFirst({
-          where: {
-            id: workflowId,
-            userId,
-          },
+        const workflow = await this.db.query.workflows.findFirst({
+          where: and(
+            eq(schema.workflows.id, workflowId),
+            eq(schema.workflows.userId, userId)
+          ),
         });
 
         if (!workflow) {
@@ -156,7 +158,10 @@ export class ExecutionService {
             typeof workflow.settings === "object"
               ? workflow.settings
               : JSON.parse(workflow.settings as string),
-        };
+          active: workflow.active ?? true,
+          createdAt: workflow.createdAt || new Date(),
+          updatedAt: workflow.updatedAt || new Date(),
+        } as Workflow;
       }
 
       // Use the parsed workflow data
@@ -336,11 +341,11 @@ export class ExecutionService {
 
 
       // Verify workflow exists and belongs to user
-      const workflow = await this.prisma.workflow.findFirst({
-        where: {
-          id: workflowId,
-          userId,
-        },
+      const workflow = await this.db.query.workflows.findFirst({
+        where: and(
+          eq(schema.workflows.id, workflowId),
+          eq(schema.workflows.userId, userId)
+        ),
       });
 
       if (!workflow) {
@@ -370,6 +375,9 @@ export class ExecutionService {
           typeof workflow.settings === "object"
             ? workflow.settings
             : JSON.parse(workflow.settings as string),
+        active: workflow.active ?? true,
+        createdAt: workflow.createdAt || new Date(),
+        updatedAt: workflow.updatedAt || new Date(),
       };
 
       const flowOptions: FlowExecutionOptions = {
@@ -470,22 +478,21 @@ export class ExecutionService {
         workflowWhere.workspaceId = options.workspaceId;
       }
 
-      const execution = await this.prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workflow: workflowWhere,
-          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
-        },
-        include: {
+      const execution = await this.db.query.executions.findFirst({
+        where: and(
+          eq(schema.executions.id, executionId),
+          options?.workspaceId ? eq(schema.executions.workspaceId, options.workspaceId) : undefined
+        ),
+        with: {
           workflow: {
-            select: {
+            columns: {
               id: true,
               name: true,
               description: true,
             },
           },
           nodeExecutions: {
-            orderBy: { startedAt: "asc" },
+            orderBy: (ne: any) => [ne.startedAt],
           },
         },
       });
@@ -493,9 +500,9 @@ export class ExecutionService {
       if (!execution) {
         // Try to find the execution without user filter for debugging
         const executionWithoutUserFilter =
-          await this.prisma.execution.findUnique({
-            where: { id: executionId },
-            include: { workflow: true },
+          await this.db.query.executions.findFirst({
+            where: eq(schema.executions.id, executionId),
+            with: { workflow: true },
           });
 
         if (executionWithoutUserFilter) {
@@ -568,29 +575,36 @@ export class ExecutionService {
         if (endDate) where.startedAt.lte = endDate;
       }
 
-      const [executions, total] = await Promise.all([
-        this.prisma.execution.findMany({
-          where,
-          skip: offset,
-          take: limit,
-          orderBy: { startedAt: "desc" },
-          include: {
+      // Build Drizzle where conditions from the where object
+      const whereConditions: any[] = [];
+      if (where.id) whereConditions.push(eq(schema.executions.id, where.id));
+      if (where.status) whereConditions.push(eq(schema.executions.status, where.status));
+      if (where.workflowId) whereConditions.push(eq(schema.executions.workflowId, where.workflowId));
+      if (where.startedAt?.gte) whereConditions.push(gte(schema.executions.startedAt, where.startedAt.gte));
+      if (where.startedAt?.lte) whereConditions.push(lte(schema.executions.startedAt, where.startedAt.lte));
+
+      const [executions, totalResult] = await Promise.all([
+        this.db.query.executions.findMany({
+          where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+          offset,
+          limit,
+          orderBy: (fields: any) => [desc(fields.startedAt)],
+          with: {
             workflow: {
-              select: {
+              columns: {
                 id: true,
                 name: true,
                 description: true,
               },
             },
-            _count: {
-              select: {
-                nodeExecutions: true,
-              },
-            },
           },
         }),
-        this.prisma.execution.count({ where }),
+        this.db.select({ count: count() }).from(schema.executions).where(
+          whereConditions.length > 0 ? and(...whereConditions) : undefined
+        ),
       ]);
+
+      const total = totalResult[0]?.count || 0;
 
       const page = Math.floor(offset / limit) + 1;
       const totalPages = Math.ceil(total / limit);
@@ -617,14 +631,16 @@ export class ExecutionService {
   ): Promise<ExecutionResult> {
     try {
       // Verify execution belongs to user
-      const execution = await this.prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workflow: { userId },
+      const execution = await this.db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: {
+          workflow: {
+            columns: { userId: true },
+          },
         },
       });
 
-      if (!execution) {
+      if (!execution || execution.workflow?.userId !== userId) {
         return {
           success: false,
           error: {
@@ -671,17 +687,14 @@ export class ExecutionService {
   ): Promise<ExecutionResult> {
     try {
       // Get the original execution
-      const originalExecution = await this.prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workflow: { userId },
-        },
-        include: {
+      const originalExecution = await this.db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: {
           workflow: true,
         },
       });
 
-      if (!originalExecution) {
+      if (!originalExecution || originalExecution.workflow?.userId !== userId) {
         return {
           success: false,
           error: {
@@ -733,14 +746,16 @@ export class ExecutionService {
   ): Promise<ExecutionResult> {
     try {
       // Verify execution belongs to user and is not running
-      const execution = await this.prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workflow: { userId },
+      const execution = await this.db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: {
+          workflow: {
+            columns: { userId: true },
+          },
         },
       });
 
-      if (!execution) {
+      if (!execution || execution.workflow?.userId !== userId) {
         return {
           success: false,
           error: {
@@ -761,9 +776,7 @@ export class ExecutionService {
       }
 
       // Delete execution and related node executions (cascade should handle this)
-      await this.prisma.execution.delete({
-        where: { id: executionId },
-      });
+      await this.db.delete(schema.executions).where(eq(schema.executions.id, executionId));
 
       return {
         success: true,
@@ -790,10 +803,12 @@ export class ExecutionService {
   ): Promise<ExecutionProgress | null> {
     try {
       // Verify execution belongs to user
-      const execution = await this.prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workflow: { userId },
+      const execution = await this.db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: {
+          workflow: {
+            columns: { userId: true },
+          },
         },
       });
 
@@ -819,7 +834,7 @@ export class ExecutionService {
             failedNodes: flowStatus.failedNodes.length,
             currentNode: flowStatus.currentlyExecuting[0],
             status: flowStatus.overallStatus as any,
-            startedAt: execution.startedAt,
+            startedAt: execution.startedAt || new Date(),
             finishedAt: execution.finishedAt || undefined,
             error:
               flowStatus.failedNodes.length > 0
@@ -833,8 +848,8 @@ export class ExecutionService {
 
         // Completed execution - get status from database
         // Get node execution data from database for completed workflow
-        const nodeExecutions = await this.prisma.nodeExecution.findMany({
-          where: { executionId },
+        const nodeExecutions = await this.db.query.nodeExecutions.findMany({
+          where: eq(schema.nodeExecutions.executionId, executionId),
         });
 
         const totalNodes = nodeExecutions.length;
@@ -884,7 +899,7 @@ export class ExecutionService {
           failedNodes,
           currentNode: runningNode?.nodeId,
           status: progressStatus,
-          startedAt: execution.startedAt,
+          startedAt: execution.startedAt || new Date(),
           finishedAt: execution.finishedAt || undefined,
           error: execution.error
             ? {
@@ -916,13 +931,13 @@ export class ExecutionService {
   async getExecutionStats(userId?: string, options?: WorkspaceQueryOptions): Promise<ExecutionStats> {
     try {
       if (userId) {
-        // Build workspace-aware where clause
-        const workflowWhere: any = { userId };
-        if (options?.workspaceId) {
-          workflowWhere.workspaceId = options.workspaceId;
-        }
-
         // Get stats for specific user (and workspace if provided)
+        const whereConditions = [eq(schema.workflows.userId, userId)];
+        if (options?.workspaceId) {
+          whereConditions.push(eq(schema.workflows.workspaceId, options.workspaceId));
+        }
+        const workflowWhere = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];
+
         const [
           totalExecutions,
           runningExecutions,
@@ -930,29 +945,29 @@ export class ExecutionService {
           failedExecutions,
           cancelledExecutions,
         ] = await Promise.all([
-          this.prisma.execution.count({
-            where: { workflow: workflowWhere },
-          }),
-          this.prisma.execution.count({
-            where: { workflow: workflowWhere, status: ExecutionStatus.RUNNING },
-          }),
-          this.prisma.execution.count({
-            where: { workflow: workflowWhere, status: ExecutionStatus.SUCCESS },
-          }),
-          this.prisma.execution.count({
-            where: { workflow: workflowWhere, status: ExecutionStatus.ERROR },
-          }),
-          this.prisma.execution.count({
-            where: { workflow: workflowWhere, status: ExecutionStatus.CANCELLED },
-          }),
+          this.db.select({ count: count() }).from(schema.executions).where(
+            workflowWhere ? and(workflowWhere) : undefined
+          ),
+          this.db.select({ count: count() }).from(schema.executions).where(
+            and(eq(schema.executions.status, ExecutionStatus.RUNNING))
+          ),
+          this.db.select({ count: count() }).from(schema.executions).where(
+            and(eq(schema.executions.status, ExecutionStatus.SUCCESS))
+          ),
+          this.db.select({ count: count() }).from(schema.executions).where(
+            and(eq(schema.executions.status, ExecutionStatus.ERROR))
+          ),
+          this.db.select({ count: count() }).from(schema.executions).where(
+            and(eq(schema.executions.status, ExecutionStatus.CANCELLED))
+          ),
         ]);
 
         return {
-          totalExecutions,
-          runningExecutions,
-          completedExecutions,
-          failedExecutions,
-          cancelledExecutions,
+          totalExecutions: totalExecutions[0]?.count || 0,
+          runningExecutions: runningExecutions[0]?.count || 0,
+          completedExecutions: completedExecutions[0]?.count || 0,
+          failedExecutions: failedExecutions[0]?.count || 0,
+          cancelledExecutions: cancelledExecutions[0]?.count || 0,
           averageExecutionTime: 0, // TODO: Calculate from actual execution times
           queueSize: 0, // User-specific queue size not available
         };
@@ -975,15 +990,25 @@ export class ExecutionService {
     userId: string
   ): Promise<NodeExecution | null> {
     try {
-      const nodeExecution = await this.prisma.nodeExecution.findFirst({
-        where: {
-          executionId,
-          nodeId,
+      const nodeExecution = await this.db.query.nodeExecutions.findFirst({
+        where: and(
+          eq(schema.nodeExecutions.executionId, executionId),
+          eq(schema.nodeExecutions.nodeId, nodeId)
+        ),
+        with: {
           execution: {
-            workflow: { userId },
+            with: {
+              workflow: {
+                columns: { userId: true },
+              },
+            },
           },
         },
       });
+
+      if (!nodeExecution || nodeExecution.execution?.workflow?.userId !== userId) {
+        return null;
+      }
 
       return nodeExecution as any;
     } catch (error) {
@@ -1072,9 +1097,9 @@ export class ExecutionService {
             let failedNodeType: string | undefined;
             
             try {
-              const workflow = await this.prisma.workflow.findUnique({
-                where: { id: flowResult.workflowId },
-                select: { name: true, userId: true, nodes: true },
+              const workflow = await this.db.query.workflows.findFirst({
+                where: eq(schema.workflows.id, flowResult.workflowId),
+                columns: { name: true, userId: true, nodes: true },
               });
               if (workflow) {
                 workflowName = workflow.name;
@@ -1262,11 +1287,11 @@ export class ExecutionService {
         );
       } else {
         // Load workflow from database (existing behavior)
-        const workflow = await this.prisma.workflow.findFirst({
-          where: {
-            id: workflowId,
-            userId,
-          },
+        const workflow = await this.db.query.workflows.findFirst({
+          where: and(
+            eq(schema.workflows.id, workflowId),
+            eq(schema.workflows.userId, userId)
+          ),
         });
 
         if (!workflow) {
@@ -1399,9 +1424,9 @@ export class ExecutionService {
 
             if (credentialId && typeof credentialId === "string") {
               // Verify credential exists and get its actual type
-              const cred = await this.prisma.credential.findUnique({
-                where: { id: credentialId },
-                select: { type: true, userId: true }
+              const cred = await this.db.query.credentials.findFirst({
+                where: eq(schema.credentials.id, credentialId),
+                columns: { type: true, userId: true }
               });
 
               if (cred) {
@@ -1446,11 +1471,11 @@ export class ExecutionService {
             };
           } else {
             // Load from database
-            const workflow = await this.prisma.workflow.findFirst({
-              where: {
-                id: workflowId,
-                userId,
-              },
+            const workflow = await this.db.query.workflows.findFirst({
+              where: and(
+                eq(schema.workflows.id, workflowId),
+                eq(schema.workflows.userId, userId)
+              ),
             });
 
             if (!workflow) {
@@ -1479,6 +1504,9 @@ export class ExecutionService {
                 typeof workflow.settings === "object"
                   ? workflow.settings
                   : JSON.parse(workflow.settings as string),
+              active: workflow.active ?? true,
+              createdAt: workflow.createdAt || new Date(),
+              updatedAt: workflow.updatedAt || new Date(),
             };
           }
 
@@ -1781,8 +1809,9 @@ export class ExecutionService {
       let actualWorkflowId = workflowId;
       if (workflowId === "new" && workflowSnapshot) {
         // Create a temporary workflow record for unsaved workflows
-        const tempWorkflow = await this.prisma.workflow.create({
-          data: {
+        const tempWorkflowResult = await this.db
+          .insert(schema.workflows)
+          .values({
             name: "Unsaved Workflow",
             description: "Temporary workflow created for execution",
             userId,
@@ -1790,23 +1819,26 @@ export class ExecutionService {
             connections: workflowSnapshot.connections || [],
             settings: workflowSnapshot.settings || {},
             active: false, // Mark as inactive since it's temporary
-            tags: ["temporary", "unsaved"]
-          }
-        });
-        actualWorkflowId = tempWorkflow.id;
+            tags: ["temporary", "unsaved"],
+          })
+          .returning();
+        if (tempWorkflowResult[0]) {
+          actualWorkflowId = tempWorkflowResult[0].id;
+        }
       }
 
       // Create main execution record with workflow snapshot
-      const execution = await this.prisma.execution.create({
-        data: {
+      const executionResult = await this.db
+        .insert(schema.executions)
+        .values({
           id: flowResult.executionId,
           workflowId: actualWorkflowId,
-          workspaceId: workspaceId || undefined, // Denormalized for efficient workspace-level queries
+          workspaceId: workspaceId || null, // Denormalized for efficient workspace-level queries
           status: executionStatus,
           startedAt: new Date(Date.now() - flowResult.totalDuration),
           finishedAt: new Date(),
-          triggerData: triggerData || undefined,
-          workflowSnapshot: workflowSnapshot || undefined, // Store workflow state at execution time
+          triggerData: triggerData || null,
+          workflowSnapshot: workflowSnapshot || null, // Store workflow state at execution time
           error:
             flowResult.status === "failed" || flowResult.status === "partial"
               ? {
@@ -1814,9 +1846,11 @@ export class ExecutionService {
                 failedNodes: flowResult.failedNodes,
                 executionPath: flowResult.executionPath,
               }
-              : undefined,
-        },
-      });
+              : null,
+        })
+        .returning();
+
+      const execution = executionResult[0];
 
       // Create node execution records
       for (const [nodeId, nodeResult] of flowResult.nodeResults) {
@@ -1851,8 +1885,9 @@ export class ExecutionService {
           }
         }
 
-        await this.prisma.nodeExecution.create({
-          data: {
+        await this.db
+          .insert(schema.nodeExecutions)
+          .values({
             id: `${flowResult.executionId}_${nodeId}`,
             executionId: flowResult.executionId,
             nodeId: nodeId,
@@ -1860,10 +1895,9 @@ export class ExecutionService {
             startedAt: new Date(),
             finishedAt: new Date(Date.now() + nodeResult.duration),
             inputData: {}, // TODO: Add actual input data
-            outputData: nodeResult.data ? JSON.parse(JSON.stringify(nodeResult.data)) : undefined,
-            error: errorData,
-          },
-        });
+            outputData: nodeResult.data ? JSON.parse(JSON.stringify(nodeResult.data)) : null,
+            error: errorData || null,
+          });
       }
 
       return execution;

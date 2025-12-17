@@ -1,10 +1,10 @@
 import { Request, Response, Router } from "express";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { CredentialService } from "../services/CredentialService";
+import { db } from "../db/client";
+import { getCredentialService } from "../services/CredentialService.factory";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { ExecutionService } from "../services/ExecutionService";
-import { WorkflowService } from "../services/WorkflowService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+import { workflowServiceDrizzle } from "../services/WorkflowService";
 import {
     getTriggerService,
     initializeTriggerService,
@@ -363,9 +363,8 @@ const getNodeService = () => {
 };
 
 // Initialize non-dependent services immediately
-const workflowService = new WorkflowService(prisma);
-const executionHistoryService = new ExecutionHistoryService(prisma);
-const credentialService = new CredentialService();
+const executionHistoryService = new ExecutionHistoryService();
+const credentialService = getCredentialService();
 
 // Use the global socketService instead of creating a new instance
 // This ensures we use the same Socket.IO server that the frontend is connected to
@@ -376,18 +375,9 @@ const getSocketService = () => {
   return global.socketService;
 };
 
-// Lazy initialization for services that depend on NodeService
-let executionService: ExecutionService;
-
+// Use Drizzle-based execution service
 const getExecutionService = () => {
-  if (!executionService) {
-    executionService = new ExecutionService(
-      prisma,
-      getNodeService(),
-      executionHistoryService
-    );
-  }
-  return executionService;
+  return executionServiceDrizzle;
 };
 
 // Initialize TriggerService singleton on first access
@@ -395,8 +385,8 @@ let triggerServiceInitialized = false;
 const ensureTriggerServiceInitialized = async () => {
   if (!triggerServiceInitialized) {
     await initializeTriggerService(
-      prisma,
-      workflowService,
+      db,
+      workflowServiceDrizzle,
       getExecutionService(),
       getSocketService(), // Use global socketService
       getNodeService(),

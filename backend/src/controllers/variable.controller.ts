@@ -5,7 +5,7 @@ import {
   WorkspaceRequest,
   requireWorkspace,
 } from "../middleware/workspace";
-import { VariableService } from "../services/VariableService";
+import { variableServiceDrizzle } from "../services/VariableService.factory";
 import { AppError } from "../utils/errors";
 import {
   variableBulkUpsertSchema,
@@ -15,7 +15,7 @@ import {
 } from "../utils/validation/variables";
 
 const router = Router();
-const variableService = new VariableService();
+const variableService = variableServiceDrizzle;
 
 // Get all variables for the authenticated user
 router.get(

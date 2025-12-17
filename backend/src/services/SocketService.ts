@@ -6,7 +6,10 @@ import {
   NodeExecutionStatus,
 } from "../types/execution.types";
 import { logger } from "../utils/logger";
-import { prisma } from "../config/database";
+import { db } from "../db/client";
+import { sessions } from "../db/schema/auth";
+import { workflows } from "../db/schema/workflows";
+import { eq } from "drizzle-orm";
 
 export interface AuthenticatedSocket extends Socket {
   userId: string;
@@ -83,17 +86,11 @@ export class SocketService {
         }
 
         // Validate session token from database (better-auth uses session tokens, not JWT)
-        const session = await prisma.session.findUnique({
-          where: { token },
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                active: true,
-              },
-            },
-          },
+        const session = await db.query.sessions.findFirst({
+          where: eq(sessions.token, token),
+          with: {
+            user: true
+          }
         });
 
         if (!session) {
@@ -735,9 +732,9 @@ export class SocketService {
       // Get workspaceId from workflow if it exists (for saved workflows)
       let workspaceId: string | null = null;
       if (data.workflowId && data.workflowId !== "new") {
-        const workflow = await prisma.workflow.findUnique({
-          where: { id: data.workflowId },
-          select: { workspaceId: true },
+        const workflow = await db.query.workflows.findFirst({
+          where: eq(workflows.id, data.workflowId),
+          columns: { workspaceId: true },
         });
         workspaceId = workflow?.workspaceId || null;
       }

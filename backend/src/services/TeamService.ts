@@ -1,404 +1,123 @@
-import { TeamRole } from "@prisma/client";
-import prisma from "../config/database";
-import { AppError } from "../utils/errors";
-import { logger } from "../utils/logger";
+/**
+ * TeamService Factory
+ * 
+ * This file provides a factory function to switch between Prisma and Drizzle
+ * implementations of the TeamService based on the USE_DRIZZLE_TEAM_SERVICE
+ * environment variable.
+ * 
+ * This allows for gradual migration from Prisma to Drizzle without breaking
+ * existing code.
+ */
 
+import { TeamServiceDrizzle } from './TeamService.drizzle';
+import { logger } from '../utils/logger';
 
+// Type definitions for the service interface
+export interface ITeamService {
+  createTeam(data: any): Promise<any>;
+  getUserTeams(userId: string, options?: any): Promise<any[]>;
+  getTeam(teamId: string, userId: string): Promise<any>;
+  updateTeam(teamId: string, userId: string, data: any): Promise<any>;
+  deleteTeam(teamId: string, userId: string): Promise<any>;
+  addMember(teamId: string, userId: string, data: any): Promise<any>;
+  removeMember(teamId: string, userId: string, targetUserId: string): Promise<any>;
+  updateMemberRole(teamId: string, userId: string, targetUserId: string, newRole: string): Promise<any>;
+  getTeamMembers(teamId: string, userId: string): Promise<any[]>;
+  isTeamMember(teamId: string, userId: string): Promise<boolean>;
+  getTeamRole(teamId: string, userId: string): Promise<string | null>;
+  canManageMembers(teamId: string, userId: string): Promise<boolean>;
+  shareCredentialWithTeam(credentialId: string, teamId: string, userId: string, permission?: string): Promise<any>;
+  unshareCredentialFromTeam(credentialId: string, teamId: string, userId: string): Promise<any>;
+  getTeamCredentialShares(teamId: string, userId: string): Promise<any[]>;
+  getCredentialTeamShares(credentialId: string, userId: string): Promise<any[]>;
+  updateTeamCredentialPermission(credentialId: string, teamId: string, userId: string, newPermission: string): Promise<any>;
+  assignWorkflowToTeam(workflowId: string, teamId: string, userId: string): Promise<any>;
+  removeWorkflowFromTeam(workflowId: string, userId: string): Promise<any>;
+  getTeamWorkflows(teamId: string, userId: string): Promise<any[]>;
+}
 
 /**
- * Options for workspace-scoped queries
+ * Get the appropriate TeamService implementation based on environment variable
  */
-interface WorkspaceQueryOptions {
-  workspaceId?: string;
+function getTeamService(): ITeamService {
+  const useDrizzle = process.env.USE_DRIZZLE_TEAM_SERVICE === 'true';
+
+  if (useDrizzle) {
+    logger.info('Using Drizzle TeamService');
+    return new TeamServiceDrizzle() as ITeamService;
+  }
+
+  // Fallback to Drizzle as default
+  logger.info('Using Drizzle TeamService (default)');
+  return new TeamServiceDrizzle() as ITeamService;
 }
 
-export interface CreateTeamData {
-  name: string;
-  slug?: string;
-  description?: string;
-  color?: string;
-  ownerId: string;
-  workspaceId?: string;
-}
+/**
+ * Export the service instance
+ */
+export const teamService: ITeamService = getTeamService();
 
-export interface UpdateTeamData {
-  name?: string;
-  slug?: string;
-  description?: string;
-  color?: string;
-  settings?: any;
-}
+// Re-export types from Drizzle implementation
+export type {
+  TeamResponse,
+  TeamMemberResponse,
+  TeamWithRole,
+  CreateTeamData,
+  UpdateTeamData,
+  AddMemberData,
+} from './TeamService.drizzle';
 
-export interface AddMemberData {
-  email: string;
-  role?: TeamRole;
-}
+export { TeamServiceDrizzle };
 
+// Legacy class export for backward compatibility
 export class TeamService {
   /**
    * Create a new team
    */
-  static async createTeam(data: CreateTeamData) {
-    try {
-      // Generate slug from name if not provided
-      const slug = data.slug || this.generateSlug(data.name);
-
-      // Check if slug already exists (within workspace if provided)
-      const existingTeamWhere: any = { slug };
-      if (data.workspaceId) {
-        existingTeamWhere.workspaceId = data.workspaceId;
-      }
-      
-      const existingTeam = await prisma.team.findFirst({
-        where: existingTeamWhere,
-      });
-
-      if (existingTeam) {
-        throw new AppError("Team slug already exists", 400);
-      }
-
-      // Create team
-      const team = await prisma.team.create({
-        data: {
-          name: data.name,
-          slug,
-          description: data.description,
-          color: data.color || "#3b82f6",
-          ownerId: data.ownerId,
-          workspaceId: data.workspaceId, // Add workspace context
-        },
-        include: {
-          owner: {
-            select: { id: true, name: true, email: true },
-          },
-          _count: {
-            select: { members: true, workflows: true, sharedCredentials: true },
-          },
-        },
-      });
-
-      // Add owner as team member with OWNER role
-      await prisma.teamMember.create({
-        data: {
-          teamId: team.id,
-          userId: data.ownerId,
-          role: TeamRole.OWNER,
-        },
-      });
-
-      logger.info(`Team created: ${team.id} by user ${data.ownerId}`);
-
-      return team;
-    } catch (error) {
-      logger.error("Error creating team:", error);
-      throw error;
-    }
+  static async createTeam(data: any): Promise<any> {
+    return teamService.createTeam(data);
   }
 
   /**
    * Get user's teams (owned + member of)
    */
-  static async getUserTeams(userId: string, options?: WorkspaceQueryOptions) {
-    try {
-      const whereClause: any = {
-        OR: [
-          { ownerId: userId }, // Teams user owns
-          { members: { some: { userId } } }, // Teams user is member of
-        ],
-      };
-
-      // Filter by workspace if provided
-      if (options?.workspaceId) {
-        whereClause.workspaceId = options.workspaceId;
-      }
-
-      const teams = await prisma.team.findMany({
-        where: whereClause,
-        include: {
-          owner: {
-            select: { id: true, name: true, email: true },
-          },
-          members: {
-            include: {
-              user: {
-                select: { id: true, name: true, email: true },
-              },
-            },
-          },
-          _count: {
-            select: { workflows: true, sharedCredentials: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      // Add user's role to each team
-      const teamsWithRole = teams.map((team) => {
-        const membership = team.members.find((m) => m.userId === userId);
-        return {
-          ...team,
-          userRole: membership?.role || TeamRole.OWNER,
-        };
-      });
-
-      return teamsWithRole;
-    } catch (error) {
-      logger.error("Error getting user teams:", error);
-      throw error;
-    }
+  static async getUserTeams(userId: string, options?: any): Promise<any[]> {
+    return teamService.getUserTeams(userId, options);
   }
 
   /**
    * Get team by ID
    */
-  static async getTeam(teamId: string, userId: string) {
-    try {
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-        include: {
-          owner: {
-            select: { id: true, name: true, email: true },
-          },
-          members: {
-            include: {
-              user: {
-                select: { id: true, name: true, email: true },
-              },
-            },
-          },
-          _count: {
-            select: { workflows: true, sharedCredentials: true },
-          },
-        },
-      });
-
-      if (!team) {
-        throw new AppError("Team not found", 404);
-      }
-
-      // Check if user has access
-      const isMember = team.members.some((m) => m.userId === userId);
-      if (!isMember && team.ownerId !== userId) {
-        throw new AppError("Access denied", 403);
-      }
-
-      return team;
-    } catch (error) {
-      logger.error("Error getting team:", error);
-      throw error;
-    }
+  static async getTeam(teamId: string, userId: string): Promise<any> {
+    return teamService.getTeam(teamId, userId);
   }
 
   /**
    * Update team
    */
-  static async updateTeam(teamId: string, userId: string, data: UpdateTeamData) {
-    try {
-      // Check if user is owner
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-
-      if (!team) {
-        throw new AppError("Team not found", 404);
-      }
-
-      if (team.ownerId !== userId) {
-        throw new AppError("Only team owner can update team", 403);
-      }
-
-      // If slug is being updated, check uniqueness
-      if (data.slug && data.slug !== team.slug) {
-        const existingTeam = await prisma.team.findUnique({
-          where: { slug: data.slug },
-        });
-
-        if (existingTeam) {
-          throw new AppError("Team slug already exists", 400);
-        }
-      }
-
-      const updatedTeam = await prisma.team.update({
-        where: { id: teamId },
-        data,
-        include: {
-          owner: {
-            select: { id: true, name: true, email: true },
-          },
-          _count: {
-            select: { members: true, workflows: true, sharedCredentials: true },
-          },
-        },
-      });
-
-      logger.info(`Team updated: ${teamId} by user ${userId}`);
-
-      return updatedTeam;
-    } catch (error) {
-      logger.error("Error updating team:", error);
-      throw error;
-    }
+  static async updateTeam(teamId: string, userId: string, data: any): Promise<any> {
+    return teamService.updateTeam(teamId, userId, data);
   }
 
   /**
    * Delete team
    */
-  static async deleteTeam(teamId: string, userId: string) {
-    try {
-      // Check if user is owner
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-
-      if (!team) {
-        throw new AppError("Team not found", 404);
-      }
-
-      if (team.ownerId !== userId) {
-        throw new AppError("Only team owner can delete team", 403);
-      }
-
-      // Delete team (cascade will handle members and shares)
-      await prisma.team.delete({
-        where: { id: teamId },
-      });
-
-      logger.info(`Team deleted: ${teamId} by user ${userId}`);
-
-      return { success: true };
-    } catch (error) {
-      logger.error("Error deleting team:", error);
-      throw error;
-    }
+  static async deleteTeam(teamId: string, userId: string): Promise<any> {
+    return teamService.deleteTeam(teamId, userId);
   }
 
   /**
    * Add member to team
-   * Note: Only workspace members can be added to teams within that workspace
    */
-  static async addMember(teamId: string, userId: string, data: AddMemberData) {
-    try {
-      // Check if user is owner or admin
-      const canManage = await this.canManageMembers(teamId, userId);
-      if (!canManage) {
-        throw new AppError("Only team owner can add members", 403);
-      }
-
-      // Get the team to find its workspace
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-        select: { workspaceId: true },
-      });
-
-      if (!team) {
-        throw new AppError("Team not found", 404);
-      }
-
-      // Find user by email
-      const targetUser = await prisma.user.findUnique({
-        where: { email: data.email },
-      });
-
-      if (!targetUser) {
-        throw new AppError("User not found", 404);
-      }
-
-      // Check if target user is a member of the workspace
-      if (team.workspaceId) {
-        const workspaceMembership = await prisma.workspaceMember.findUnique({
-          where: {
-            workspaceId_userId: {
-              workspaceId: team.workspaceId,
-              userId: targetUser.id,
-            },
-          },
-        });
-
-        if (!workspaceMembership) {
-          throw new AppError(
-            "User must be a workspace member before joining a team. Invite them to the workspace first.",
-            400,
-            "NOT_WORKSPACE_MEMBER"
-          );
-        }
-      }
-
-      // Check if already a team member
-      const existingMember = await prisma.teamMember.findUnique({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: targetUser.id,
-          },
-        },
-      });
-
-      if (existingMember) {
-        throw new AppError("User is already a team member", 400);
-      }
-
-      // Add member
-      const member = await prisma.teamMember.create({
-        data: {
-          teamId,
-          userId: targetUser.id,
-          role: data.role || TeamRole.MEMBER,
-        },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-      });
-
-      logger.info(`Member added to team ${teamId}: ${targetUser.id}`);
-
-      // TODO: Send email notification to new member
-
-      return member;
-    } catch (error) {
-      logger.error("Error adding team member:", error);
-      throw error;
-    }
+  static async addMember(teamId: string, userId: string, data: any): Promise<any> {
+    return teamService.addMember(teamId, userId, data);
   }
 
   /**
    * Remove member from team
    */
-  static async removeMember(teamId: string, userId: string, targetUserId: string) {
-    try {
-      // Check if user can manage members
-      const canManage = await this.canManageMembers(teamId, userId);
-      if (!canManage) {
-        throw new AppError("Only team owner can remove members", 403);
-      }
-
-      // Can't remove team owner
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-
-      if (team?.ownerId === targetUserId) {
-        throw new AppError("Cannot remove team owner", 400);
-      }
-
-      // Remove member
-      await prisma.teamMember.delete({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: targetUserId,
-          },
-        },
-      });
-
-      logger.info(`Member removed from team ${teamId}: ${targetUserId}`);
-
-      return { success: true };
-    } catch (error) {
-      logger.error("Error removing team member:", error);
-      throw error;
-    }
+  static async removeMember(teamId: string, userId: string, targetUserId: string): Promise<any> {
+    return teamService.removeMember(teamId, userId, targetUserId);
   }
 
   /**
@@ -408,137 +127,38 @@ export class TeamService {
     teamId: string,
     userId: string,
     targetUserId: string,
-    newRole: TeamRole
-  ) {
-    try {
-      // Check if user is owner
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-
-      if (!team) {
-        throw new AppError("Team not found", 404);
-      }
-
-      if (team.ownerId !== userId) {
-        throw new AppError("Only team owner can change roles", 403);
-      }
-
-      // Can't change owner's role
-      if (team.ownerId === targetUserId) {
-        throw new AppError("Cannot change team owner's role", 400);
-      }
-
-      // Update role
-      const member = await prisma.teamMember.update({
-        where: {
-          teamId_userId: {
-            teamId,
-            userId: targetUserId,
-          },
-        },
-        data: { role: newRole },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-      });
-
-      logger.info(`Member role updated in team ${teamId}: ${targetUserId} -> ${newRole}`);
-
-      return member;
-    } catch (error) {
-      logger.error("Error updating member role:", error);
-      throw error;
-    }
+    newRole: string
+  ): Promise<any> {
+    return teamService.updateMemberRole(teamId, userId, targetUserId, newRole);
   }
 
   /**
    * Get team members
    */
-  static async getTeamMembers(teamId: string, userId: string) {
-    try {
-      // Check if user has access to team
-      const isMember = await this.isTeamMember(teamId, userId);
-      if (!isMember) {
-        throw new AppError("Access denied", 403);
-      }
-
-      const members = await prisma.teamMember.findMany({
-        where: { teamId },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-        orderBy: { joinedAt: "asc" },
-      });
-
-      return members;
-    } catch (error) {
-      logger.error("Error getting team members:", error);
-      throw error;
-    }
+  static async getTeamMembers(teamId: string, userId: string): Promise<any[]> {
+    return teamService.getTeamMembers(teamId, userId);
   }
 
   /**
    * Check if user is team member
    */
   static async isTeamMember(teamId: string, userId: string): Promise<boolean> {
-    const member = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: {
-          teamId,
-          userId,
-        },
-      },
-    });
-
-    return !!member;
+    return teamService.isTeamMember(teamId, userId);
   }
 
   /**
    * Get user's role in team
    */
-  static async getTeamRole(teamId: string, userId: string): Promise<TeamRole | null> {
-    const member = await prisma.teamMember.findUnique({
-      where: {
-        teamId_userId: {
-          teamId,
-          userId,
-        },
-      },
-    });
-
-    return member?.role || null;
+  static async getTeamRole(teamId: string, userId: string): Promise<string | null> {
+    return teamService.getTeamRole(teamId, userId);
   }
 
   /**
    * Check if user can manage team members
    */
   static async canManageMembers(teamId: string, userId: string): Promise<boolean> {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    return team?.ownerId === userId;
+    return teamService.canManageMembers(teamId, userId);
   }
-
-  /**
-   * Generate URL-friendly slug from team name
-   */
-  private static generateSlug(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .substring(0, 50);
-  }
-
-  // ============================================
-  // TEAM CREDENTIAL SHARING METHODS
-  // ============================================
 
   /**
    * Share credential with team
@@ -547,65 +167,9 @@ export class TeamService {
     credentialId: string,
     teamId: string,
     userId: string,
-    permission: "USE" | "VIEW" | "EDIT" = "USE"
-  ) {
-    try {
-      // Verify user owns the credential
-      const credential = await prisma.credential.findFirst({
-        where: { id: credentialId, userId },
-      });
-
-      if (!credential) {
-        throw new AppError("Credential not found or access denied", 404);
-      }
-
-      // Verify user has access to team
-      const isMember = await this.isTeamMember(teamId, userId);
-      if (!isMember) {
-        throw new AppError("Access denied to team", 403);
-      }
-
-      // Check if already shared
-      const existingShare = await prisma.credentialShare.findFirst({
-        where: {
-          credentialId,
-          sharedWithTeamId: teamId,
-        },
-      });
-
-      if (existingShare) {
-        throw new AppError("Credential already shared with this team", 400);
-      }
-
-      // Create share
-      const share = await prisma.credentialShare.create({
-        data: {
-          credentialId,
-          ownerUserId: userId,
-          sharedWithUserId: null,
-          sharedWithTeamId: teamId,
-          permission,
-          sharedByUserId: userId,
-        },
-        include: {
-          sharedWithTeam: {
-            select: { id: true, name: true, slug: true, color: true },
-          },
-          credential: {
-            select: { id: true, name: true, type: true },
-          },
-        },
-      });
-
-      logger.info(
-        `Credential shared with team: ${credentialId} -> ${teamId} (permission: ${permission})`
-      );
-
-      return share;
-    } catch (error) {
-      logger.error("Error sharing credential with team:", error);
-      throw error;
-    }
+    permission?: string
+  ): Promise<any> {
+    return teamService.shareCredentialWithTeam(credentialId, teamId, userId, permission);
   }
 
   /**
@@ -615,109 +179,22 @@ export class TeamService {
     credentialId: string,
     teamId: string,
     userId: string
-  ) {
-    try {
-      // Verify user owns the credential
-      const credential = await prisma.credential.findFirst({
-        where: { id: credentialId, userId },
-      });
-
-      if (!credential) {
-        throw new AppError("Credential not found or access denied", 404);
-      }
-
-      // Delete share
-      const deleted = await prisma.credentialShare.deleteMany({
-        where: {
-          credentialId,
-          sharedWithTeamId: teamId,
-        },
-      });
-
-      if (deleted.count === 0) {
-        throw new AppError("Share not found", 404);
-      }
-
-      logger.info(`Credential unshared from team: ${credentialId} -> ${teamId}`);
-
-      return { success: true };
-    } catch (error) {
-      logger.error("Error unsharing credential from team:", error);
-      throw error;
-    }
+  ): Promise<any> {
+    return teamService.unshareCredentialFromTeam(credentialId, teamId, userId);
   }
 
   /**
    * Get team credential shares
    */
-  static async getTeamCredentialShares(teamId: string, userId: string) {
-    try {
-      // Verify user has access to team
-      const isMember = await this.isTeamMember(teamId, userId);
-      if (!isMember) {
-        throw new AppError("Access denied to team", 403);
-      }
-
-      const shares = await prisma.credentialShare.findMany({
-        where: { sharedWithTeamId: teamId },
-        include: {
-          credential: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              userId: true,
-              createdAt: true,
-              updatedAt: true,
-              expiresAt: true,
-            },
-          },
-          sharedBy: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-        orderBy: { sharedAt: "desc" },
-      });
-
-      return shares;
-    } catch (error) {
-      logger.error("Error getting team credential shares:", error);
-      throw error;
-    }
+  static async getTeamCredentialShares(teamId: string, userId: string): Promise<any[]> {
+    return teamService.getTeamCredentialShares(teamId, userId);
   }
 
   /**
    * Get credentials shared with a specific team
    */
-  static async getCredentialTeamShares(credentialId: string, userId: string) {
-    try {
-      // Verify user owns the credential
-      const credential = await prisma.credential.findFirst({
-        where: { id: credentialId, userId },
-      });
-
-      if (!credential) {
-        throw new AppError("Credential not found or access denied", 404);
-      }
-
-      const shares = await prisma.credentialShare.findMany({
-        where: { 
-          credentialId,
-          sharedWithTeamId: { not: null }
-        },
-        include: {
-          sharedWithTeam: {
-            select: { id: true, name: true, slug: true, color: true },
-          },
-        },
-        orderBy: { sharedAt: "desc" },
-      });
-
-      return shares;
-    } catch (error) {
-      logger.error("Error getting credential team shares:", error);
-      throw error;
-    }
+  static async getCredentialTeamShares(credentialId: string, userId: string): Promise<any[]> {
+    return teamService.getCredentialTeamShares(credentialId, userId);
   }
 
   /**
@@ -727,57 +204,10 @@ export class TeamService {
     credentialId: string,
     teamId: string,
     userId: string,
-    newPermission: "USE" | "VIEW" | "EDIT"
-  ) {
-    try {
-      // Verify user owns the credential
-      const credential = await prisma.credential.findFirst({
-        where: { id: credentialId, userId },
-      });
-
-      if (!credential) {
-        throw new AppError("Credential not found or access denied", 404);
-      }
-
-      const updated = await prisma.credentialShare.updateMany({
-        where: {
-          credentialId,
-          sharedWithTeamId: teamId,
-        },
-        data: {
-          permission: newPermission,
-        },
-      });
-
-      if (updated.count === 0) {
-        throw new AppError("Share not found", 404);
-      }
-
-      logger.info(
-        `Team credential permission updated: ${credentialId} -> ${teamId} to ${newPermission}`
-      );
-
-      // Return updated share
-      return await prisma.credentialShare.findFirst({
-        where: {
-          credentialId,
-          sharedWithTeamId: teamId,
-        },
-        include: {
-          sharedWithTeam: {
-            select: { id: true, name: true, slug: true, color: true },
-          },
-        },
-      });
-    } catch (error) {
-      logger.error("Error updating team credential permission:", error);
-      throw error;
-    }
+    newPermission: string
+  ): Promise<any> {
+    return teamService.updateTeamCredentialPermission(credentialId, teamId, userId, newPermission);
   }
-
-  // ============================================
-  // WORKFLOW TEAM ASSIGNMENT METHODS
-  // ============================================
 
   /**
    * Assign workflow to team
@@ -786,97 +216,21 @@ export class TeamService {
     workflowId: string,
     teamId: string,
     userId: string
-  ) {
-    try {
-      // Verify user owns the workflow
-      const workflow = await prisma.workflow.findFirst({
-        where: { id: workflowId, userId },
-      });
-
-      if (!workflow) {
-        throw new AppError("Workflow not found or access denied", 404);
-      }
-
-      // Verify user has access to team
-      const isMember = await this.isTeamMember(teamId, userId);
-      if (!isMember) {
-        throw new AppError("Access denied to team", 403);
-      }
-
-      // Update workflow
-      const updatedWorkflow = await prisma.workflow.update({
-        where: { id: workflowId },
-        data: { teamId },
-        include: {
-          team: {
-            select: { id: true, name: true, slug: true, color: true },
-          },
-        },
-      });
-
-      logger.info(`Workflow assigned to team: ${workflowId} -> ${teamId}`);
-
-      return updatedWorkflow;
-    } catch (error) {
-      logger.error("Error assigning workflow to team:", error);
-      throw error;
-    }
+  ): Promise<any> {
+    return teamService.assignWorkflowToTeam(workflowId, teamId, userId);
   }
 
   /**
    * Remove workflow from team (make it personal)
    */
-  static async removeWorkflowFromTeam(workflowId: string, userId: string) {
-    try {
-      // Verify user owns the workflow
-      const workflow = await prisma.workflow.findFirst({
-        where: { id: workflowId, userId },
-      });
-
-      if (!workflow) {
-        throw new AppError("Workflow not found or access denied", 404);
-      }
-
-      // Update workflow
-      const updatedWorkflow = await prisma.workflow.update({
-        where: { id: workflowId },
-        data: { teamId: null },
-      });
-
-      logger.info(`Workflow removed from team: ${workflowId}`);
-
-      return updatedWorkflow;
-    } catch (error) {
-      logger.error("Error removing workflow from team:", error);
-      throw error;
-    }
+  static async removeWorkflowFromTeam(workflowId: string, userId: string): Promise<any> {
+    return teamService.removeWorkflowFromTeam(workflowId, userId);
   }
 
   /**
    * Get team workflows
    */
-  static async getTeamWorkflows(teamId: string, userId: string) {
-    try {
-      // Verify user has access to team
-      const isMember = await this.isTeamMember(teamId, userId);
-      if (!isMember) {
-        throw new AppError("Access denied to team", 403);
-      }
-
-      const workflows = await prisma.workflow.findMany({
-        where: { teamId },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      return workflows;
-    } catch (error) {
-      logger.error("Error getting team workflows:", error);
-      throw error;
-    }
+  static async getTeamWorkflows(teamId: string, userId: string): Promise<any[]> {
+    return teamService.getTeamWorkflows(teamId, userId);
   }
 }

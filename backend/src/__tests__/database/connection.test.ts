@@ -1,18 +1,31 @@
-import { checkDatabaseConnection, disconnectDatabase } from '../../config/database'
+import { checkDatabaseConnection, disconnectDatabase } from '../../db/client'
 
-describe('Database Configuration', () => {
+describe('Drizzle Database Client', () => {
   describe('checkDatabaseConnection', () => {
-    it('should handle database connection check gracefully', async () => {
-      // This test verifies the function exists and handles errors gracefully
-      // In a real environment with DATABASE_URL, it would test actual connection
+    it('should return a boolean result', async () => {
+      const result = await checkDatabaseConnection()
+      expect(typeof result).toBe('boolean')
+    })
+
+    it('should return true when database is accessible', async () => {
+      // This test will pass if DATABASE_URL is properly configured
+      // and the database is running
+      const result = await checkDatabaseConnection()
+      if (process.env.DATABASE_URL) {
+        expect(result).toBe(true)
+      }
+    })
+
+    it('should handle connection errors gracefully', async () => {
+      // Test that the function doesn't throw even if connection fails
       const result = await checkDatabaseConnection()
       expect(typeof result).toBe('boolean')
     })
   })
 
   describe('disconnectDatabase', () => {
-    it('should handle database disconnection gracefully', async () => {
-      // This test verifies the function exists and handles disconnection gracefully
+    it('should complete without throwing', async () => {
+      // This test verifies the function handles disconnection gracefully
       await expect(disconnectDatabase()).resolves.not.toThrow()
     })
   })

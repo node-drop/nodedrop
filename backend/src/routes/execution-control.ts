@@ -1,5 +1,4 @@
 import express, { Response } from "express";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
@@ -7,13 +6,14 @@ import {
     ManualInterventionResponse,
 } from "../services/ExecutionTimeoutManager";
 import { SocketService } from "../services/SocketService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 
 const router = express.Router();
 
 
 // Initialize timeout manager (will be enhanced with proper dependency injection)
 const socketService = new SocketService(null as any); // Placeholder
-const timeoutManager = new ExecutionTimeoutManager(prisma, socketService);
+const timeoutManager = new ExecutionTimeoutManager(null as any, socketService);
 
 /**
  * Get pending manual interventions for user
@@ -115,17 +115,10 @@ router.post(
     }
 
     // Check if execution belongs to user
-    const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
-    }
-
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
     }
 
     try {
@@ -168,17 +161,10 @@ router.get(
     const userId = req.user!.id;
 
     // Check if execution belongs to user
-    const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
-    }
-
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
     }
 
     try {
@@ -229,34 +215,25 @@ router.post(
     const userId = req.user!.id;
 
     // Check if execution belongs to user
-    const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
     }
 
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
     try {
       // Update execution to cancelled status
-      await prisma.execution.update({
-        where: { id: executionId },
-        data: {
-          status: "CANCELLED",
-          finishedAt: new Date(),
-          error: {
-            type: "force_cancel",
-            reason,
-            timestamp: new Date().toISOString(),
-            cancelledBy: userId,
-          },
-        },
-      });
+      await executionServiceDrizzle.updateExecutionStatus(
+        executionId,
+        "CANCELLED",
+        new Date(),
+        {
+          type: "force_cancel",
+          reason,
+          timestamp: new Date().toISOString(),
+          cancelledBy: userId,
+        }
+      );
 
       // Clear any active timeouts
       timeoutManager.clearExecutionTimeout(executionId);
@@ -302,17 +279,10 @@ router.post(
     }
 
     // Check if execution belongs to user
-    const execution = await prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
-    }
-
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
     }
 
     try {

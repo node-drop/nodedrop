@@ -1,7 +1,6 @@
 import { Request, Response, Router } from "express";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import {
     rateLimitConfig,
@@ -9,9 +8,9 @@ import {
 } from "../rate-limit/rate-limit.config";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { ExecutionService } from "../services/ExecutionService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 import { SocketService } from "../services/SocketService";
-import { WorkflowService } from "../services/WorkflowService";
+import { workflowServiceDrizzle } from "../services/WorkflowService";
 
 const router = Router();
 
@@ -81,24 +80,15 @@ const getNodeService = () => {
 };
 
 // Initialize non-dependent services
-const workflowService = new WorkflowService(prisma);
-const executionHistoryService = new ExecutionHistoryService(prisma);
-const credentialService = new CredentialService();
+const executionHistoryService = new ExecutionHistoryService();
+const { getCredentialService } = require("../services/CredentialService.factory");
+const credentialService = getCredentialService();
 const httpServer = createServer();
 const socketService = new SocketService(httpServer);
 
-// Lazy initialization for services that depend on NodeService
-let executionService: ExecutionService;
-
+// Use Drizzle-based execution service
 const getExecutionService = () => {
-  if (!executionService) {
-    executionService = new ExecutionService(
-      prisma,
-      getNodeService(),
-      executionHistoryService
-    );
-  }
-  return executionService;
+  return executionServiceDrizzle;
 };
 
 /**
@@ -115,17 +105,7 @@ router.get(
 
     try {
       // Find workflow with chat node that has this chatId
-      const workflows = await prisma.workflow.findMany({
-        where: {
-          active: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          nodes: true,
-          active: true,
-        },
-      });
+      const workflows = await workflowServiceDrizzle.getAllActiveWorkflows();
 
       let chatConfig = null;
       let workflowId = null;
@@ -229,20 +209,7 @@ router.post(
       }
 
       // Find workflow with chat node that has this chatId
-      const workflows = await prisma.workflow.findMany({
-        where: {
-          active: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          nodes: true,
-          connections: true,
-          settings: true,
-          active: true,
-          userId: true,
-        },
-      });
+      const workflows = await workflowServiceDrizzle.getAllActiveWorkflows();
 
       let targetWorkflow = null;
 

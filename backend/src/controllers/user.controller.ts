@@ -1,8 +1,11 @@
 import { Response } from "express";
-import prisma from "../config/database";
+import { db } from "../db/client";
+import { users } from "../db/schema/auth";
+import { eq } from "drizzle-orm";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
 import { ApiResponse } from "../types/api";
+import { userServiceDrizzle } from "../services/UserService.drizzle";
 
 
 
@@ -16,19 +19,16 @@ export const getPreferences = asyncHandler(
       throw new AppError("User not authenticated", 401, "UNAUTHORIZED");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { preferences: true },
-    });
+    const userPrefs = await userServiceDrizzle.getUserPreferences(req.user.id);
 
-    if (!user) {
+    if (!userPrefs) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
     }
 
     const response: ApiResponse = {
       success: true,
       data: {
-        preferences: user.preferences || {},
+        preferences: userPrefs.preferences || {},
       },
     };
 
@@ -56,16 +56,16 @@ export const updatePreferences = asyncHandler(
       );
     }
 
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { preferences },
-      select: { preferences: true },
-    });
+    const userPrefs = await userServiceDrizzle.updateUserPreferences(req.user.id, preferences);
+
+    if (!userPrefs) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
 
     const response: ApiResponse = {
       success: true,
       data: {
-        preferences: user.preferences,
+        preferences: userPrefs.preferences,
       },
     };
 
@@ -93,40 +93,17 @@ export const patchPreferences = asyncHandler(
       );
     }
 
-    // Get current preferences
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { preferences: true },
-    });
+    // Merge preferences using the service method
+    const userPrefs = await userServiceDrizzle.mergeUserPreferences(req.user.id, preferences);
 
-    if (!currentUser) {
+    if (!userPrefs) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
     }
-
-    // Merge preferences
-    const currentPrefs = (currentUser.preferences as any) || {};
-    const mergedPreferences = {
-      ...currentPrefs,
-      ...preferences,
-      // Deep merge for nested objects like canvas settings
-      canvas: {
-        ...(currentPrefs.canvas || {}),
-        ...(preferences.canvas || {}),
-      },
-      // pinnedNodes is a simple array, so direct replacement is fine
-      ...(preferences.pinnedNodes !== undefined && { pinnedNodes: preferences.pinnedNodes }),
-    };
-
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { preferences: mergedPreferences },
-      select: { preferences: true },
-    });
 
     const response: ApiResponse = {
       success: true,
       data: {
-        preferences: user.preferences,
+        preferences: userPrefs.preferences,
       },
     };
 
@@ -144,26 +121,16 @@ export const getProfile = asyncHandler(
       throw new AppError("User not authenticated", 401, "UNAUTHORIZED");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const userProfile = await userServiceDrizzle.getUserProfile(req.user.id);
 
-    if (!user) {
+    if (!userProfile) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
     }
 
     const response: ApiResponse = {
       success: true,
       data: {
-        user,
+        user: userProfile,
       },
     };
 
@@ -199,9 +166,7 @@ export const updateProfile = asyncHandler(
       }
 
       // Check if email is already taken by another user
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      });
+      const existingUser = await userServiceDrizzle.getUserByEmail(email);
 
       if (existingUser && existingUser.id !== req.user.id) {
         throw new AppError("Email already in use", 400, "EMAIL_IN_USE");
@@ -212,23 +177,16 @@ export const updateProfile = asyncHandler(
     if (name) updateData.name = name;
     if (email) updateData.email = email;
 
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const userProfile = await userServiceDrizzle.updateUserProfile(req.user.id, updateData);
+
+    if (!userProfile) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
 
     const response: ApiResponse = {
       success: true,
       data: {
-        user,
+        user: userProfile,
       },
     };
 

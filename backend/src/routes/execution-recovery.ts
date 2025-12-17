@@ -1,16 +1,16 @@
 import { Response, Router } from "express";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService from "../services/ExecutionHistoryService";
 import ExecutionRecoveryService from "../services/ExecutionRecoveryService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 
 const router = Router();
 
 // Initialize services (in production, these would be injected)
-const historyService = new ExecutionHistoryService(prisma);
+const historyService = new ExecutionHistoryService();
 const recoveryService = new ExecutionRecoveryService(
-  prisma,
+  null, // Drizzle client not needed for recovery analysis
   null, // SocketService not needed for recovery analysis
   historyService
 );
@@ -265,22 +265,14 @@ router.get(
 
     try {
       // Get recent failed executions to analyze patterns
-      const failedExecutions = await prisma.execution.findMany({
-        where: {
-          status: "ERROR",
-          startedAt: {
-            gte: new Date(
-              Date.now() - parseInt(days as string) * 24 * 60 * 60 * 1000
-            ),
-          },
-        },
-        include: {
-          workflow: {
-            select: { name: true, nodes: true },
-          },
-        },
-        orderBy: { startedAt: "desc" },
-        take: parseInt(limit as string),
+      const result = await executionServiceDrizzle.listExecutions(req.user!.id, {
+        status: "ERROR",
+        limit: parseInt(limit as string),
+      });
+      
+      const failedExecutions = (result.executions || []).filter((e: any) => {
+        const startDate = new Date(Date.now() - parseInt(days as string) * 24 * 60 * 60 * 1000);
+        return e.startedAt >= startDate;
       });
 
       // Analyze error patterns
@@ -367,24 +359,11 @@ router.get(
       );
 
       // Get execution statistics
-      const [totalExecutions, failedExecutions, successfulExecutions] =
-        await Promise.all([
-          prisma.execution.count({
-            where: { startedAt: { gte: startDate } },
-          }),
-          prisma.execution.count({
-            where: {
-              status: "ERROR",
-              startedAt: { gte: startDate },
-            },
-          }),
-          prisma.execution.count({
-            where: {
-              status: "SUCCESS",
-              startedAt: { gte: startDate },
-            },
-          }),
-        ]);
+      const stats = await executionServiceDrizzle.getExecutionStats(req.user!.id);
+      
+      const totalExecutions = stats.total || 0;
+      const failedExecutions = stats.failed || 0;
+      const successfulExecutions = stats.successful || 0;
 
       // Calculate rates
       const failureRate =

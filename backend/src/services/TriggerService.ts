@@ -1,6 +1,8 @@
-import { PrismaClient } from "@prisma/client";
 import * as cron from "node-cron";
 import { v4 as uuidv4 } from "uuid";
+import { eq, and } from "drizzle-orm";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import * as schema from "../db/schema";
 import { AppError } from "../middleware/errorHandler";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
@@ -10,8 +12,8 @@ import { ExecutionService } from "./ExecutionService";
 import { NodeService } from "./NodeService";
 import { SocketService } from "./SocketService";
 import { TriggerExecutionRequest, TriggerManager } from "./TriggerManager";
-import { WebhookRequestLogService } from "./WebhookRequestLogService";
-import { WorkflowService } from "./WorkflowService";
+import { webhookRequestLogService } from "./WebhookRequestLogService.factory";
+import { IWorkflowService } from "./WorkflowService";
 
 /**
  * Options for workspace-scoped queries
@@ -100,15 +102,14 @@ export interface WebhookRequest {
 }
 
 export class TriggerService {
-  private prisma: PrismaClient;
-  private workflowService: WorkflowService;
+  private db: NodePgDatabase<typeof schema>;
+  private workflowService: IWorkflowService;
   private executionService: ExecutionService;
   private socketService: SocketService;
   private executionHistoryService: ExecutionHistoryService;
   private credentialService: CredentialService;
   private nodeService: NodeService;
   private triggerManager: TriggerManager;
-  private webhookLogService: WebhookRequestLogService;
   private scheduledTasks: Map<string, cron.ScheduledTask> = new Map();
   // Map webhook key (path or path/uuid) to trigger definition
   private webhookTriggers: Map<string, TriggerDefinition> = new Map();
@@ -118,26 +119,25 @@ export class TriggerService {
   private pollingTriggers: Map<string, TriggerDefinition> = new Map();
 
   constructor(
-    prisma: PrismaClient,
-    workflowService: WorkflowService,
+    db: NodePgDatabase<typeof schema>,
+    workflowService: IWorkflowService,
     executionService: ExecutionService,
     socketService: SocketService,
     nodeService: NodeService,
     executionHistoryService: ExecutionHistoryService,
     credentialService: CredentialService
   ) {
-    this.prisma = prisma;
+    this.db = db;
     this.workflowService = workflowService;
     this.executionService = executionService;
     this.socketService = socketService;
     this.executionHistoryService = executionHistoryService;
     this.credentialService = credentialService;
     this.nodeService = nodeService;
-    this.webhookLogService = new WebhookRequestLogService(prisma);
 
     // Initialize TriggerManager with concurrent execution support
     this.triggerManager = new TriggerManager(
-      prisma,
+      db as any,
       executionService,
       {
         maxConcurrentTriggers: parseInt(
@@ -174,11 +174,11 @@ export class TriggerService {
       let loadedCount = 0;
 
       // Load polling and schedule triggers from database (source of truth)
-      const activeTriggerJobs = await this.prisma.triggerJob.findMany({
-        where: { active: true },
-        include: {
+      const activeTriggerJobs = await this.db.query.triggerJobs.findMany({
+        where: eq(schema.triggerJobs.active, true),
+        with: {
           workflow: {
-            select: {
+            columns: {
               id: true,
               active: true,
               triggers: true,
@@ -190,7 +190,7 @@ export class TriggerService {
       // Process each trigger job from database
       for (const job of activeTriggerJobs) {
         // Check if workflow is active
-        if (!job.workflow.active) {
+        if (!job.workflow || !job.workflow.active) {
           continue;
         }
 
@@ -261,13 +261,13 @@ export class TriggerService {
       const currentTriggers = (workflow.triggers as any[]) || [];
       const updatedTriggers = [...currentTriggers, trigger];
 
-      await this.prisma.workflow.update({
-        where: { id: workflowId },
-        data: {
+      await this.db
+        .update(schema.workflows)
+        .set({
           triggers: updatedTriggers,
           updatedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(schema.workflows.id, workflowId));
 
       // Activate trigger if it's active and workflow is active
       if (trigger.active && workflow.active) {
@@ -327,13 +327,13 @@ export class TriggerService {
       triggers[triggerIndex] = updatedTrigger;
 
       // Update workflow
-      await this.prisma.workflow.update({
-        where: { id: workflowId },
-        data: {
+      await this.db
+        .update(schema.workflows)
+        .set({
           triggers: triggers,
           updatedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(schema.workflows.id, workflowId));
 
       // Handle activation/deactivation
       if (updates.active !== undefined) {
@@ -383,13 +383,13 @@ export class TriggerService {
       // Remove trigger from workflow JSON
       triggers.splice(triggerIndex, 1);
 
-      await this.prisma.workflow.update({
-        where: { id: workflowId },
-        data: {
+      await this.db
+        .update(schema.workflows)
+        .set({
           triggers: triggers,
           updatedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(schema.workflows.id, workflowId));
 
       logger.info(`✅ Permanently deleted trigger ${triggerId} from workflow ${workflowId}`);
 
@@ -467,27 +467,31 @@ export class TriggerService {
         
         // Delete or deactivate database record for schedule triggers
         if (permanentDelete) {
-          await this.prisma.triggerJob.deleteMany({
-            where: {
-              triggerId,
-              type: 'schedule',
-            },
-          }).catch(err => {
-            logger.error(`Failed to delete schedule trigger ${triggerId} from database:`, err);
-          });
+          await this.db
+            .delete(schema.triggerJobs)
+            .where(
+              and(
+                eq(schema.triggerJobs.triggerId, triggerId),
+                eq(schema.triggerJobs.type, 'schedule')
+              )
+            )
+            .catch((err: any) => {
+              logger.error(`Failed to delete schedule trigger ${triggerId} from database:`, err);
+            });
           logger.info(`🗑️  Permanently deleted schedule trigger ${triggerId} from database`);
         } else {
-          await this.prisma.triggerJob.updateMany({
-            where: {
-              triggerId,
-              type: 'schedule',
-            },
-            data: {
-              active: false,
-            },
-          }).catch(err => {
-            logger.error(`Failed to deactivate schedule trigger ${triggerId} in database:`, err);
-          });
+          await this.db
+            .update(schema.triggerJobs)
+            .set({ active: false })
+            .where(
+              and(
+                eq(schema.triggerJobs.triggerId, triggerId),
+                eq(schema.triggerJobs.type, 'schedule')
+              )
+            )
+            .catch((err: any) => {
+              logger.error(`Failed to deactivate schedule trigger ${triggerId} in database:`, err);
+            });
         }
       }
 
@@ -502,28 +506,32 @@ export class TriggerService {
         
         // Delete or deactivate database record for polling triggers
         if (permanentDelete) {
-          await this.prisma.triggerJob.deleteMany({
-            where: {
-              triggerId,
-              type: 'polling',
-            },
-          }).catch(err => {
-            logger.error(`Failed to delete polling trigger ${triggerId} from database:`, err);
-          });
+          await this.db
+            .delete(schema.triggerJobs)
+            .where(
+              and(
+                eq(schema.triggerJobs.triggerId, triggerId),
+                eq(schema.triggerJobs.type, 'polling')
+              )
+            )
+            .catch((err: any) => {
+              logger.error(`Failed to delete polling trigger ${triggerId} from database:`, err);
+            });
           console.log(`🗑️  Permanently deleted polling trigger ${triggerId} from database`);
           logger.info(`🗑️  Permanently deleted polling trigger ${triggerId} from database`);
         } else {
-          await this.prisma.triggerJob.updateMany({
-            where: {
-              triggerId,
-              type: 'polling',
-            },
-            data: {
-              active: false,
-            },
-          }).catch(err => {
-            logger.error(`Failed to deactivate polling trigger ${triggerId} in database:`, err);
-          });
+          await this.db
+            .update(schema.triggerJobs)
+            .set({ active: false })
+            .where(
+              and(
+                eq(schema.triggerJobs.triggerId, triggerId),
+                eq(schema.triggerJobs.type, 'polling')
+              )
+            )
+            .catch((err: any) => {
+              logger.error(`Failed to deactivate polling trigger ${triggerId} in database:`, err);
+            });
           console.log(`🗑️  Deactivated polling trigger: ${triggerId}`);
           logger.info(`🗑️  Deactivated polling trigger: ${triggerId}`);
         }
@@ -607,36 +615,44 @@ export class TriggerService {
     logger.info(`🔄 Activating schedule trigger ${trigger.id} with cron: ${cronExpression}`);
 
     // Get workflow for description
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: trigger.workflowId },
-      select: { name: true },
+    const workflows = await this.db.query.workflows.findFirst({
+      where: eq(schema.workflows.id, trigger.workflowId),
+      columns: { name: true },
     });
 
-    // Create or update database record
-    await this.prisma.triggerJob.upsert({
-      where: {
-        workflowId_triggerId: {
-          workflowId: trigger.workflowId,
-          triggerId: trigger.id,
-        },
-      },
-      create: {
+    // Check if trigger job already exists
+    const existingJob = await this.db.query.triggerJobs.findFirst({
+      where: and(
+        eq(schema.triggerJobs.workflowId, trigger.workflowId),
+        eq(schema.triggerJobs.triggerId, trigger.id)
+      ),
+    });
+
+    if (existingJob) {
+      // Update existing record
+      await this.db
+        .update(schema.triggerJobs)
+        .set({
+          type: 'schedule',
+          cronExpression,
+          timezone: timezone || 'UTC',
+          active: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.triggerJobs.id, existingJob.id));
+    } else {
+      // Create new record
+      await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
         triggerId: trigger.id,
         type: 'schedule',
         jobKey: trigger.id,
         cronExpression,
         timezone: timezone || 'UTC',
-        description: `Schedule trigger for ${workflow?.name || 'workflow'}`,
+        description: `Schedule trigger for ${workflows?.name || 'workflow'}`,
         active: true,
-      },
-      update: {
-        type: 'schedule',
-        cronExpression,
-        timezone: timezone || 'UTC',
-        active: true,
-      },
-    });
+      });
+    }
 
     // Create scheduled task
     const task = cron.schedule(
@@ -683,88 +699,102 @@ export class TriggerService {
     logger.info(`🔄 Activating polling trigger ${trigger.id} with interval ${pollInterval}s`);
 
     // Get workflow for description
-    const workflow = await this.prisma.workflow.findUnique({
-      where: { id: trigger.workflowId },
-      select: { name: true },
+    const workflows = await this.db.query.workflows.findFirst({
+      where: eq(schema.workflows.id, trigger.workflowId),
+      columns: { name: true },
     });
 
-    // Create or update database record
-    await this.prisma.triggerJob.upsert({
-      where: {
-        workflowId_triggerId: {
-          workflowId: trigger.workflowId,
-          triggerId: trigger.id,
-        },
-      },
-      create: {
+    // Check if trigger job already exists
+    const existingJob = await this.db.query.triggerJobs.findFirst({
+      where: and(
+        eq(schema.triggerJobs.workflowId, trigger.workflowId),
+        eq(schema.triggerJobs.triggerId, trigger.id)
+      ),
+    });
+
+    if (existingJob) {
+      // Update existing record
+      await this.db
+        .update(schema.triggerJobs)
+        .set({
+          type: 'polling',
+          pollInterval,
+          active: true,
+          nextRun: new Date(Date.now() + pollInterval * 1000),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.triggerJobs.id, existingJob.id));
+    } else {
+      // Create new record
+      await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
         triggerId: trigger.id,
         type: 'polling',
         jobKey: trigger.id,
         pollInterval,
-        description: `Polling trigger for ${workflow?.name || 'workflow'}`,
+        description: `Polling trigger for ${workflows?.name || 'workflow'}`,
         active: true,
         nextRun: new Date(Date.now() + pollInterval * 1000),
-      },
-      update: {
-        type: 'polling',
-        pollInterval,
-        active: true,
-        nextRun: new Date(Date.now() + pollInterval * 1000),
-      },
-    });
+      });
+    }
 
     // Create polling function
     const pollFunction = async () => {
       try {
         await this.handlePollingTrigger(trigger);
         
-        // Update or create lastRun and nextRun in database
-        await this.prisma.triggerJob.upsert({
-          where: {
-            workflowId_triggerId: {
-              workflowId: trigger.workflowId,
-              triggerId: trigger.id,
-            },
-          },
-          update: {
-            lastRun: new Date(),
-            nextRun: new Date(Date.now() + pollInterval * 1000),
-            failCount: 0,
-          },
-          create: {
-            workflowId: trigger.workflowId,
-            triggerId: trigger.id,
-            type: 'polling',
-            jobKey: trigger.id,
-            pollInterval,
-            description: `Polling trigger`,
-            active: true,
-            lastRun: new Date(),
-            nextRun: new Date(Date.now() + pollInterval * 1000),
-          },
-        }).catch(err => {
-          logger.error(`Failed to update polling trigger ${trigger.id} in database:`, err);
+        // Update lastRun and nextRun in database
+        const jobToUpdate = await this.db.query.triggerJobs.findFirst({
+          where: and(
+            eq(schema.triggerJobs.workflowId, trigger.workflowId),
+            eq(schema.triggerJobs.triggerId, trigger.id)
+          ),
         });
+
+        if (jobToUpdate) {
+          await this.db
+            .update(schema.triggerJobs)
+            .set({
+              lastRun: new Date(),
+              nextRun: new Date(Date.now() + pollInterval * 1000),
+              failCount: 0,
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.triggerJobs.id, jobToUpdate.id))
+            .catch((err: any) => {
+              logger.error(`Failed to update polling trigger ${trigger.id} in database:`, err);
+            });
+        }
       } catch (error) {
         logger.error(
           `Error executing polling trigger ${trigger.id}:`,
           error
         );
         
-        // Update fail count in database (or create if doesn't exist)
-        await this.prisma.triggerJob.upsert({
-          where: {
-            workflowId_triggerId: {
-              workflowId: trigger.workflowId,
-              triggerId: trigger.id,
-            },
-          },
-          update: {
-            failCount: { increment: 1 },
-            lastError: error instanceof Error ? { message: error.message, stack: error.stack } : { error: String(error) },
-          },
-          create: {
+        // Update fail count in database
+        const jobToUpdate = await this.db.query.triggerJobs.findFirst({
+          where: and(
+            eq(schema.triggerJobs.workflowId, trigger.workflowId),
+            eq(schema.triggerJobs.triggerId, trigger.id)
+          ),
+        });
+
+        if (jobToUpdate) {
+          const currentFailCount = jobToUpdate.failCount || 0;
+          await this.db
+            .update(schema.triggerJobs)
+            .set({
+              failCount: currentFailCount + 1,
+              lastError: error instanceof Error ? { message: error.message, stack: error.stack } : { error: String(error) },
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.triggerJobs.id, jobToUpdate.id))
+            .catch((err: any) => {
+              logger.error(`Failed to update error for polling trigger ${trigger.id}:`, err);
+            });
+        } else {
+          // Create new record if it doesn't exist
+          await this.db.insert(schema.triggerJobs).values({
             workflowId: trigger.workflowId,
             triggerId: trigger.id,
             type: 'polling',
@@ -774,10 +804,10 @@ export class TriggerService {
             active: true,
             failCount: 1,
             lastError: error instanceof Error ? { message: error.message, stack: error.stack } : { error: String(error) },
-          },
-        }).catch(err => {
-          logger.error(`Failed to update error for polling trigger ${trigger.id}:`, err);
-        });
+          }).catch((err: any) => {
+            logger.error(`Failed to update error for polling trigger ${trigger.id}:`, err);
+          });
+        }
       }
     };
 
@@ -870,7 +900,7 @@ export class TriggerService {
     const saveRequestLogs = webhookOptions?.saveRequestLogs === true;
     
     if (saveRequestLogs) {
-      await this.webhookLogService.logRequest(logData)
+      await webhookRequestLogService.logRequest(logData)
         .catch(err => logger.error('Failed to log webhook request:', err));
     } else {
       logger.debug('Webhook request logging disabled for this webhook');
@@ -896,7 +926,7 @@ export class TriggerService {
       
       if (!match || match.triggers.length === 0) {
         // Always log "not found" errors regardless of settings
-        await this.webhookLogService.logRequest({
+        await webhookRequestLogService.logRequest({
           webhookId,
           workflowId: 'unknown',
           userId: 'unknown',
@@ -931,9 +961,9 @@ export class TriggerService {
       }
 
       // Fetch workflow early to get userId and webhook options for logging
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: trigger.workflowId },
-        select: { 
+      const workflow = await this.db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, trigger.workflowId),
+        columns: { 
           userId: true,
           nodes: true,
           connections: true,
@@ -1009,11 +1039,11 @@ export class TriggerService {
       let authConfig = trigger.settings.authentication;
 
       // If authentication is a credential ID (UUID or CUID format), fetch the credential
-      // CUID format: starts with 'c' followed by alphanumeric characters (25 chars total)
+      // CUID format: starts with 'c' followed by alphanumeric characters (25+ chars total)
       // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
       const uuidRegex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const cuidRegex = /^c[a-z0-9]{24}$/i;
+      const cuidRegex = /^c[a-z0-9]{24,}$/i;
 
       const isCredentialId =
         typeof authConfig === "string" &&
@@ -1447,9 +1477,9 @@ export class TriggerService {
             const trigger = match.triggers[0];
             workflowId = trigger.workflowId;
             
-            const workflow = await this.prisma.workflow.findUnique({
-              where: { id: trigger.workflowId },
-              select: { userId: true },
+            const workflow = await this.db.query.workflows.findFirst({
+              where: eq(schema.workflows.id, trigger.workflowId),
+              columns: { userId: true },
             });
             userId = workflow?.userId || 'unknown';
           }
@@ -1463,9 +1493,9 @@ export class TriggerService {
           const match = this.matchWebhookPath(webhookId);
           if (match && match.triggers.length > 0) {
             const trigger = match.triggers[0];
-            const workflow = await this.prisma.workflow.findUnique({
-              where: { id: trigger.workflowId },
-              select: { nodes: true },
+            const workflow = await this.db.query.workflows.findFirst({
+              where: eq(schema.workflows.id, trigger.workflowId),
+              columns: { nodes: true },
             });
             
             if (workflow) {
@@ -1519,9 +1549,9 @@ export class TriggerService {
   ): Promise<void> {
     try {
       // Fetch workflow to get settings
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: trigger.workflowId },
-        select: { settings: true },
+      const workflow = await this.db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, trigger.workflowId),
+        columns: { settings: true },
       });
 
       // Check workflow settings for database storage
@@ -1609,9 +1639,9 @@ export class TriggerService {
       logger.info(`📬 Polling trigger ${trigger.id} checking for new data...`);
 
       // Fetch workflow to get nodes and userId
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: trigger.workflowId },
-        select: { 
+      const workflow = await this.db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, trigger.workflowId),
+        columns: { 
           userId: true, 
           nodes: true,
           settings: true,
@@ -1643,9 +1673,9 @@ export class TriggerService {
       if (triggerNode.parameters?.authentication) {
         const credId = triggerNode.parameters.authentication;
         if (typeof credId === 'string' && credId.startsWith('c')) {
-          const cred = await this.prisma.credential.findUnique({
-            where: { id: credId },
-            select: { type: true }
+          const cred = await this.db.query.credentials.findFirst({
+            where: eq(schema.credentials.id, credId),
+            columns: { type: true }
           });
           if (cred) {
             credentialsMapping[cred.type] = credId;
@@ -2293,29 +2323,26 @@ export class TriggerService {
       }
 
       // Get polling triggers from database with workflow details
-      const pollingJobs = await this.prisma.triggerJob.findMany({
-        where: {
-          type: 'polling',
-          workflow: workflowWhere,
-          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
-        },
-        include: {
+      const pollingJobs = await this.db.query.triggerJobs.findMany({
+        where: and(
+          eq(schema.triggerJobs.type, 'polling'),
+          options?.workspaceId ? eq(schema.triggerJobs.workspaceId, options.workspaceId) : undefined
+        ),
+        with: {
           workflow: {
-            select: {
+            columns: {
               id: true,
               name: true,
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: (fields: any) => [fields.createdAt],
       });
 
-      return pollingJobs.map((job) => ({
+      return pollingJobs.map((job: any) => ({
         id: job.id,
         workflowId: job.workflowId,
-        workflowName: job.workflow.name,
+        workflowName: job.workflow?.name,
         triggerId: job.triggerId,
         pollInterval: job.pollInterval,
         description: job.description,
@@ -2343,28 +2370,23 @@ export class TriggerService {
       }
 
       // Get all trigger jobs from database with workflow details
-      const triggerJobs = await this.prisma.triggerJob.findMany({
-        where: {
-          workflow: workflowWhere,
-          ...(options?.workspaceId && { workspaceId: options.workspaceId }),
-        },
-        include: {
+      const triggerJobs = await this.db.query.triggerJobs.findMany({
+        where: options?.workspaceId ? eq(schema.triggerJobs.workspaceId, options.workspaceId) : undefined,
+        with: {
           workflow: {
-            select: {
+            columns: {
               id: true,
               name: true,
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: (fields: any) => [fields.createdAt],
       });
 
-      return triggerJobs.map((job) => ({
+      return triggerJobs.map((job: any) => ({
         id: job.id,
         workflowId: job.workflowId,
-        workflowName: job.workflow.name,
+        workflowName: job.workflow?.name,
         triggerId: job.triggerId,
         type: job.type,
         cronExpression: job.cronExpression,
@@ -2393,9 +2415,9 @@ export class TriggerService {
       logger.info(`Syncing triggers for workflow ${workflowId}`);
 
       // Get workflow with triggers
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: workflowId },
-        select: {
+      const workflow = await this.db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, workflowId),
+        columns: {
           id: true,
           active: true,
           triggers: true,
@@ -2481,8 +2503,8 @@ export class TriggerService {
           }
 
           // Fetch execution from database
-          const execution = await this.prisma.execution.findUnique({
-            where: { id: executionId },
+          const execution = await this.db.query.executions.findFirst({
+            where: eq(schema.executions.id, executionId),
           });
 
           if (!execution) {
@@ -2629,9 +2651,9 @@ export class TriggerService {
       console.log(`🔍 DEBUG extractResponseData - Execution status:`, execution.status);
       
       // Fetch node executions for this execution
-      const nodeExecutions = await this.prisma.nodeExecution.findMany({
-        where: { executionId: execution.id },
-        select: {
+      const nodeExecutions = await this.db.query.nodeExecutions.findMany({
+        where: eq(schema.nodeExecutions.executionId, execution.id),
+        columns: {
           nodeId: true,
           outputData: true,
           status: true,

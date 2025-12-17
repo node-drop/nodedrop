@@ -1,14 +1,13 @@
 import { Router } from "express";
-import prisma from "../config/database";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { validateQuery } from "../middleware/validation";
-import { WorkflowEnvironmentService } from "../services/WorkflowEnvironmentService";
+import { getWorkflowEnvironmentService } from "../services/WorkflowEnvironmentService.factory";
 import { DeploymentHistoryQuerySchema } from "../types/api";
 import { EnvironmentType } from "../types/environment";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const environmentService = new WorkflowEnvironmentService(prisma);
+const environmentService = getWorkflowEnvironmentService();
 
 /**
  * GET /api/workflows/:workflowId/environments

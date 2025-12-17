@@ -1,7 +1,7 @@
 # Multi-stage build for production
 FROM node:22-alpine AS builder
 
-# Install OpenSSL for Prisma
+# Install OpenSSL for database connections
 RUN apk add --no-cache openssl openssl-dev
 
 WORKDIR /app
@@ -15,13 +15,13 @@ RUN npm ci && npm cache clean --force
 # Copy source code
 COPY . .
 
-# Generate Prisma client and build
-RUN npx prisma generate && npm run build
+# Build application
+RUN npm run build
 
 # Production dependencies stage
 FROM node:22-alpine AS prod-deps
 
-# Install OpenSSL for Prisma
+# Install OpenSSL for database connections
 RUN apk add --no-cache openssl openssl-dev
 
 WORKDIR /app
@@ -37,16 +37,15 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install curl for health checks and OpenSSL for Prisma
+# Install curl for health checks and OpenSSL for database connections
 RUN apk add --no-cache curl openssl openssl-dev
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/src/db ./src/db
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -66,6 +65,6 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
   CMD curl -f http://localhost:4000/health || exit 1
 
-# Start application with migrations only
+# Start application with Drizzle migrations
 # Node registration happens after server starts to avoid blocking and race conditions
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx drizzle-kit migrate && npm start"]

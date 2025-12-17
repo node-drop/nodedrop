@@ -1,13 +1,13 @@
 import express, { Response } from "express";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService, {
     ExecutionHistoryQuery,
 } from "../services/ExecutionHistoryService";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
 
 const router = express.Router();
-const historyService = new ExecutionHistoryService(prisma);
+const historyService = new ExecutionHistoryService();
 
 /**
  * Query execution history with filtering
@@ -127,17 +127,10 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: true },
-      });
+      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
-      }
-
-      if (execution.workflow.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       const debugInfo = await historyService.getExecutionDebugInfo(executionId);
@@ -174,17 +167,10 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: true },
-      });
+      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
-      }
-
-      if (execution.workflow.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       const logs = historyService.getExecutionLogs(
@@ -221,17 +207,10 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: true },
-      });
+      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
-      }
-
-      if (execution.workflow.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       const exportData = await historyService.exportExecutionData(executionId);
@@ -310,17 +289,10 @@ router.post(
 
     try {
       // Check if execution belongs to user
-      const execution = await prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: true },
-      });
+      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
-      }
-
-      if (execution.workflow.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       historyService.addExecutionLog(
@@ -359,17 +331,10 @@ router.delete(
 
     try {
       // Check if execution belongs to user
-      const execution = await prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: true },
-      });
+      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
-      }
-
-      if (execution.workflow.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
       }
 
       historyService.clearExecutionLogs(executionId);

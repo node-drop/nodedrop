@@ -1,11 +1,12 @@
 import express, { Response } from "express";
-import prisma from "../config/database";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireAuth } from "../middleware/auth";
 import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
+import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+import { workflowServiceDrizzle } from "../services/WorkflowService";
 
 const router = express.Router();
 
@@ -28,31 +29,21 @@ router.post(
     }
 
     // Get workflow
-    const workflow = await prisma.workflow.findUnique({
-      where: { 
-        id: workflowId,
-        ...(workspaceId && { workspaceId }),
-      },
-      include: { user: true },
-    });
+    const workflow = await workflowServiceDrizzle.getWorkflow(workflowId, userId, { workspaceId });
 
     if (!workflow) {
       return res.status(404).json({ error: "Workflow not found" });
     }
 
-    // Check permissions
-    if (workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
     // Create execution record with flow execution fields
-    const execution = await prisma.execution.create({
-      data: {
-        workflowId,
-        workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
-        triggerData: triggerData || {},
-      },
-    });
+    const execution = await executionServiceDrizzle.createExecution(
+      workflowId,
+      userId,
+      "RUNNING",
+      triggerData || {},
+      undefined,
+      workspaceId
+    );
 
     res.json({
       success: true,
@@ -77,30 +68,14 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await prisma.execution.findUnique({
-      where: { 
-        id: executionId,
-        ...(workspaceId && { workspaceId }),
-      },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
     }
 
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
     // Update execution status
-    await prisma.execution.update({
-      where: { id: executionId },
-      data: {
-        status: "CANCELLED",
-        finishedAt: new Date(),
-      },
-    });
+    await executionServiceDrizzle.updateExecutionStatus(executionId, "CANCELLED", new Date());
 
     res.json({
       success: true,
@@ -123,20 +98,10 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await prisma.execution.findUnique({
-      where: { 
-        id: executionId,
-        ...(workspaceId && { workspaceId }),
-      },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
-    }
-
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
     }
 
     // Check if execution can be paused
@@ -147,12 +112,7 @@ router.post(
     }
 
     // Update execution status to paused
-    await prisma.execution.update({
-      where: { id: executionId },
-      data: {
-        status: "PAUSED" as any,
-      },
-    });
+    await executionServiceDrizzle.updateExecutionStatus(executionId, "PAUSED");
 
     res.json({
       success: true,
@@ -175,31 +135,16 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await prisma.execution.findUnique({
-      where: { 
-        id: executionId,
-        ...(workspaceId && { workspaceId }),
-      },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
     }
 
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
     // Check if execution can be resumed
-    if (execution.status === ("PAUSED" as any)) {
+    if (execution.status === "PAUSED") {
       // Update execution status back to running
-      await prisma.execution.update({
-        where: { id: executionId },
-        data: {
-          status: "RUNNING",
-        },
-      });
+      await executionServiceDrizzle.updateExecutionStatus(executionId, "RUNNING");
 
       res.json({
         success: true,
@@ -224,20 +169,10 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const execution = await prisma.execution.findUnique({
-      where: { 
-        id: executionId,
-        ...(workspaceId && { workspaceId }),
-      },
-      include: { workflow: true },
-    });
+    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
-    }
-
-    if (execution.workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
     }
 
     res.json({
@@ -269,34 +204,19 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const workflow = await prisma.workflow.findUnique({
-      where: { 
-        id: workflowId,
-        ...(workspaceId && { workspaceId }),
-      },
-    });
+    const workflow = await workflowServiceDrizzle.getWorkflow(workflowId, userId, { workspaceId });
 
     if (!workflow) {
       return res.status(404).json({ error: "Workflow not found" });
     }
 
-    if (workflow.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const result = await executionServiceDrizzle.listExecutions(userId, {
+      workflowId,
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+    }, { workspaceId });
 
-    const executions = await prisma.execution.findMany({
-      where: { workflowId },
-      orderBy: { startedAt: "desc" },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
-      select: {
-        id: true,
-        status: true,
-        startedAt: true,
-        finishedAt: true,
-        triggerData: true,
-      },
-    });
+    const executions = result.executions || [];
 
     res.json({
       success: true,
@@ -320,27 +240,18 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const activeExecutions = await prisma.execution.findMany({
-      where: {
-        workflow: { userId },
-        ...(workspaceId && { workspaceId }),
-        status: "RUNNING",
-        finishedAt: null,
-      },
-      include: {
-        workflow: {
-          select: { id: true, name: true },
-        },
-      },
-      orderBy: { startedAt: "desc" },
-    });
+    const result = await executionServiceDrizzle.listExecutions(userId, {
+      status: "RUNNING",
+    }, { workspaceId });
+
+    const activeExecutions = result.executions || [];
 
     res.json({
       success: true,
-      executions: activeExecutions.map((execution) => ({
+      executions: activeExecutions.map((execution: any) => ({
         id: execution.id,
         workflowId: execution.workflowId,
-        workflowName: execution.workflow.name,
+        workflowName: execution.workflowName || execution.workflow?.name,
         status: execution.status,
         startedAt: execution.startedAt,
       })),

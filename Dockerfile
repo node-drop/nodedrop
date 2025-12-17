@@ -34,7 +34,7 @@ RUN npm run build
 # Stage 2: Build backend
 FROM node:22-alpine AS backend-builder
 
-# Install OpenSSL for Prisma
+# Install OpenSSL for database connections
 RUN apk add --no-cache openssl openssl-dev
 
 WORKDIR /app
@@ -46,9 +46,10 @@ COPY package*.json ./
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 
-# Copy backend package files and prisma schema
+# Copy backend package files and Drizzle configuration
 COPY backend/package*.json ./backend/
-COPY backend/prisma ./backend/prisma
+COPY backend/drizzle.config.ts ./backend/
+COPY backend/src/db ./backend/src/db
 
 # Install workspace dependencies
 RUN npm install -g typescript
@@ -68,10 +69,6 @@ RUN node -e "const fs=require('fs'),path=require('path');function fix(f){let c=f
 # Copy backend source
 WORKDIR /app/backend
 COPY backend/ ./
-
-# Generate Prisma client FIRST (before TypeScript compilation)
-# Set a dummy DATABASE_URL for prisma generate (it only needs the schema, not actual DB connection)
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost/dummy" npx prisma generate
 
 # Build TypeScript
 RUN npm run build
@@ -100,7 +97,8 @@ COPY --from=backend-builder /app/package*.json ./
 # Copy backend built files to backend directory
 COPY --from=backend-builder /app/backend/dist ./backend/dist
 COPY --from=backend-builder /app/backend/package*.json ./backend/
-COPY --from=backend-builder /app/backend/prisma ./backend/prisma
+COPY --from=backend-builder /app/backend/drizzle.config.ts ./backend/
+COPY --from=backend-builder /app/backend/src/db ./backend/src/db
 
 # Copy all node_modules from builder (includes all dependencies)
 COPY --from=backend-builder /app/node_modules ./node_modules
@@ -132,5 +130,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
   CMD curl -f http://localhost:5678/api/health || exit 1
 
 # Start application
-# Run migrations and start server
-CMD ["sh", "-c", "cd /app/backend && npx prisma migrate deploy && node dist/index.js"]
+# Run Drizzle migrations and start server
+CMD ["sh", "-c", "cd /app/backend && npx drizzle-kit migrate && node dist/index.js"]

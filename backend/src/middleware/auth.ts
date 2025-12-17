@@ -15,8 +15,13 @@ import { Request, Response, NextFunction } from "express";
 import { auth } from "../config/auth";
 import { AppError } from "./errorHandler";
 import { fromNodeHeaders } from "better-auth/node";
-import { prisma } from "../config/database";
-import { TeamRole } from "@prisma/client";
+import { db } from "../db/client";
+import { users, sessions } from "../db/schema/auth";
+import { teamMembers, teams } from "../db/schema/teams";
+import { eq, gt } from "drizzle-orm";
+
+// Team role type
+type TeamRole = "owner" | "admin" | "member";
 
 /**
  * Team membership information loaded into session
@@ -115,34 +120,11 @@ const validateBearerToken = async (token: string): Promise<{
     }>;
   };
 } | null> => {
-  // Look up session by token
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          emailVerified: true,
-          image: true,
-          active: true,
-          teamMemberships: {
-            select: {
-              teamId: true,
-              role: true,
-              team: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true
-                }
-              }
-            }
-          }
-        }
-      }
+  // Look up session by token using Drizzle
+  const session = await db.query.sessions.findFirst({
+    where: eq(sessions.token, token),
+    with: {
+      user: true
     }
   });
 
@@ -160,6 +142,14 @@ const validateBearerToken = async (token: string): Promise<{
     return null;
   }
 
+  // Fetch team memberships for the user
+  const userTeamMemberships = await db.query.teamMembers.findMany({
+    where: eq(teamMembers.userId, session.user.id),
+    with: {
+      team: true
+    }
+  });
+
   return {
     session: {
       id: session.id,
@@ -175,7 +165,15 @@ const validateBearerToken = async (token: string): Promise<{
       emailVerified: session.user.emailVerified,
       image: session.user.image,
       active: session.user.active,
-      teamMemberships: session.user.teamMemberships
+      teamMemberships: userTeamMemberships.map(tm => ({
+        teamId: tm.teamId,
+        role: tm.role as any,
+        team: {
+          id: tm.team.id,
+          name: tm.team.name,
+          slug: tm.team.slug
+        }
+      }))
     }
   };
 };
@@ -255,34 +253,19 @@ export const requireAuth = async (
         if (expiresAt >= new Date()) {
           // Fetch user from database to get custom fields (role, etc.)
           // Also fetch team memberships (Requirements: 13.1)
-          const dbUser = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              emailVerified: true,
-              image: true,
-              active: true,
-              // Load team memberships (Requirements: 13.1)
-              teamMemberships: {
-                select: {
-                  teamId: true,
-                  role: true,
-                  team: {
-                    select: {
-                      id: true,
-                      name: true,
-                      slug: true
-                    }
-                  }
-                }
-              }
-            }
+          const dbUser = await db.query.users.findFirst({
+            where: eq(users.id, session.user.id)
           });
 
           if (dbUser && dbUser.active) {
+            // Fetch team memberships
+            const userTeamMemberships = await db.query.teamMembers.findMany({
+              where: eq(teamMembers.userId, session.user.id),
+              with: {
+                team: true
+              }
+            });
+
             sessionData = {
               session: {
                 id: session.session.id,
@@ -298,7 +281,15 @@ export const requireAuth = async (
                 emailVerified: dbUser.emailVerified,
                 image: dbUser.image,
                 active: dbUser.active,
-                teamMemberships: dbUser.teamMemberships
+                teamMemberships: userTeamMemberships.map(tm => ({
+                  teamId: tm.teamId,
+                  role: tm.role as any,
+                  team: {
+                    id: tm.team.id,
+                    name: tm.team.name,
+                    slug: tm.team.slug
+                  }
+                }))
               }
             };
           }
@@ -490,35 +481,20 @@ export const optionalAuth = async (
         if (expiresAt >= new Date()) {
           // Fetch user from database to get custom fields (role, etc.)
           // Also fetch team memberships (Requirements: 13.1)
-          const dbUser = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              emailVerified: true,
-              image: true,
-              active: true,
-              // Load team memberships (Requirements: 13.1)
-              teamMemberships: {
-                select: {
-                  teamId: true,
-                  role: true,
-                  team: {
-                    select: {
-                      id: true,
-                      name: true,
-                      slug: true
-                    }
-                  }
-                }
-              }
-            }
+          const dbUser = await db.query.users.findFirst({
+            where: eq(users.id, session.user.id)
           });
 
           // Only use if user exists and is active
           if (dbUser && dbUser.active) {
+            // Fetch team memberships
+            const userTeamMemberships = await db.query.teamMembers.findMany({
+              where: eq(teamMembers.userId, session.user.id),
+              with: {
+                team: true
+              }
+            });
+
             sessionData = {
               session: {
                 id: session.session.id,
@@ -534,7 +510,15 @@ export const optionalAuth = async (
                 emailVerified: dbUser.emailVerified,
                 image: dbUser.image,
                 active: dbUser.active,
-                teamMemberships: dbUser.teamMemberships
+                teamMemberships: userTeamMemberships.map(tm => ({
+                  teamId: tm.teamId,
+                  role: tm.role as any,
+                  team: {
+                    id: tm.team.id,
+                    name: tm.team.name,
+                    slug: tm.team.slug
+                  }
+                }))
               }
             };
           }
@@ -736,16 +720,16 @@ export const hasTeamRole = (
 export const hasActiveSession = async (userId: string): Promise<boolean> => {
   const now = new Date();
   
-  const activeSession = await prisma.session.findFirst({
-    where: {
-      userId,
-      expiresAt: {
-        gt: now
-      }
-    }
+  const activeSession = await db.query.sessions.findFirst({
+    where: eq(sessions.userId, userId)
   });
   
-  return !!activeSession;
+  // Check if session exists and is not expired
+  if (!activeSession || activeSession.expiresAt < now) {
+    return false;
+  }
+  
+  return true;
 };
 
 /**
@@ -782,9 +766,8 @@ export const validateCredentialSharing = async (
     }
 
     // Validate that target user exists
-    const targetUser = await prisma.user.findUnique({
-      where: { id: targetUserId },
-      select: { id: true, active: true }
+    const targetUser = await db.query.users.findFirst({
+      where: eq(users.id, targetUserId)
     });
 
     if (!targetUser) {
@@ -843,9 +826,8 @@ export const validateCredentialSharingPermissions = async (
   }
 
   // Check if target user exists and is active
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetUserId },
-    select: { id: true, active: true }
+  const targetUser = await db.query.users.findFirst({
+    where: eq(users.id, targetUserId)
   });
 
   if (!targetUser) {

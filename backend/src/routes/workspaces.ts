@@ -310,11 +310,8 @@ router.post(
     );
 
     // Update user's default workspace
-    const { prisma } = await import("../config/database");
-    await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { defaultWorkspaceId: workspace.id },
-    });
+    const { userServiceDrizzle } = await import("../services/UserService.drizzle");
+    await userServiceDrizzle.setDefaultWorkspace(req.user!.id, workspace.id);
 
     res.json({ success: true, defaultWorkspaceId: workspace.id });
   })

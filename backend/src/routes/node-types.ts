@@ -2,9 +2,11 @@ import { Request, Response, Router } from "express";
 import { promises as fs } from "fs";
 import multer from "multer";
 import path from "path";
-import prisma from "../config/database";
+import { db } from "../db/client";
+import { nodeTypes } from "../db/schema/nodes";
 import { CustomNodeUploadHandler } from "../services/CustomNodeUploadHandler";
 import { logger } from "../utils/logger";
+import { desc, asc, eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -37,17 +39,24 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const { group } = req.query;
 
-    const whereClause = group ? { group: { has: group as string } } : {};
-
-    const nodeTypes = await prisma.nodeType.findMany({
-      where: whereClause,
-      orderBy: [{ active: "desc" }, { displayName: "asc" }],
+    // Fetch node types using Drizzle
+    const nodeTypesList = await db.query.nodeTypes.findMany({
+      orderBy: [desc(nodeTypes.active), asc(nodeTypes.displayName)],
     });
+
+    // Filter by group if provided (group is stored as JSON array)
+    let filteredNodeTypes = nodeTypesList;
+    if (group) {
+      filteredNodeTypes = nodeTypesList.filter(nt => {
+        const groups = (nt.group as any) || [];
+        return Array.isArray(groups) && groups.includes(group as string);
+      });
+    }
 
     res.json({
       success: true,
-      data: nodeTypes,
-      count: nodeTypes.length,
+      data: filteredNodeTypes,
+      count: filteredNodeTypes.length,
     });
   } catch (error) {
     logger.error("Failed to get node types", { error });
@@ -66,8 +75,8 @@ router.get("/:type", async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
 
-    const nodeType = await prisma.nodeType.findUnique({
-      where: { identifier: type },
+    const nodeType = await db.query.nodeTypes.findFirst({
+      where: eq(nodeTypes.identifier, type),
     });
 
     if (!nodeType) {
@@ -174,13 +183,22 @@ router.patch("/:type", async (req: Request, res: Response) => {
     // Log the update request for debugging
     logger.info("Updating node type", { type, updateData });
 
-    const nodeType = await prisma.nodeType.update({
-      where: { identifier: type },
-      data: {
+    const result = await db
+      .update(nodeTypes)
+      .set({
         ...updateData,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .where(eq(nodeTypes.identifier, type))
+      .returning();
+
+    const nodeType = result[0];
+    if (!nodeType) {
+      return res.status(404).json({
+        success: false,
+        error: "Node type not found",
+      });
+    }
 
     logger.info("Node type updated successfully", {
       type,
@@ -221,11 +239,8 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     const { packageName } = req.params;
 
     // Check if this is a core node that cannot be deleted
-    const coreNodeCheck = await prisma.nodeType.findFirst({
-      where: {
-        identifier: packageName,
-        isCore: true,
-      },
+    const coreNodeCheck = await db.query.nodeTypes.findFirst({
+      where: and(eq(nodeTypes.identifier, packageName), eq(nodeTypes.isCore, true)),
     });
 
     if (coreNodeCheck) {
@@ -252,7 +267,7 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     }
 
     // Step 2: Find node types using multiple strategies
-    const allNodeTypes = await prisma.nodeType.findMany();
+    const allNodeTypes = await db.query.nodeTypes.findMany();
     const packageNodeTypes = [];
     const errors = [];
 
@@ -400,9 +415,7 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
           continue;
         }
 
-        await prisma.nodeType.delete({
-          where: { identifier: nodeType.identifier },
-        });
+        await db.delete(nodeTypes).where(eq(nodeTypes.identifier, nodeType.identifier));
         deletedNodeTypes.push(nodeType.identifier);
         logger.info("Deleted node type from database", { type: nodeType.identifier });
       } catch (error) {
@@ -546,11 +559,11 @@ router.post("/refresh-custom", async (req: Request, res: Response) => {
  */
 router.get("/groups/list", async (req: Request, res: Response) => {
   try {
-    const nodeTypes = await prisma.nodeType.findMany({
-      select: { group: true },
+    const nodeTypesList = await db.query.nodeTypes.findMany({
+      columns: { group: true },
     });
 
-    const allGroups = nodeTypes.flatMap((nt) => nt.group);
+    const allGroups = nodeTypesList.flatMap((nt) => nt.group);
     const uniqueGroups = [...new Set(allGroups)].sort();
 
     res.json({
@@ -600,8 +613,8 @@ router.post("/templates", async (req: Request, res: Response) => {
     }
 
     // Check if custom node with this type already exists
-    const existing = await prisma.nodeType.findUnique({
-      where: { identifier: type },
+    const existing = await db.query.nodeTypes.findFirst({
+      where: eq(nodeTypes.identifier, type),
     });
 
     if (existing) {
@@ -612,8 +625,9 @@ router.post("/templates", async (req: Request, res: Response) => {
     }
 
     // Create the custom node type
-    const customNode = await prisma.nodeType.create({
-      data: {
+    const result = await db
+      .insert(nodeTypes)
+      .values({
         identifier: type,
         displayName,
         name: name || displayName,
@@ -629,8 +643,10 @@ router.post("/templates", async (req: Request, res: Response) => {
         isTemplate: isTemplate !== undefined ? isTemplate : true,
         templateData: templateData || null,
         active: true,
-      },
-    });
+      })
+      .returning();
+
+    const customNode = result[0];
 
     logger.info("Custom node created successfully", {
       type: customNode.identifier,
@@ -660,9 +676,9 @@ router.post("/templates", async (req: Request, res: Response) => {
  */
 router.get("/templates", async (req: Request, res: Response) => {
   try {
-    const customNodes = await prisma.nodeType.findMany({
-      where: { isTemplate: true },
-      orderBy: { displayName: "asc" },
+    const customNodes = await db.query.nodeTypes.findMany({
+      where: eq(nodeTypes.isTemplate, true),
+      orderBy: asc(nodeTypes.displayName),
     });
 
     res.json({
@@ -687,11 +703,8 @@ router.get("/templates/:type", async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
 
-    const template = await prisma.nodeType.findFirst({
-      where: {
-        identifier: type,
-        isTemplate: true,
-      },
+    const template = await db.query.nodeTypes.findFirst({
+      where: and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)),
     });
 
     if (!template) {
@@ -723,28 +736,23 @@ router.patch("/templates/:type", async (req: Request, res: Response) => {
     const { type } = req.params;
     const updateData = req.body;
 
-    const template = await prisma.nodeType.updateMany({
-      where: {
-        identifier: type,
-        isTemplate: true,
-      },
-      data: {
+    const result = await db
+      .update(nodeTypes)
+      .set({
         ...updateData,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .where(and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)))
+      .returning();
 
-    if (template.count === 0) {
+    if (result.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Template not found",
       });
     }
 
-    // Fetch the updated template
-    const updatedTemplate = await prisma.nodeType.findUnique({
-      where: { identifier: type },
-    });
+    const updatedTemplate = result[0];
 
     logger.info("Template updated successfully", { type });
 
@@ -774,11 +782,8 @@ router.delete("/templates/:type", async (req: Request, res: Response) => {
     const { type } = req.params;
 
     // Check if this is a core node that cannot be deleted
-    const coreNodeCheck = await prisma.nodeType.findFirst({
-      where: {
-        identifier: type,
-        isCore: true,
-      },
+    const coreNodeCheck = await db.query.nodeTypes.findFirst({
+      where: and(eq(nodeTypes.identifier, type), eq(nodeTypes.isCore, true)),
     });
 
     if (coreNodeCheck) {
@@ -789,14 +794,12 @@ router.delete("/templates/:type", async (req: Request, res: Response) => {
       });
     }
 
-    const result = await prisma.nodeType.deleteMany({
-      where: {
-        identifier: type,
-        isTemplate: true,
-      },
-    });
+    const result = await db
+      .delete(nodeTypes)
+      .where(and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)))
+      .returning();
 
-    if (result.count === 0) {
+    if (result.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Template not found",

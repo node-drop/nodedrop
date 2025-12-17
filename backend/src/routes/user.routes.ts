@@ -1,5 +1,4 @@
 import { Response, Router } from "express";
-import prisma from "../config/database";
 import {
     getPreferences,
     getProfile,
@@ -10,6 +9,7 @@ import {
 import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { AppError } from "../utils/errors";
+import { userServiceDrizzle } from "../services/UserService.drizzle";
 
 const router = Router();
 
@@ -48,41 +48,13 @@ router.get(
 
     if (email) {
       // Exact email search
-      users = await prisma.user.findMany({
-        where: {
-          email: email as string,
-          active: true,
-          id: { not: req.user!.id }, // Exclude current user
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          createdAt: true,
-        },
-        take: 1,
-      });
+      const user = await userServiceDrizzle.findUserByEmail(email as string);
+      users = user ? [user] : [];
     } else {
       // Fuzzy search by email or name
-      users = await prisma.user.findMany({
-        where: {
-          active: true,
-          id: { not: req.user!.id }, // Exclude current user
-          OR: [
-            { email: { contains: query as string, mode: "insensitive" } },
-            { name: { contains: query as string, mode: "insensitive" } },
-          ],
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          createdAt: true,
-        },
-        take: 10,
-        orderBy: {
-          email: "asc",
-        },
+      users = await userServiceDrizzle.searchUsers(query as string, {
+        limit: 10,
+        excludeUserId: req.user!.id,
       });
     }
 
