@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { EventEmitter } from "events";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";

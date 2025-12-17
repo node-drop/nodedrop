@@ -1,15 +1,16 @@
 import { FlowExecutionEngine, FlowExecutionContext, FlowExecutionOptions } from '../FlowExecutionEngine';
 import { NodeService } from '../NodeService';
-import { PrismaClient } from '@prisma/client';
 import { Node, Connection, Workflow } from '../../types/database';
 import { CircularDependencyError, FlowExecutionErrorType } from '../../utils/errors/FlowExecutionError';
 
-// Mock PrismaClient
-const mockPrisma = {
-  workflow: {
-    findUnique: jest.fn()
+// Mock Drizzle client
+const mockDb = {
+  query: {
+    workflows: {
+      findUnique: jest.fn()
+    }
   }
-} as unknown as PrismaClient;
+};
 
 // Mock NodeService
 const mockNodeService = {

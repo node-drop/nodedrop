@@ -1,12 +1,7 @@
 /**
  * UserService Factory
  * 
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the UserService based on the USE_DRIZZLE_USER_SERVICE
- * environment variable.
- * 
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the UserService implementation using Drizzle ORM.
  */
 
 import { UserServiceDrizzle } from './UserService.drizzle';
@@ -36,19 +31,10 @@ export interface IUserService {
 }
 
 /**
- * Get the appropriate UserService implementation based on environment variable
+ * Get the UserService implementation (Drizzle ORM)
  */
 function getUserService(): IUserService {
-  const useDrizzle = process.env.USE_DRIZZLE_USER_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle UserService');
-    return new UserServiceDrizzle();
-  }
-
-  // Fallback to Prisma implementation (not yet implemented)
-  // For now, we'll use Drizzle as the default
-  logger.info('Using Drizzle UserService (default)');
+  logger.debug('Initializing Drizzle UserService');
   return new UserServiceDrizzle();
 }
 

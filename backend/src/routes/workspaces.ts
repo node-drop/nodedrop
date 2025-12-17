@@ -9,7 +9,7 @@
  */
 
 import { Router, Response } from "express";
-import { WorkspaceRole } from "@prisma/client";
+import { WorkspaceRole } from "../db/types";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { 
   requireWorkspace, 

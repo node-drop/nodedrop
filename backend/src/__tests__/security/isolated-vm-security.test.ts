@@ -1,10 +1,4 @@
-import { PrismaClient } from '@prisma/client';
 import { SecureExecutionService } from '../../services/SecureExecutionService';
-
-// Mock PrismaClient
-const mockPrisma = {
-  // Add any needed mock methods
-} as unknown as PrismaClient;
 
 describe('Isolated-VM Security Tests', () => {
   let secureExecutionService: SecureExecutionService;

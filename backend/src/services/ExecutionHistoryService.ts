@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { db } from "../db/client";
 import { EventEmitter } from "events";
 
 export interface ExecutionHistoryQuery {
@@ -101,12 +101,10 @@ export interface ExecutionLogEntry {
  * Comprehensive execution history and debugging service
  */
 export class ExecutionHistoryService extends EventEmitter {
-  private prisma: PrismaClient;
   private executionLogs: Map<string, ExecutionLogEntry[]> = new Map();
 
-  constructor(prisma: PrismaClient) {
+  constructor() {
     super();
-    this.prisma = prisma;
   }
 
   /**

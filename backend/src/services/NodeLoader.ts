@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { FSWatcher, watch } from "chokidar";
 import { promises as fs } from "fs";
 import * as path from "path";

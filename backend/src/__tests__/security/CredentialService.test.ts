@@ -1,13 +1,12 @@
 import { CredentialService } from '../../services/CredentialService';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../utils/errors';
 
-// Mock Prisma
-jest.mock('@prisma/client');
-const mockPrisma = {
-  credential: {
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
+// Mock Drizzle
+const mockDb = {
+  query: {
+    credentials: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),

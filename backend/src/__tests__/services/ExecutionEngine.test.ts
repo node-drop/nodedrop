@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import { ExecutionEngine } from '../../services/ExecutionEngine';
 import { NodeService } from '../../services/NodeService';
 import {
@@ -17,18 +16,18 @@ import {
 import { NodeDefinition, NodeInputData, NodeOutputData } from '../../types/node.types';
 
 // Mock dependencies
-jest.mock('@prisma/client');
 jest.mock('bull');
 jest.mock('../../utils/logger');
 
-const mockPrisma = {
-  workflow: {
-    findFirst: jest.fn(),
-    findUnique: jest.fn()
-  },
-  execution: {
-    create: jest.fn(),
-    update: jest.fn(),
+const mockDb = {
+  query: {
+    workflows: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn()
+    },
+    executions: {
+      create: jest.fn(),
+      update: jest.fn(),
     findUnique: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn()

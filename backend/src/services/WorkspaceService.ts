@@ -1,12 +1,7 @@
 /**
  * WorkspaceService Factory
  * 
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the WorkspaceService based on the USE_DRIZZLE_WORKSPACE_SERVICE
- * environment variable.
- * 
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the WorkspaceService implementation using Drizzle ORM.
  */
 
 import { WorkspaceServiceDrizzle } from './WorkspaceService.drizzle';
@@ -41,18 +36,10 @@ export interface IWorkspaceService {
 }
 
 /**
- * Get the appropriate WorkspaceService implementation based on environment variable
+ * Get the WorkspaceService implementation (Drizzle ORM)
  */
 function getWorkspaceService(): IWorkspaceService {
-  const useDrizzle = process.env.USE_DRIZZLE_WORKSPACE_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle WorkspaceService');
-    return new WorkspaceServiceDrizzle() as IWorkspaceService;
-  }
-
-  // Fallback to Drizzle as default
-  logger.info('Using Drizzle WorkspaceService (default)');
+  logger.debug('Initializing Drizzle WorkspaceService');
   return new WorkspaceServiceDrizzle() as IWorkspaceService;
 }
 

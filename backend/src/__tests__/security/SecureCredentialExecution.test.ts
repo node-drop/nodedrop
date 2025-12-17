@@ -1,12 +1,8 @@
 import { SecureExecutionService } from '../../services/SecureExecutionService';
 import { CredentialService } from '../../services/CredentialService';
-import { PrismaClient } from '@prisma/client';
 
 // Mock dependencies
-jest.mock('@prisma/client');
 jest.mock('../../services/CredentialService');
-
-const mockPrisma = {} as PrismaClient;
 const mockCredentialService = {
   getCredentialForExecution: jest.fn(),
 } as jest.Mocked<CredentialService>;

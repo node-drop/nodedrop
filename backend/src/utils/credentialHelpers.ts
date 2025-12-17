@@ -5,7 +5,6 @@
  * Used by RealtimeExecutionEngine, ExecutionService, ExecutionEngine, FlowExecutionEngine
  */
 
-import { PrismaClient } from "@prisma/client";
 import { logger } from "./logger";
 
 /**

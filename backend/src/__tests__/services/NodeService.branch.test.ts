@@ -15,15 +15,12 @@ jest.mock('isolated-vm', () => ({
   },
 }));
 
-// Mock Prisma
-jest.mock('@prisma/client');
-
 describe('NodeService - Branch Execution', () => {
   let nodeService: NodeService;
 
   beforeEach(() => {
     process.env.CREDENTIAL_ENCRYPTION_KEY = 'a'.repeat(64);
-    nodeService = new NodeService(prisma);
+    nodeService = new NodeService();
   });
 
   describe('standardizeNodeOutput', () => {

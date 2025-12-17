@@ -1,5 +1,4 @@
 import { NodeService } from '../../services/NodeService';
-import { PrismaClient } from '@prisma/client';
 import {
   NodeDefinition,
   NodeValidationResult,

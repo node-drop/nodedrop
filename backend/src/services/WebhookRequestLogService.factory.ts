@@ -1,12 +1,7 @@
 /**
  * WebhookRequestLogService Factory
  *
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the WebhookRequestLogService based on the USE_DRIZZLE_WEBHOOK_SERVICE
- * environment variable.
- *
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the WebhookRequestLogService implementation using Drizzle ORM.
  */
 
 import { WebhookRequestLogServiceDrizzle } from './WebhookRequestLogService.drizzle';
@@ -32,18 +27,10 @@ export interface IWebhookRequestLogService {
 }
 
 /**
- * Get the appropriate WebhookRequestLogService implementation based on environment variable
+ * Get the WebhookRequestLogService implementation (Drizzle ORM)
  */
 function getWebhookRequestLogService(): IWebhookRequestLogService {
-  const useDrizzle = process.env.USE_DRIZZLE_WEBHOOK_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle WebhookRequestLogService');
-    return new WebhookRequestLogServiceDrizzle();
-  }
-
-  // Fallback to Drizzle as default
-  logger.info('Using Drizzle WebhookRequestLogService (default)');
+  logger.debug('Initializing Drizzle WebhookRequestLogService');
   return new WebhookRequestLogServiceDrizzle();
 }
 

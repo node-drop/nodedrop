@@ -11,7 +11,6 @@
  * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
  */
 
-import { PrismaClient } from "@prisma/client";
 import crypto from "crypto";
 
 /**

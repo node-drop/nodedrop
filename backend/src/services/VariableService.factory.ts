@@ -1,12 +1,7 @@
 /**
  * VariableService Factory
  *
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the VariableService based on the USE_DRIZZLE_VARIABLE_SERVICE
- * environment variable.
- *
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the VariableService implementation using Drizzle ORM.
  */
 
 import { VariableServiceDrizzle } from './VariableService.drizzle';
@@ -66,19 +61,10 @@ export interface IVariableService {
 }
 
 /**
- * Get the appropriate VariableService implementation based on environment variable
+ * Get the VariableService implementation (Drizzle ORM)
  */
 function getVariableService(): IVariableService {
-  const useDrizzle = process.env.USE_DRIZZLE_VARIABLE_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle VariableService');
-    return new VariableServiceDrizzle();
-  }
-
-  // Fallback to Prisma implementation (not yet implemented)
-  // For now, we'll use Drizzle as the default
-  logger.info('Using Drizzle VariableService (default)');
+  logger.debug('Initializing Drizzle VariableService');
   return new VariableServiceDrizzle();
 }
 

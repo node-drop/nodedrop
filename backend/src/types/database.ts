@@ -1,5 +1,5 @@
-// Core database types matching Prisma schema
-import { ExecutionStatus, NodeExecutionStatus } from "@prisma/client";
+// Core database types matching Drizzle schema
+import { ExecutionStatus, NodeExecutionStatus } from "../db/types";
 import { NodeProperty } from "./node.types";
 
 // UserRole enum definition (since it might not be exported from @prisma/client)

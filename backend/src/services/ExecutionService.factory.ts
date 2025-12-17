@@ -1,12 +1,7 @@
 /**
  * ExecutionService Factory
  * 
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the ExecutionService based on the USE_DRIZZLE_EXECUTION_SERVICE
- * environment variable.
- * 
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the ExecutionService implementation using Drizzle ORM.
  */
 
 import { ExecutionServiceDrizzle } from './ExecutionService.drizzle';
@@ -27,19 +22,10 @@ export interface IExecutionService {
 }
 
 /**
- * Get the appropriate ExecutionService implementation based on environment variable
+ * Get the ExecutionService implementation (Drizzle ORM)
  */
 function getExecutionService(): IExecutionService {
-  const useDrizzle = process.env.USE_DRIZZLE_EXECUTION_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle ExecutionService');
-    return new ExecutionServiceDrizzle();
-  }
-
-  // Fallback to Prisma implementation (not yet implemented)
-  // For now, we'll use Drizzle as the default
-  logger.info('Using Drizzle ExecutionService (default)');
+  logger.debug('Initializing Drizzle ExecutionService');
   return new ExecutionServiceDrizzle();
 }
 

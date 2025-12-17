@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import { TriggerService, TriggerDefinition, WebhookRequest } from '../../services/TriggerService';
 import { WorkflowService } from '../../services/WorkflowService';
 import { ExecutionService } from '../../services/ExecutionService';
@@ -6,7 +5,6 @@ import { SocketService } from '../../services/SocketService';
 import * as cron from 'node-cron';
 
 // Mock dependencies
-jest.mock('@prisma/client');
 jest.mock('../../services/WorkflowService');
 jest.mock('../../services/ExecutionService');
 jest.mock('../../services/SocketService');
@@ -15,10 +13,11 @@ jest.mock('node-cron', () => ({
   validate: jest.fn()
 }));
 
-const mockPrisma = {
-  workflow: {
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
+const mockDb = {
+  query: {
+    workflows: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
     update: jest.fn(),
   }
 } as unknown as PrismaClient;

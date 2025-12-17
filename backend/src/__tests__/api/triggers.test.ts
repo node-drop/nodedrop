@@ -1,10 +1,8 @@
-import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { app } from "../../index";
 
-// Mock Prisma
-jest.mock("@prisma/client");
+// Mock services
 jest.mock("../../services/TriggerService");
 jest.mock("node-cron");
 

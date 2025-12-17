@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import { ExecutionService } from '../../services/ExecutionService';
 import { NodeService } from '../../services/NodeService';
 import { ExecutionEngine } from '../../services/ExecutionEngine';
@@ -10,20 +9,18 @@ import {
 import { ExecutionOptions } from '../../types/execution.types';
 
 // Mock dependencies
-jest.mock('@prisma/client');
 jest.mock('../../services/ExecutionEngine');
 jest.mock('../../services/NodeService');
 jest.mock('../../utils/logger');
 
-const mockPrisma = {
-  execution: {
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    delete: jest.fn()
-  },
-  nodeExecution: {
-    findFirst: jest.fn()
+const mockDb = {
+  query: {
+    executions: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
+    nodeExecutions: {
+      findFirst: jest.fn()
   }
 } as any;
 

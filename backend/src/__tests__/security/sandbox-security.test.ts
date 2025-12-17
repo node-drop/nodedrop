@@ -1,13 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import { NodeService } from '../../services/NodeService';
 import { NodeDefinition, NodeInputData, BuiltInNodeTypes } from '../../types/node.types';
 
-// Mock PrismaClient
-const mockPrisma = {
-  nodeType: {
-    findUnique: jest.fn(),
-    findMany: jest.fn(),
-    create: jest.fn(),
+// Mock Drizzle client
+const mockDb = {
+  query: {
+    nodeTypes: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+  },
+  insert: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn()
   }

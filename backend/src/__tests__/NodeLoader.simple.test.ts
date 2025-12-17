@@ -1,11 +1,9 @@
 import { NodeLoader, NodePackageInfo } from '../services/NodeLoader';
 import { NodeService } from '../services/NodeService';
-import { PrismaClient } from '@prisma/client';
 
 describe('NodeLoader Basic Tests', () => {
   let nodeLoader: NodeLoader;
   let mockNodeService: jest.Mocked<NodeService>;
-  let mockPrisma: jest.Mocked<PrismaClient>;
 
   beforeEach(() => {
     mockNodeService = {

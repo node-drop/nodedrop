@@ -1,6 +1,5 @@
 import request from 'supertest';
 import { Express } from 'express';
-import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 // Mock the app setup
@@ -12,19 +11,20 @@ const mockApp = {
   use: jest.fn(),
 } as any;
 
-// Mock Prisma
-jest.mock('@prisma/client');
-const mockPrisma = {
-  credential: {
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
+// Mock Drizzle
+const mockDb = {
+  query: {
+    credentials: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
+    users: {
+      findUnique: jest.fn(),
+    },
   },
-  user: {
-    findUnique: jest.fn(),
-  },
+  insert: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
 } as any;
 
 // Mock environment

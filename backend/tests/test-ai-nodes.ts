@@ -4,14 +4,13 @@
  * Run this to verify OpenAI and Anthropic nodes are working
  */
 
-import { PrismaClient } from "@prisma/client";
+import { db } from "../src/db/client";
 import { NodeService } from "../src/services/NodeService";
 
 async function testAINodes() {
   console.log("🧪 Testing AI Nodes...\n");
 
-  const prisma = new PrismaClient();
-  const nodeService = new NodeService(prisma);
+  const nodeService = new NodeService();
 
   try {
     // Wait for initialization

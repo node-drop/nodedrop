@@ -1,4 +1,4 @@
-import { NodeExecutionStatus as PrismaNodeExecutionStatus, PrismaClient } from "@prisma/client";
+import { NodeExecutionStatus as PrismaNodeExecutionStatus } from "../db/types";
 import {
   ExecutionHistoryEntry,
   ExecutionMetrics,

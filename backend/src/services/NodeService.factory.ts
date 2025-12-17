@@ -1,12 +1,7 @@
 /**
  * NodeService Factory
  *
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the NodeService based on the USE_DRIZZLE_NODE_SERVICE
- * environment variable.
- *
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the NodeService implementation using Drizzle ORM.
  */
 
 import { NodeServiceDrizzle } from './NodeService.drizzle';
@@ -51,18 +46,10 @@ export interface INodeService {
 }
 
 /**
- * Get the appropriate NodeService implementation based on environment variable
+ * Get the NodeService implementation (Drizzle ORM)
  */
 function getNodeService(): INodeService {
-  const useDrizzle = process.env.USE_DRIZZLE_NODE_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle NodeService');
-    return new NodeServiceDrizzle();
-  }
-
-  // Fallback to Drizzle as default
-  logger.info('Using Drizzle NodeService (default)');
+  logger.debug('Initializing Drizzle NodeService');
   return new NodeServiceDrizzle();
 }
 

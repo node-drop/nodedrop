@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import Bull, { Job, Queue } from "bull";
 import { EventEmitter } from "events";
 import {

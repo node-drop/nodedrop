@@ -4,7 +4,7 @@
  * Re-exports shared types from @nodedrop/types and defines backend-specific types.
  */
 
-import { WorkspaceRole as PrismaWorkspaceRole } from "@prisma/client";
+import { WorkspaceRole as PrismaWorkspaceRole } from "../db/types";
 
 // =============================================================================
 // Re-export shared types from @nodedrop/types

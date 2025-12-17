@@ -1,17 +1,11 @@
 /**
  * WorkflowService Factory
  * 
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the WorkflowService based on the USE_DRIZZLE_WORKFLOW_SERVICE
- * environment variable.
- * 
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the WorkflowService implementation using Drizzle ORM.
  */
 
 import { WorkflowServiceDrizzle } from './WorkflowService.drizzle';
 import { logger } from '../utils/logger';
-import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import {
   CreateWorkflowRequest,
@@ -729,20 +723,11 @@ export class WorkflowServicePrisma implements IWorkflowService {
 }
 
 /**
- * Get the appropriate WorkflowService implementation based on environment variable
+ * Get the WorkflowService implementation (Drizzle ORM)
  */
 function getWorkflowService(): IWorkflowService {
-  const useDrizzle = process.env.USE_DRIZZLE_WORKFLOW_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle WorkflowService');
-    return new WorkflowServiceDrizzle();
-  }
-
-  // Fallback to Prisma implementation
-  logger.info('Using Prisma WorkflowService');
-  const prisma = new PrismaClient();
-  return new WorkflowServicePrisma(prisma);
+  logger.debug('Initializing Drizzle WorkflowService');
+  return new WorkflowServiceDrizzle();
 }
 
 /**

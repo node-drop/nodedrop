@@ -1,4 +1,4 @@
-import { ExecutionStatus, PrismaClient } from "@prisma/client";
+import { ExecutionStatus } from "../db/types";
 import { EventEmitter } from "events";
 import { SocketService } from "./SocketService";
 

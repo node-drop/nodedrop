@@ -1,12 +1,7 @@
 /**
  * CredentialService Factory
  *
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the CredentialService based on the USE_DRIZZLE_CREDENTIAL_SERVICE
- * environment variable.
- *
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the CredentialService implementation using Drizzle ORM.
  */
 
 import { CredentialServiceDrizzle } from './CredentialService.drizzle';
@@ -77,19 +72,10 @@ export interface ICredentialService {
 }
 
 /**
- * Get the appropriate CredentialService implementation based on environment variable
+ * Get the CredentialService implementation (Drizzle ORM)
  */
 export function getCredentialService(): ICredentialService {
-  const useDrizzle = process.env.USE_DRIZZLE_CREDENTIAL_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle CredentialService');
-    return new CredentialServiceDrizzle();
-  }
-
-  // Fallback to Prisma implementation (not yet implemented)
-  // For now, we'll use Drizzle as the default
-  logger.info('Using Drizzle CredentialService (default)');
+  logger.debug('Initializing Drizzle CredentialService');
   return new CredentialServiceDrizzle();
 }
 

@@ -1,12 +1,7 @@
 /**
  * TriggerService Factory
  *
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the TriggerService based on the USE_DRIZZLE_TRIGGER_SERVICE
- * environment variable.
- *
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the TriggerService implementation using Drizzle ORM.
  */
 
 import { TriggerServiceDrizzle } from './TriggerService.drizzle';
@@ -45,18 +40,10 @@ export interface ITriggerService {
 }
 
 /**
- * Get the appropriate TriggerService implementation based on environment variable
+ * Get the TriggerService implementation (Drizzle ORM)
  */
 function getTriggerService(): ITriggerService {
-  const useDrizzle = process.env.USE_DRIZZLE_TRIGGER_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle TriggerService');
-    return new TriggerServiceDrizzle();
-  }
-
-  // Fallback to Drizzle as default
-  logger.info('Using Drizzle TriggerService (default)');
+  logger.debug('Initializing Drizzle TriggerService');
   return new TriggerServiceDrizzle();
 }
 

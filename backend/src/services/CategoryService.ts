@@ -1,11 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 
 export class CategoryService {
-  private prisma: PrismaClient;
-
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
+  constructor() {
   }
 
   async getAvailableCategories(userId: string) {

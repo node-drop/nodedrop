@@ -1,12 +1,7 @@
 /**
  * TeamService Factory
  * 
- * This file provides a factory function to switch between Prisma and Drizzle
- * implementations of the TeamService based on the USE_DRIZZLE_TEAM_SERVICE
- * environment variable.
- * 
- * This allows for gradual migration from Prisma to Drizzle without breaking
- * existing code.
+ * This file provides the TeamService implementation using Drizzle ORM.
  */
 
 import { TeamServiceDrizzle } from './TeamService.drizzle';
@@ -37,18 +32,10 @@ export interface ITeamService {
 }
 
 /**
- * Get the appropriate TeamService implementation based on environment variable
+ * Get the TeamService implementation (Drizzle ORM)
  */
 function getTeamService(): ITeamService {
-  const useDrizzle = process.env.USE_DRIZZLE_TEAM_SERVICE === 'true';
-
-  if (useDrizzle) {
-    logger.info('Using Drizzle TeamService');
-    return new TeamServiceDrizzle() as ITeamService;
-  }
-
-  // Fallback to Drizzle as default
-  logger.info('Using Drizzle TeamService (default)');
+  logger.debug('Initializing Drizzle TeamService');
   return new TeamServiceDrizzle() as ITeamService;
 }
 

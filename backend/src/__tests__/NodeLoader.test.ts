@@ -1,6 +1,5 @@
 import { NodeLoader, NodePackageInfo } from '../services/NodeLoader';
 import { NodeService } from '../services/NodeService';
-import { PrismaClient } from '@prisma/client';
 
 // Mock dependencies
 const mockFs = {
@@ -25,12 +24,10 @@ jest.mock('chokidar', () => ({
 }));
 
 jest.mock('../services/NodeService');
-jest.mock('@prisma/client');
 
 describe('NodeLoader', () => {
   let nodeLoader: NodeLoader;
   let mockNodeService: jest.Mocked<NodeService>;
-  let mockPrisma: jest.Mocked<PrismaClient>;
 
   const testPackagePath = '/test/custom-nodes/test-package';
   const testPackageInfo: NodePackageInfo = {

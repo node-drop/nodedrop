@@ -1,9 +1,5 @@
 import { NodeService } from '../../services/NodeService';
-import { PrismaClient } from '@prisma/client';
 import { NodeProperty, NodeDefinition } from '../../types/node.types';
-
-// Mock Prisma Client
-const mockPrisma = {} as unknown as PrismaClient;
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({

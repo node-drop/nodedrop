@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { EventEmitter } from "events";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import { SocketService } from "./SocketService";
