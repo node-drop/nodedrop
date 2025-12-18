@@ -67,7 +67,7 @@ export function useWorkflowOperations() {
 
       // Build workflow data once
       const workflowData = buildWorkflowData(workflow);
-      const isNewWorkflow = workflow.id === "new";
+      const isNewWorkflow = workflow.id === "new" || !workflow.id;
       
       // Debug: Log connections with control points
       console.log('💾 [SaveWorkflow] Saving workflow with connections:', {

@@ -98,20 +98,27 @@ export function WorkflowEditorPage() {
 
     let isSubscribed = false;
     let subscriptionAttempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
+    let subscriptionTimeout: NodeJS.Timeout | null = null;
 
     // Subscribe to workflow updates with retry logic
     const subscribeToWorkflow = async () => {
       try {
         subscriptionAttempts++;
+        console.log(`[WorkflowEditor] Attempting to subscribe to workflow (attempt ${subscriptionAttempts}/${maxAttempts})`)
         await socketService.subscribeToWorkflow(id)
         isSubscribed = true;
+        console.log('[WorkflowEditor] Successfully subscribed to workflow')
       } catch (error) {
         console.error('[WorkflowEditor] Failed to subscribe to workflow:', error)
 
         // Retry if not at max attempts
         if (subscriptionAttempts < maxAttempts) {
-          setTimeout(subscribeToWorkflow, 1000)
+          const retryDelay = Math.min(1000 * subscriptionAttempts, 5000); // Exponential backoff, max 5s
+          console.log(`[WorkflowEditor] Retrying subscription in ${retryDelay}ms`)
+          subscriptionTimeout = setTimeout(subscribeToWorkflow, retryDelay)
+        } else {
+          console.error('[WorkflowEditor] Max subscription attempts reached')
         }
       }
     }
@@ -121,6 +128,8 @@ export function WorkflowEditorPage() {
 
     // Also re-subscribe when socket reconnects
     const handleSocketConnected = () => {
+      console.log('[WorkflowEditor] Socket reconnected, re-subscribing to workflow')
+      subscriptionAttempts = 0; // Reset attempts on reconnect
       subscribeToWorkflow()
     }
 
@@ -132,6 +141,7 @@ export function WorkflowEditorPage() {
     // Listen for webhook test triggers and auto-subscribe to execution
     const handleWebhookTestTriggered = async (data: any) => {
       try {
+        console.log('[WorkflowEditor] Webhook test triggered, subscribing to execution:', data.executionId)
         await socketService.subscribeToExecution(data.executionId)
       } catch (error) {
         console.error('Failed to subscribe to webhook execution:', error)
@@ -142,6 +152,11 @@ export function WorkflowEditorPage() {
 
     // Cleanup: unsubscribe and remove listeners when component unmounts or workflow changes
     return () => {
+      // Clear any pending subscription timeout
+      if (subscriptionTimeout) {
+        clearTimeout(subscriptionTimeout)
+      }
+
       // Only unsubscribe if we actually subscribed
       if (isSubscribed) {
         // Unsubscribe from workflow (async but don't wait)

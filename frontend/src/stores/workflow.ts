@@ -823,7 +823,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
           set({ importProgress: 80 });
 
           // Check if current workflow has unsaved changes
-          const { isDirty, isTitleDirty } = get();
+          const { isDirty, isTitleDirty, workflow: currentWorkflow } = get();
           if (isDirty || isTitleDirty) {
             get().addExecutionLog({
               timestamp: new Date().toISOString(),
@@ -832,8 +832,18 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             });
           }
 
+          // Preserve the current workflow's ID if importing into an existing workflow
+          if (currentWorkflow && currentWorkflow.id && currentWorkflow.id !== "new") {
+            importedWorkflow.id = currentWorkflow.id;
+            importedWorkflow.userId = currentWorkflow.userId;
+            importedWorkflow.createdAt = currentWorkflow.createdAt;
+          }
+
           // Set the imported workflow
           get().setWorkflow(importedWorkflow);
+
+          // Mark as dirty so save button is enabled
+          get().setDirty(true);
 
           set({ importProgress: 100 });
 

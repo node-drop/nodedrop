@@ -269,14 +269,18 @@ export class SocketService {
    * Ensure socket is connected
    */
   private async ensureConnected(): Promise<void> {
-    if (!this.socket || (!this.socket.connected && !this.isConnecting)) {
+    // If socket is already connected, return immediately
+    if (this.socket?.connected) {
+      return;
+    }
+
+    // If socket doesn't exist or is not connecting, initiate connection
+    if (!this.socket || !this.isConnecting) {
       await this.connect();
-      // Wait for the socket to be initialized after connect() completes
-      if (this.socket) {
-        await this.waitForConnection();
-      }
-    } else if (this.socket && !this.socket.connected) {
-      // Socket exists but not connected, wait for connection
+    }
+
+    // Wait for connection to be established
+    if (this.socket) {
       await this.waitForConnection();
     }
   }
@@ -284,7 +288,7 @@ export class SocketService {
   /**
    * Wait for socket connection to be established
    */
-  private async waitForConnection(timeout: number = 5000): Promise<void> {
+  private async waitForConnection(timeout: number = 10000): Promise<void> {
     if (this.socket?.connected) {
       return;
     }
@@ -295,7 +299,15 @@ export class SocketService {
         return;
       }
 
+      // If already connected, resolve immediately
+      if (this.socket.connected) {
+        resolve();
+        return;
+      }
+
       const timeoutId = setTimeout(() => {
+        this.socket?.off('connect', onConnect);
+        this.socket?.off('connect_error', onError);
         reject(new Error('Connection timeout'));
       }, timeout);
 
@@ -315,14 +327,6 @@ export class SocketService {
 
       this.socket.on('connect', onConnect);
       this.socket.on('connect_error', onError);
-
-      // If already connected, resolve immediately
-      if (this.socket.connected) {
-        clearTimeout(timeoutId);
-        this.socket.off('connect', onConnect);
-        this.socket.off('connect_error', onError);
-        resolve();
-      }
     });
   }
 

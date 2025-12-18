@@ -12,6 +12,7 @@
 
 import { signIn, signOut, signUp, useSession } from "@/lib/auth-client";
 import { useAuthStore } from "@/stores";
+import { socketService } from "@/services/socket";
 import { User } from "@/types";
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 
@@ -210,6 +211,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         useAuthStore.setState({ isLoading: true });
     }
   }, [user, session, isPending]);
+
+  /**
+   * Initialize socket connection when user is authenticated
+   * This ensures the socket is ready for real-time updates as soon as the user logs in
+   */
+  useEffect(() => {
+    if (user && session?.token) {
+      console.log("[Auth] User authenticated, initializing socket connection");
+      socketService.initialize(session.token).catch(error => {
+        console.error("[Auth] Failed to initialize socket:", error);
+      });
+    } else if (!user) {
+      console.log("[Auth] User logged out, disconnecting socket");
+      socketService.disconnect();
+    }
+  }, [user, session?.token]);
 
   /**
    * Clear the session expired flag
