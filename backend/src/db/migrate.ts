@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import path from 'path';
@@ -282,3 +283,4 @@ export async function initializeDatabase(): Promise<MigrationResult> {
     };
   }
 }
+

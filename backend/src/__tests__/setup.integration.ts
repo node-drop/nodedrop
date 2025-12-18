@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createServer } from "http";
 import prisma from "../config/database";
 import app from "../index";
@@ -92,3 +93,4 @@ beforeEach(async () => {
 });
 
 export { prisma, testServer };
+

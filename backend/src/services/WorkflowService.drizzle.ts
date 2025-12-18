@@ -972,7 +972,10 @@ export class WorkflowServiceDrizzle {
         },
       });
 
-      return result;
+      return result.map(w => ({
+        ...w,
+        active: w.active ?? false
+      }));
     } catch (error) {
       logger.error('Error getting all active workflows:', error);
       throw error;

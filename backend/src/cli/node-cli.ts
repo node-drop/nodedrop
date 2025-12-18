@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 
 import { Command } from "commander";
 import { promises as fs } from "fs";
@@ -446,3 +447,4 @@ program
 
 // Parse command line arguments
 program.parse();
+

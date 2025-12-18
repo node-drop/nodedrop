@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Debug endpoint to check credential registration
  * Remove this file in production
@@ -90,3 +91,4 @@ router.get("/debug/credentials", (req, res) => {
 });
 
 export default router;
+

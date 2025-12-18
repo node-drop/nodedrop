@@ -37,7 +37,7 @@ router.get(
     // Get workflows with triggers field included
     const result = await workflowService.listWorkflows(
       req.user!.id,
-      { limit: 100 },
+      { page: 1, limit: 100, sortOrder: 'desc' },
       { workspaceId }
     );
     

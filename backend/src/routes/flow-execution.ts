@@ -6,7 +6,7 @@ import {
     requireWorkspace,
 } from "../middleware/workspace";
 import { executionServiceDrizzle } from "../services/ExecutionService.factory";
-import { workflowServiceDrizzle } from "../services/WorkflowService";
+import { workflowService } from "../services/WorkflowService";
 
 const router = express.Router();
 
@@ -29,7 +29,7 @@ router.post(
     }
 
     // Get workflow
-    const workflow = await workflowServiceDrizzle.getWorkflow(workflowId, userId, { workspaceId });
+    const workflow = await workflowService.getWorkflow(workflowId, userId, { workspaceId });
 
     if (!workflow) {
       return res.status(404).json({ error: "Workflow not found" });
@@ -204,7 +204,7 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const workflow = await workflowServiceDrizzle.getWorkflow(workflowId, userId, { workspaceId });
+    const workflow = await workflowService.getWorkflow(workflowId, userId, { workspaceId });
 
     if (!workflow) {
       return res.status(404).json({ error: "Workflow not found" });

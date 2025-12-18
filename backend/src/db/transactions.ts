@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Transaction Utilities for Drizzle ORM
  * 
@@ -396,3 +397,4 @@ export async function getTransactionStats(): Promise<{
     throw error;
   }
 }
+

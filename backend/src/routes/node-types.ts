@@ -389,7 +389,7 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     try {
       // Import NodeService to unload nodes from memory
       const { NodeService } = await import("../services/NodeService");
-      const nodeService = new NodeService(prisma);
+      const nodeService = new NodeService();
 
       for (const nodeType of packageNodeTypes) {
         try {

@@ -4,13 +4,13 @@
  * Run this to register all nodes in the nodes directory without manual configuration
  */
 
-import prisma from "../config/database";
+import { db } from "../db/client";
 import { NodeService } from "../services/NodeService";
 import { nodeDiscovery } from "../utils/NodeDiscovery";
 
 async function registerAllDiscoveredNodes() {
 
-  const nodeService = new NodeService(prisma);
+  const nodeService = new NodeService();
 
   try {
     console.log("🔄 Auto-discovering and registering nodes...\n");
@@ -70,8 +70,6 @@ async function registerAllDiscoveredNodes() {
   } catch (error) {
     console.error("❌ Fatal error:", error);
     process.exit(1);
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

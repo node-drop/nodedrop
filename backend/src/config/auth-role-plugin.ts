@@ -9,7 +9,9 @@
  */
 
 import { markSetupComplete } from "../utils/setup";
-import { prisma } from "./database";
+import { db } from "./database";
+import { users } from "../db/schema/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * Empty plugin - role assignment is handled separately
@@ -30,40 +32,48 @@ export const rolePlugin = {
  * @param userId - The ID of the newly created user
  * @returns The assigned role
  */
-export async function assignRoleToNewUser(userId: string): Promise<"ADMIN" | "USER"> {
+export async function assignRoleToNewUser(userId: string): Promise<"admin" | "user"> {
   try {
     // Check if an admin already exists
     // This is safer than count() as it handles concurrent registrations better
     // (though a true distributed lock would be safest, this is sufficient for this scale)
-    const existingAdmin = await prisma.user.findFirst({
-      where: { role: "ADMIN" }
-    });
+    const existingAdmin = await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "admin"))
+      .limit(1);
     
-    // If no admin exists, this user becomes ADMIN. Otherwise USER.
-    const role = !existingAdmin ? "ADMIN" : "USER";
+    // If no admin exists, this user becomes admin. Otherwise user.
+    const role = existingAdmin.length === 0 ? "admin" : "user";
     
     // Update the user's role
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { role },
-      select: { email: true }
-    });
+    await db
+      .update(users)
+      .set({ role })
+      .where(eq(users.id, userId));
+    
+    // Get the updated user
+    const updatedUser = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     
     console.log(`[Role Plugin] Assigned role ${role} to user ${userId}`);
     
-    // If this is the first user (ADMIN), mark setup as complete
-    if (role === "ADMIN") {
+    // If this is the first user (admin), mark setup as complete
+    if (role === "admin" && updatedUser.length > 0) {
       markSetupComplete({
         siteName: "Node-Drop",
-        adminEmail: updatedUser.email
+        adminEmail: updatedUser[0].email
       });
-      console.log(`[Role Plugin] Setup marked as complete for admin ${updatedUser.email}`);
+      console.log(`[Role Plugin] Setup marked as complete for admin ${updatedUser[0].email}`);
     }
     
     return role;
   } catch (error) {
     console.error("[Role Plugin] Error assigning role:", error);
-    return "USER"; // Default to USER on error
+    return "user"; // Default to user on error
   }
 }
 
@@ -72,14 +82,14 @@ export async function assignRoleToNewUser(userId: string): Promise<"ADMIN" | "US
  * Can be used for testing or manual role assignment
  */
 export async function shouldBeAdmin(): Promise<boolean> {
-  const userCount = await prisma.user.count();
-  return userCount === 0;
+  const userCount = await db.select().from(users);
+  return userCount.length === 0;
 }
 
 /**
  * Helper function to get the appropriate role for a new user
  */
-export async function getNewUserRole(): Promise<"ADMIN" | "USER"> {
+export async function getNewUserRole(): Promise<"admin" | "user"> {
   const isFirstUser = await shouldBeAdmin();
-  return isFirstUser ? "ADMIN" : "USER";
+  return isFirstUser ? "admin" : "user";
 }

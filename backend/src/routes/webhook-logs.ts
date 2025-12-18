@@ -10,7 +10,7 @@ router.get('/webhook-logs', requireAuth, requireWorkspace, async (req: Workspace
   try {
     const { limit, offset, status, startDate, endDate } = req.query
     
-    const result = await webhookLogService.getAllLogsForUser(
+    const result = await webhookRequestLogService.getAllLogsForUser(
       req.user!.id,
       {
         limit: limit ? parseInt(limit as string) : undefined,
@@ -39,7 +39,7 @@ router.get('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async (re
     const { webhookId } = req.params
     const { limit, offset, status, startDate, endDate } = req.query
     
-    const result = await webhookLogService.getLogsForWebhook(
+    const result = await webhookRequestLogService.getLogsForWebhook(
       webhookId,
       req.user!.id,
       {
@@ -67,7 +67,7 @@ router.get('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async (re
 router.get('/webhook-logs/:logId', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { logId } = req.params
-    const log = await webhookLogService.getLog(logId, req.user!.id)
+    const log = await webhookRequestLogService.getLog(logId, req.user!.id)
     
     if (!log) {
       return res.status(404).json({
@@ -92,7 +92,7 @@ router.get('/webhook-logs/:logId', requireAuth, requireWorkspace, async (req: Wo
 router.get('/webhooks/:webhookId/stats', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { webhookId } = req.params
-    const stats = await webhookLogService.getWebhookStats(webhookId, req.user!.id)
+    const stats = await webhookRequestLogService.getWebhookStats(webhookId, req.user!.id)
     
     res.json({
       success: true,
@@ -110,7 +110,7 @@ router.get('/webhooks/:webhookId/stats', requireAuth, requireWorkspace, async (r
 router.delete('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async (req: WorkspaceRequest, res: Response) => {
   try {
     const { webhookId } = req.params
-    await webhookLogService.deleteLogsForWebhook(webhookId, req.user!.id)
+    await webhookRequestLogService.deleteLogsForWebhook(webhookId, req.user!.id)
     
     res.json({
       success: true,
@@ -125,3 +125,5 @@ router.delete('/webhooks/:webhookId/logs', requireAuth, requireWorkspace, async 
 })
 
 export default router
+
+

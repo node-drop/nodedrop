@@ -16,7 +16,7 @@ import {
   wrapJsonData,
 } from "@nodedrop/utils";
 import type { ExpressionContext } from "@nodedrop/types";
-import { getCredentialService } from "./CredentialService.factory";
+import { getCredentialService, type ICredentialService } from "./CredentialService.factory";
 import { variableServiceDrizzle } from "./VariableService.factory";
 
 export interface SecureExecutionOptions {
@@ -48,7 +48,7 @@ export interface ValidationResult {
 }
 
 export class SecureExecutionService {
-  private credentialService: CredentialService;
+  private credentialService: ICredentialService;
   private variableService: any;
   private defaultLimits: ExecutionLimits;
   private activeRequests: Map<string, number>;

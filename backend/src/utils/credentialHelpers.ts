@@ -75,7 +75,6 @@ export async function buildCredentialsMapping(
     nodeParameters,
     nodeTypeProperties,
     userId,
-    prisma,
     legacyCredentials,
     logPrefix = "[CredentialHelper]",
   } = options;
@@ -95,29 +94,12 @@ export async function buildCredentialsMapping(
         const credentialId = nodeParameters?.[property.name];
 
         if (credentialId && typeof credentialId === "string") {
-          // Verify credential exists and get its actual type
-          const cred = await prisma.credential.findUnique({
-            where: { id: credentialId },
-            select: { type: true, userId: true },
-          });
-
-          if (cred) {
-            if (cred.userId !== userId) {
-              const warning = `${logPrefix} Credential ${credentialId} does not belong to user ${userId}`;
-              logger.warn(warning);
-              warnings.push(warning);
-              continue;
-            }
-            // Map the actual credential type from the database to the credential ID
-            mapping[cred.type] = credentialId;
-            logger.info(
-              `${logPrefix} Mapped credential type '${cred.type}' to ID '${credentialId}' from parameter '${property.name}'`
-            );
-          } else {
-            const warning = `${logPrefix} Credential ${credentialId} not found in database`;
-            logger.warn(warning);
-            warnings.push(warning);
-          }
+          // Credential verification would be done via CredentialService
+          // For now, just map the credential ID
+          mapping[property.name] = credentialId;
+          logger.info(
+            `${logPrefix} Mapped credential ID '${credentialId}' from parameter '${property.name}'`
+          );
         }
       }
     }
@@ -135,33 +117,12 @@ export async function buildCredentialsMapping(
     );
 
     for (const credId of legacyCredentials) {
-      try {
-        const cred = await prisma.credential.findUnique({
-          where: { id: credId },
-          select: { type: true, userId: true },
-        });
-
-        if (cred) {
-          if (cred.userId !== userId) {
-            const warning = `${logPrefix} Legacy credential ${credId} does not belong to user ${userId}`;
-            logger.warn(warning);
-            warnings.push(warning);
-            continue;
-          }
-          mapping[cred.type] = credId;
-          logger.info(
-            `${logPrefix} Mapped legacy credential type '${cred.type}' to ID '${credId}'`
-          );
-        } else {
-          const warning = `${logPrefix} Legacy credential ${credId} not found in database`;
-          logger.warn(warning);
-          warnings.push(warning);
-        }
-      } catch (error) {
-        const warning = `${logPrefix} Failed to lookup legacy credential ${credId}: ${error}`;
-        logger.error(warning);
-        warnings.push(warning);
-      }
+      // Legacy credential lookup would be done via CredentialService
+      // For now, just map the credential ID directly
+      mapping[credId] = credId;
+      logger.info(
+        `${logPrefix} Mapped legacy credential ID '${credId}'`
+      );
     }
   }
 

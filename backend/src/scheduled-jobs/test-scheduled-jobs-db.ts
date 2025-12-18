@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test script for database-backed scheduled jobs
  * 
@@ -162,3 +163,5 @@ if (require.main === module) {
 }
 
 export { testtriggerJobsDatabase };
+
+

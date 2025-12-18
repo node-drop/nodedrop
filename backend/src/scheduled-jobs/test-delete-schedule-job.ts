@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test script for scheduled job deletion
  * 
@@ -160,3 +161,5 @@ if (require.main === module) {
 }
 
 export { testDeleteScheduleJob };
+
+

@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import multer from "multer";
-import prisma from "../config/database";
+import { db } from "../db/client";
+import { workflows } from "../db/schema/workflows";
+import { eq } from "drizzle-orm";
 
 
 /**
@@ -59,19 +61,19 @@ export async function webhookBodyParser(
     console.log('🔍 Extracted webhook path:', webhookPath);
 
     // Find the workflow with this webhook
-    const workflows = await prisma.workflow.findMany({
-      where: { active: true },
-      select: {
-        id: true,
-        nodes: true,
-        triggers: true,
-      },
-    });
+    const workflowRecords = await db
+      .select({
+        id: workflows.id,
+        nodes: workflows.nodes,
+        triggers: workflows.triggers,
+      })
+      .from(workflows)
+      .where(eq(workflows.active, true));
 
     let webhookOptions: any = null;
 
     // Find matching webhook trigger
-    for (const workflow of workflows) {
+    for (const workflow of workflowRecords) {
       const triggers = (workflow.triggers as any[]) || [];
       const webhookTrigger = triggers.find(
         (t) =>
