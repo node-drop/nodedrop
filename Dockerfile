@@ -99,6 +99,7 @@ COPY --from=backend-builder /app/backend/dist ./backend/dist
 COPY --from=backend-builder /app/backend/package*.json ./backend/
 COPY --from=backend-builder /app/backend/drizzle.config.ts ./backend/
 COPY --from=backend-builder /app/backend/src/db ./backend/src/db
+COPY --from=backend-builder /app/backend/src/db/migrations ./backend/dist/db/migrations
 
 # Copy all node_modules from builder (includes all dependencies)
 COPY --from=backend-builder /app/node_modules ./node_modules
@@ -131,4 +132,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 
 # Start application
 # Run Drizzle migrations and start server
-CMD ["sh", "-c", "cd /app/backend && npx drizzle-kit migrate && node dist/index.js"]
+CMD ["sh", "-c", "cd /app/backend && npm run db:migrate && node dist/index.js"]

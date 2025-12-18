@@ -55,6 +55,7 @@ services:
       - CONTAINER_NAME=node-drop
       - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
       - INSTALL_DIR=/host-compose
+      - DB_SSL_REJECT_UNAUTHORIZED=false
     volumes:
       - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp

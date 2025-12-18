@@ -29,8 +29,11 @@ function createDatabasePool(): Pool {
   };
 
   // SSL/TLS configuration for production
-  if (isProduction) {
-    // Enable SSL for production
+  // Disable SSL for Docker environments (connecting to local postgres)
+  const isDocker = process.env.CONTAINER_NAME === 'node-drop' || connectionString.includes('@postgres:');
+  
+  if (isProduction && !isDocker) {
+    // Enable SSL for production (but not in Docker with local DB)
     poolConfig.ssl = {
       rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
       // Support custom CA certificate if provided
