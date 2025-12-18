@@ -14,9 +14,9 @@ import { ScheduleJobManager } from './ScheduleJobManager';
 
 async function testDeleteScheduleJob() {
 
-    const nodeService = new NodeService(prisma);
-    const executionHistoryService = new ExecutionHistoryService(prisma);
-    const executionService = new ExecutionService(prisma, nodeService, executionHistoryService);
+    const nodeService = new NodeService();
+    const executionHistoryService = new ExecutionHistoryService();
+    const executionService = new ExecutionService(prisma as any, nodeService, executionHistoryService);
     const scheduleJobManager = new ScheduleJobManager(prisma, executionService);
 
     try {

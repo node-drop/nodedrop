@@ -1,4 +1,6 @@
-import { ExecutionStatus } from "../db/types";
+import { db } from "../config/database";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { EventEmitter } from "events";
 import { SocketService } from "./SocketService";
 
@@ -44,7 +46,6 @@ export interface ManualInterventionResponse {
  * Comprehensive timeout management and manual intervention system for flow executions
  */
 export class ExecutionTimeoutManager extends EventEmitter {
-  private prisma: PrismaClient;
   private socketService: SocketService;
   private config: TimeoutConfig;
   private activeTimeouts: Map<string, NodeJS.Timeout> = new Map();
@@ -55,7 +56,6 @@ export class ExecutionTimeoutManager extends EventEmitter {
   private warningTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(
-    prisma: PrismaClient,
     socketService: SocketService,
     config: TimeoutConfig = {
       executionTimeoutMs: 30 * 60 * 1000, // 30 minutes
@@ -65,7 +65,6 @@ export class ExecutionTimeoutManager extends EventEmitter {
     }
   ) {
     super();
-    this.prisma = prisma;
     this.socketService = socketService;
     this.config = config;
   }
@@ -134,9 +133,9 @@ export class ExecutionTimeoutManager extends EventEmitter {
     this.executionTracking.set(executionId, timeoutData);
 
     // Get execution details
-    const execution = await this.prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: { include: { user: true } } },
+    const execution = await db.query.executions.findFirst({
+      where: eq(schema.executions.id, executionId),
+      with: { workflow: { with: { user: true } } },
     });
 
     if (execution) {
@@ -170,10 +169,10 @@ export class ExecutionTimeoutManager extends EventEmitter {
 
     try {
       // Update execution status in database
-      await this.prisma.execution.update({
-        where: { id: executionId },
-        data: {
-          status: ExecutionStatus.TIMEOUT,
+      await db
+        .update(schema.executions)
+        .set({
+          status: "TIMEOUT",
           finishedAt: new Date(),
           error: {
             type: "timeout",
@@ -181,13 +180,13 @@ export class ExecutionTimeoutManager extends EventEmitter {
             timestamp: new Date().toISOString(),
             executionTime: Date.now() - timeoutData.startTime,
           },
-        },
-      });
+        })
+        .where(eq(schema.executions.id, executionId));
 
       // Get execution details for notification
-      const execution = await this.prisma.execution.findUnique({
-        where: { id: executionId },
-        include: { workflow: { include: { user: true } } },
+      const execution = await db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: { workflow: { with: { user: true } } },
       });
 
       if (execution) {
@@ -268,9 +267,9 @@ export class ExecutionTimeoutManager extends EventEmitter {
     await this.pauseExecution(executionId, "manual_intervention");
 
     // Get execution details
-    const execution = await this.prisma.execution.findUnique({
-      where: { id: executionId },
-      include: { workflow: { include: { user: true } } },
+    const execution = await db.query.executions.findFirst({
+      where: eq(schema.executions.id, executionId),
+      with: { workflow: { with: { user: true } } },
     });
 
     if (execution) {
@@ -333,12 +332,9 @@ export class ExecutionTimeoutManager extends EventEmitter {
     this.pendingInterventions.delete(interventionId);
 
     // Store response in database (convert to JSON-compatible format)
-    await this.prisma.nodeExecution.updateMany({
-      where: {
-        executionId: intervention.executionId,
-        nodeId: intervention.nodeId,
-      },
-      data: {
+    await db
+      .update(schema.nodeExecutions)
+      .set({
         outputData: {
           manualInterventionResponse: {
             approved: response.approved,
@@ -350,8 +346,10 @@ export class ExecutionTimeoutManager extends EventEmitter {
           approved: response.approved,
           respondedAt: response.respondedAt,
         },
-      },
-    });
+      })
+      .where(
+        eq(schema.nodeExecutions.executionId, intervention.executionId)
+      );
 
     // Resume execution if approved
     if (response.approved) {
@@ -365,9 +363,9 @@ export class ExecutionTimeoutManager extends EventEmitter {
     }
 
     // Broadcast response
-    const execution = await this.prisma.execution.findUnique({
-      where: { id: intervention.executionId },
-      include: { workflow: { include: { user: true } } },
+    const execution = await db.query.executions.findFirst({
+      where: eq(schema.executions.id, intervention.executionId),
+      with: { workflow: { with: { user: true } } },
     });
 
     if (execution) {
@@ -397,13 +395,13 @@ export class ExecutionTimeoutManager extends EventEmitter {
    * Handle intervention timeout
    */
   private async handleInterventionTimeout(
-    interventionId: string
+    _interventionId: string
   ): Promise<void> {
-    const intervention = this.pendingInterventions.get(interventionId);
+    const intervention = this.pendingInterventions.get(_interventionId);
     if (!intervention) return;
 
-    this.pendingInterventions.delete(interventionId);
-    this.interventionTimeouts.delete(interventionId);
+    this.pendingInterventions.delete(_interventionId);
+    this.interventionTimeouts.delete(_interventionId);
 
     // Cancel execution due to intervention timeout
     await this.cancelExecution(
@@ -412,9 +410,9 @@ export class ExecutionTimeoutManager extends EventEmitter {
     );
 
     // Broadcast timeout
-    const execution = await this.prisma.execution.findUnique({
-      where: { id: intervention.executionId },
-      include: { workflow: { include: { user: true } } },
+    const execution = await db.query.executions.findFirst({
+      where: eq(schema.executions.id, intervention.executionId),
+      with: { workflow: { with: { user: true } } },
     });
 
     if (execution) {
@@ -422,7 +420,7 @@ export class ExecutionTimeoutManager extends EventEmitter {
         execution.workflow.userId,
         "manualInterventionTimeout",
         {
-          interventionId,
+          interventionId: _interventionId,
           executionId: intervention.executionId,
           nodeId: intervention.nodeId,
           intervention,
@@ -430,7 +428,7 @@ export class ExecutionTimeoutManager extends EventEmitter {
       );
     }
 
-    this.emit("interventionTimeout", { interventionId, intervention });
+    this.emit("interventionTimeout", { interventionId: _interventionId, intervention });
   }
 
   /**
@@ -440,18 +438,18 @@ export class ExecutionTimeoutManager extends EventEmitter {
     executionId: string,
     reason: string
   ): Promise<void> {
-    // Simplified for now - will be enhanced when Prisma client is regenerated
-    await this.prisma.execution.update({
-      where: { id: executionId },
-      data: {
-        status: "CANCELLED" as any, // Use CANCELLED for now instead of PAUSED
+    // Simplified for now - will be enhanced when Drizzle schema is updated
+    await db
+      .update(schema.executions)
+      .set({
+        status: "CANCELLED",
         error: {
           type: "pause",
           reason,
           timestamp: new Date().toISOString(),
         },
-      },
-    });
+      })
+      .where(eq(schema.executions.id, executionId));
 
     // Update activity
     this.updateActivity(executionId);
@@ -461,13 +459,12 @@ export class ExecutionTimeoutManager extends EventEmitter {
    * Resume execution
    */
   private async resumeExecution(executionId: string): Promise<void> {
-    await this.prisma.execution.update({
-      where: { id: executionId },
-      data: {
-        status: "RUNNING" as any,
-        // resumedAt: new Date(), // Will work after Prisma regeneration
-      },
-    });
+    await db
+      .update(schema.executions)
+      .set({
+        status: "RUNNING",
+      })
+      .where(eq(schema.executions.id, executionId));
 
     // Update activity
     this.updateActivity(executionId);
@@ -480,19 +477,18 @@ export class ExecutionTimeoutManager extends EventEmitter {
     executionId: string,
     reason: string
   ): Promise<void> {
-    await this.prisma.execution.update({
-      where: { id: executionId },
-      data: {
-        status: "CANCELLED" as any,
+    await db
+      .update(schema.executions)
+      .set({
+        status: "CANCELLED",
         finishedAt: new Date(),
-        // cancelledAt: new Date(), // Will work after Prisma regeneration
         error: {
           type: "cancellation",
           reason,
           timestamp: new Date().toISOString(),
         },
-      },
-    });
+      })
+      .where(eq(schema.executions.id, executionId));
 
     this.clearExecutionTimeout(executionId);
   }
@@ -503,18 +499,16 @@ export class ExecutionTimeoutManager extends EventEmitter {
   async getPendingInterventions(
     userId: string
   ): Promise<ManualInterventionRequest[]> {
-    const userExecutions = await this.prisma.execution.findMany({
-      where: {
-        workflow: { userId },
-        status: "CANCELLED", // Using CANCELLED for paused executions temporarily
-      },
-      select: { id: true },
+    const userExecutions = await db.query.executions.findMany({
+      where: eq(schema.workflows.userId, userId),
+      columns: { id: true },
+      with: { workflow: { columns: { userId: true } } },
     });
 
-    const executionIds = userExecutions.map((e) => e.id);
+    const executionIds = userExecutions.map((e: any) => e.id);
     const pendingInterventions: ManualInterventionRequest[] = [];
 
-    this.pendingInterventions.forEach((intervention, interventionId) => {
+    this.pendingInterventions.forEach((intervention) => {
       if (executionIds.includes(intervention.executionId)) {
         pendingInterventions.push(intervention);
       }

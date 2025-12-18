@@ -1,11 +1,11 @@
-import prisma from "../../config/database";
+import { db } from "../../config/database";
+import { eq, and } from "drizzle-orm";
+import * as schema from "../../db/schema";
 import { WorkflowService } from "../../services/WorkflowService";
 import { NodePropertyOption } from "../../types/node.types";
 
 export class WorkflowTriggerHelper {
-  private static prisma = prisma;
-
-  private static workflowService = new WorkflowService(this.prisma);
+  private static workflowService = new WorkflowService();
 
   /**
    * Execute a workflow by triggering it via API
@@ -125,10 +125,9 @@ export class WorkflowTriggerHelper {
         require("../../services/ExecutionHistoryService").default;
 
       // Create service instances
-      const nodeService = new NodeService(this.prisma);
-      const executionHistoryService = new ExecutionHistoryService(this.prisma);
+      const nodeService = new NodeService();
+      const executionHistoryService = new ExecutionHistoryService();
       const executionService = new ExecutionService(
-        this.prisma,
         nodeService,
         executionHistoryService
       );
@@ -163,7 +162,7 @@ export class WorkflowTriggerHelper {
    */
   private static async waitForExecutionCompletion(
     executionId: string,
-    userId: string,
+    _userId: string,
     timeout: number
   ): Promise<{
     status: string;
@@ -177,18 +176,14 @@ export class WorkflowTriggerHelper {
     while (Date.now() - startTime < timeout) {
       try {
         // Query execution directly from database
-        const execution = await this.prisma.execution.findFirst({
-          where: {
-            id: executionId,
-            workflow: { userId },
-          },
-          include: {
+        const execution = await db.query.executions.findFirst({
+          where: eq(schema.executions.id, executionId),
+          with: {
             workflow: {
-              select: { id: true, name: true },
+              columns: { id: true, name: true },
             },
             nodeExecutions: {
-              orderBy: { startedAt: "asc" },
-              select: {
+              columns: {
                 id: true,
                 nodeId: true,
                 status: true,
@@ -198,6 +193,7 @@ export class WorkflowTriggerHelper {
                 startedAt: true,
                 finishedAt: true,
               },
+              orderBy: (ne: any) => ne.startedAt,
             },
           },
         });
@@ -210,8 +206,8 @@ export class WorkflowTriggerHelper {
         if (execution.status === "SUCCESS") {
           const executionTime = execution.finishedAt
             ? new Date(execution.finishedAt).getTime() -
-              new Date(execution.startedAt).getTime()
-            : Date.now() - new Date(execution.startedAt).getTime();
+              new Date(execution.startedAt || new Date()).getTime()
+            : Date.now() - new Date(execution.startedAt || new Date()).getTime();
 
           return {
             status: "completed",

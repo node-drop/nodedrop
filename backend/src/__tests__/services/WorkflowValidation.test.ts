@@ -1,13 +1,10 @@
 import { WorkflowService } from '../../services/WorkflowService';
 
-// Mock PrismaClient for validation tests
-const mockPrisma = {} as any;
-
 describe('WorkflowService Validation', () => {
   let workflowService: WorkflowService;
 
   beforeAll(() => {
-    workflowService = new WorkflowService(mockPrisma);
+    workflowService = new WorkflowService();
   });
 
   describe('validateWorkflow', () => {

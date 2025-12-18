@@ -45,7 +45,7 @@ describe('ExecutionService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    executionService = new ExecutionService(mockPrisma, mockNodeService);
+    executionService = new ExecutionService(mockPrisma as any, mockNodeService, {} as any);
   });
 
   afterEach(async () => {

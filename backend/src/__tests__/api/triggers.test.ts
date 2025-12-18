@@ -15,7 +15,7 @@ const mockPrisma = {
     findMany: jest.fn(),
     update: jest.fn(),
   },
-} as unknown as PrismaClient;
+} as any;
 
 // Mock user for authentication
 const mockUser = {

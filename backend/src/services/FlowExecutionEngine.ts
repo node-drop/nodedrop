@@ -1,5 +1,8 @@
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
+import { db } from "../config/database";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { Workflow } from "../types/database";
 import { NodeInputData, StandardizedNodeOutput } from "../types/node.types";
 import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
@@ -98,7 +101,6 @@ export interface ExecutionFlowStatus {
  * and cascade execution from any node to all connected downstream nodes.
  */
 export class FlowExecutionEngine extends EventEmitter {
-  private prisma: PrismaClient;
   private nodeService: NodeService;
   private executionHistoryService: ExecutionHistoryService;
   private dependencyResolver: DependencyResolver;
@@ -106,12 +108,10 @@ export class FlowExecutionEngine extends EventEmitter {
   private nodeQueue: Map<string, string[]> = new Map();
 
   constructor(
-    prisma: PrismaClient,
     nodeService: NodeService,
     executionHistoryService: ExecutionHistoryService
   ) {
     super();
-    this.prisma = prisma;
     this.nodeService = nodeService;
     this.executionHistoryService = executionHistoryService;
     this.dependencyResolver = new DependencyResolver();
@@ -366,8 +366,8 @@ export class FlowExecutionEngine extends EventEmitter {
 
   private async loadWorkflow(workflowId: string): Promise<Workflow | null> {
     try {
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: workflowId },
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, workflowId),
       });
 
       if (!workflow) {
@@ -378,6 +378,9 @@ export class FlowExecutionEngine extends EventEmitter {
       const parsedWorkflow: Workflow = {
         ...workflow,
         description: workflow.description || undefined,
+        active: workflow.active ?? true,
+        createdAt: workflow.createdAt || new Date(),
+        updatedAt: workflow.updatedAt || new Date(),
         nodes: Array.isArray(workflow.nodes)
           ? workflow.nodes
           : JSON.parse(workflow.nodes as string),
@@ -820,7 +823,6 @@ export class FlowExecutionEngine extends EventEmitter {
         nodeParameters: node.parameters || {},
         nodeTypeProperties,
         userId: context.userId,
-        prisma: this.prisma,
         logPrefix: "[FlowExecution]",
       });
 

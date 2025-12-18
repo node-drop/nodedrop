@@ -1,4 +1,6 @@
-import { db } from "../db/client";
+import { db } from "../config/database";
+import { eq, and, gte, lte, inArray, count, desc, asc } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { EventEmitter } from "events";
 
 export interface ExecutionHistoryQuery {
@@ -153,18 +155,56 @@ export class ExecutionHistoryService extends EventEmitter {
       };
     }
 
+    // Build Drizzle where conditions
+    const whereConditions: any[] = [];
+
+    if (workflowId) {
+      whereConditions.push(eq(schema.executions.workflowId, workflowId));
+    }
+
+    if (userId) {
+      // Join with workflow to filter by userId
+      whereConditions.push(eq(schema.workflows.userId, userId));
+    }
+
+    if (status.length > 0) {
+      whereConditions.push(inArray(schema.executions.status, status));
+    }
+
+    if (executionType.length > 0) {
+      whereConditions.push(inArray(schema.executions.executionType, executionType));
+    }
+
+    if (dateRange) {
+      whereConditions.push(
+        gte(schema.executions.startedAt, dateRange.startDate),
+        lte(schema.executions.startedAt, dateRange.endDate)
+      );
+    }
+
+    const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
     // Get total count
-    const total = await this.prisma.execution.count({ where });
+    const totalResult = await db
+      .select({ count: count() })
+      .from(schema.executions)
+      .where(whereClause);
+    const total = totalResult[0]?.count || 0;
 
     // Get executions
-    const executions = await this.prisma.execution.findMany({
-      where,
-      include: {
+    const orderByField = sortBy === "startedAt" ? schema.executions.startedAt :
+                         sortBy === "finishedAt" ? schema.executions.finishedAt :
+                         schema.executions.startedAt;
+    const orderByFunc = sortOrder === "asc" ? asc : desc;
+
+    const executions = await db.query.executions.findMany({
+      where: whereClause,
+      with: {
         workflow: {
-          select: { id: true, name: true, description: true },
+          columns: { id: true, name: true, description: true },
         },
         nodeExecutions: {
-          select: {
+          columns: {
             nodeId: true,
             status: true,
             startedAt: true,
@@ -173,22 +213,22 @@ export class ExecutionHistoryService extends EventEmitter {
           },
         },
       },
-      orderBy: { [sortBy]: sortOrder },
-      take: limit,
-      skip: offset,
+      orderBy: orderByFunc(orderByField),
+      limit,
+      offset,
     });
 
     // Enhance executions with computed fields
-    const enhancedExecutions = executions.map((execution) => {
+    const enhancedExecutions = executions.map((execution: any) => {
       const duration = execution.finishedAt
         ? execution.finishedAt.getTime() - execution.startedAt.getTime()
         : Date.now() - execution.startedAt.getTime();
 
       const failedNodes = execution.nodeExecutions.filter(
-        (ne) => ne.status === "FAILED" || ne.status === "ERROR"
+        (ne: any) => ne.status === "FAILED" || ne.status === "ERROR"
       ).length;
       const completedNodes = execution.nodeExecutions.filter(
-        (ne) => ne.status === "SUCCESS" || ne.status === "COMPLETED"
+        (ne: any) => ne.status === "SUCCESS" || ne.status === "COMPLETED"
       ).length;
 
       return {
@@ -219,56 +259,58 @@ export class ExecutionHistoryService extends EventEmitter {
     workflowId?: string,
     timeRange?: { startDate: Date; endDate: Date }
   ): Promise<ExecutionAnalytics> {
-    const where: any = {};
+    const whereConditions: any[] = [];
 
     if (userId) {
-      where.workflow = { userId };
+      whereConditions.push(eq(schema.workflows.userId, userId));
     }
 
     if (workflowId) {
-      where.workflowId = workflowId;
+      whereConditions.push(eq(schema.executions.workflowId, workflowId));
     }
 
     if (timeRange) {
-      where.startedAt = {
-        gte: timeRange.startDate,
-        lte: timeRange.endDate,
-      };
+      whereConditions.push(
+        gte(schema.executions.startedAt, timeRange.startDate),
+        lte(schema.executions.startedAt, timeRange.endDate)
+      );
     }
 
+    const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
     // Get all executions for analysis
-    const executions = await this.prisma.execution.findMany({
-      where,
-      include: {
-        workflow: { select: { id: true, name: true } },
+    const executions = await db.query.executions.findMany({
+      where: whereClause,
+      with: {
+        workflow: { columns: { id: true, name: true } },
       },
     });
 
     const totalExecutions = executions.length;
     const successfulExecutions = executions.filter(
-      (e) => e.status === "SUCCESS"
+      (e: any) => e.status === "SUCCESS"
     ).length;
     const successRate =
       totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
 
     // Calculate durations
     const durations = executions
-      .filter((e) => e.finishedAt)
-      .map((e) => e.finishedAt!.getTime() - e.startedAt.getTime());
+      .filter((e: any) => e.finishedAt)
+      .map((e: any) => e.finishedAt!.getTime() - e.startedAt.getTime());
 
-    const totalDuration = durations.reduce((sum, d) => sum + d, 0);
+    const totalDuration = durations.reduce((sum: number, d: number) => sum + d, 0);
     const averageDuration =
       durations.length > 0 ? totalDuration / durations.length : 0;
 
     // Group by status
     const executionsByStatus: Record<string, number> = {};
-    executions.forEach((e) => {
+    executions.forEach((e: any) => {
       executionsByStatus[e.status] = (executionsByStatus[e.status] || 0) + 1;
     });
 
     // Group by type (when available)
     const executionsByType: Record<string, number> = {};
-    executions.forEach((e) => {
+    executions.forEach((e: any) => {
       const type = (e as any).executionType || "workflow";
       executionsByType[type] = (executionsByType[type] || 0) + 1;
     });
@@ -299,7 +341,7 @@ export class ExecutionHistoryService extends EventEmitter {
       string,
       { total: number; failures: number; name: string }
     > = {};
-    executions.forEach((e) => {
+    executions.forEach((e: any) => {
       const key = e.workflowId;
       if (!workflowFailures[key]) {
         workflowFailures[key] = {
@@ -321,7 +363,7 @@ export class ExecutionHistoryService extends EventEmitter {
         failureCount: stats.failures,
         failureRate: (stats.failures / stats.total) * 100,
       }))
-      .sort((a, b) => b.failureRate - a.failureRate)
+      .sort((a: any, b: any) => b.failureRate - a.failureRate)
       .slice(0, 10);
 
     return {
@@ -343,12 +385,12 @@ export class ExecutionHistoryService extends EventEmitter {
   async getExecutionDebugInfo(
     executionId: string
   ): Promise<ExecutionDebugInfo | null> {
-    const execution = await this.prisma.execution.findUnique({
-      where: { id: executionId },
-      include: {
+    const execution = await db.query.executions.findFirst({
+      where: eq(schema.executions.id, executionId),
+      with: {
         workflow: true,
         nodeExecutions: {
-          orderBy: { executionOrder: "asc" },
+          orderBy: (ne: any) => asc(ne.executionOrder),
         },
         flowExecutionStates: true,
       },
@@ -375,7 +417,7 @@ export class ExecutionHistoryService extends EventEmitter {
     // Get flow execution state
     const flowExecutionState =
       execution.flowExecutionStates.length > 0
-        ? execution.flowExecutionStates.reduce((state, fes) => {
+        ? execution.flowExecutionStates.reduce((state: any, fes: any) => {
             state[fes.nodeId] = {
               status: fes.status,
               progress: fes.progress,
@@ -489,25 +531,29 @@ export class ExecutionHistoryService extends EventEmitter {
     userId?: string,
     limit: number = 50
   ): Promise<any[]> {
-    const where: any = {
-      status: { in: ["ERROR", "FAILED"] },
-      error: {
-        path: ["message"],
-        string_contains: errorPattern,
-      },
-    };
+    const whereConditions: any[] = [
+      inArray(schema.executions.status, ["ERROR", "FAILED"]),
+    ];
 
     if (userId) {
-      where.workflow = { userId };
+      whereConditions.push(eq(schema.workflows.userId, userId));
     }
 
-    return this.prisma.execution.findMany({
-      where,
-      include: {
-        workflow: { select: { id: true, name: true } },
+    const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+    const executions = await db.query.executions.findMany({
+      where: whereClause,
+      with: {
+        workflow: { columns: { id: true, name: true } },
       },
-      orderBy: { startedAt: "desc" },
-      take: limit,
+      orderBy: (e: any) => desc(e.startedAt),
+      limit,
+    });
+
+    // Filter by error pattern in memory (since Drizzle doesn't support JSON contains easily)
+    return executions.filter((e: any) => {
+      const errorMsg = (e.error as any)?.message || "";
+      return errorMsg.includes(errorPattern);
     });
   }
 

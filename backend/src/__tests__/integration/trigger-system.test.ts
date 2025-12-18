@@ -26,9 +26,9 @@ describe('Trigger System Integration Tests', () => {
     // Initialize test database connection
 
     // Initialize services
-    workflowService = new WorkflowService(prisma);
-    nodeService = new NodeService(prisma);
-    executionService = new ExecutionService(prisma, nodeService);
+    workflowService = new WorkflowService(prisma as any);
+    nodeService = new NodeService();
+    executionService = new ExecutionService(prisma as any, nodeService, {} as any);
     socketService = new SocketService({} as any); // Mock HTTP server
     triggerService = new TriggerService(prisma, workflowService, executionService, socketService);
 

@@ -1,7 +1,9 @@
 import AdmZip from "adm-zip";
 import * as fs from "fs/promises";
 import * as path from "path";
-import prisma from "../config/database";
+import { db } from "../config/database";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { logger } from "../utils/logger";
 
 interface UploadResult {
@@ -39,7 +41,6 @@ interface PackageInfo {
 }
 
 export class CustomNodeUploadHandler {
-  private prisma = prisma;
   private extractPath: string;
   private nodesPath: string; // Changed from customNodesPath to nodesPath
 
@@ -971,15 +972,15 @@ export class CustomNodeUploadHandler {
   private async saveNodeType(nodeDefinition: NodeDefinition): Promise<any> {
     try {
       // Check if node type already exists
-      const existingNode = await this.prisma.nodeType.findUnique({
-        where: { identifier: nodeDefinition.type },
+      const existingNode = await db.query.nodeTypes.findFirst({
+        where: eq(schema.nodeTypes.identifier, nodeDefinition.type),
       });
 
       if (existingNode) {
         // Update existing node
-        return await this.prisma.nodeType.update({
-          where: { identifier: nodeDefinition.type },
-          data: {
+        return await db
+          .update(schema.nodeTypes)
+          .set({
             displayName: nodeDefinition.displayName,
             name: nodeDefinition.name,
             group: nodeDefinition.group,
@@ -993,26 +994,24 @@ export class CustomNodeUploadHandler {
             color: nodeDefinition.color,
             active: true,
             updatedAt: new Date(),
-          },
-        });
+          })
+          .where(eq(schema.nodeTypes.identifier, nodeDefinition.type));
       } else {
         // Create new node
-        return await this.prisma.nodeType.create({
-          data: {
-            identifier: nodeDefinition.type,
-            displayName: nodeDefinition.displayName,
-            name: nodeDefinition.name,
-            group: nodeDefinition.group,
-            version: nodeDefinition.version || 1,
-            description: nodeDefinition.description,
-            defaults: nodeDefinition.defaults || {},
-            inputs: nodeDefinition.inputs || ["main"],
-            outputs: nodeDefinition.outputs || ["main"],
-            properties: nodeDefinition.properties || [],
-            icon: nodeDefinition.icon,
-            color: nodeDefinition.color,
-            active: true,
-          },
+        return await db.insert(schema.nodeTypes).values({
+          identifier: nodeDefinition.type,
+          displayName: nodeDefinition.displayName,
+          name: nodeDefinition.name,
+          group: nodeDefinition.group,
+          version: nodeDefinition.version || 1,
+          description: nodeDefinition.description,
+          defaults: nodeDefinition.defaults || {},
+          inputs: nodeDefinition.inputs || ["main"],
+          outputs: nodeDefinition.outputs || ["main"],
+          properties: nodeDefinition.properties || [],
+          icon: nodeDefinition.icon,
+          color: nodeDefinition.color,
+          active: true,
         });
       }
     } catch (error) {

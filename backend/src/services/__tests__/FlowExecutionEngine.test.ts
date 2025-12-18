@@ -21,7 +21,7 @@ describe('FlowExecutionEngine', () => {
   let flowEngine: FlowExecutionEngine;
 
   beforeEach(() => {
-    flowEngine = new FlowExecutionEngine(mockPrisma, mockNodeService);
+    flowEngine = new FlowExecutionEngine(mockNodeService, {} as any);
     jest.clearAllMocks();
   });
 

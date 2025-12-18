@@ -48,9 +48,7 @@ describe('NodeLoader', () => {
       validateNodeDefinition: jest.fn()
     } as any;
     
-    mockPrisma = {} as jest.Mocked<PrismaClient>;
-    
-    nodeLoader = new NodeLoader(mockNodeService, mockPrisma, '/test/custom-nodes');
+    nodeLoader = new NodeLoader(mockNodeService, '/test/custom-nodes');
   });
 
   describe('validateNodePackage', () => {

@@ -44,7 +44,6 @@ import ExecutionHistoryService from "./services/ExecutionHistoryService";
 import { ExecutionService } from "./services/ExecutionService";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
-import { NodeServiceDrizzle } from "./services/NodeService.drizzle";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
@@ -62,7 +61,7 @@ httpServer.keepAliveTimeout = 65000; // 65 seconds (slightly higher than typical
 httpServer.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
 
 // Initialize services
-const nodeService = new NodeServiceDrizzle();
+const nodeService = new NodeService();
 const credentialService = getCredentialService();
 
 // Register core credentials (OAuth2, HTTP Basic Auth, API Key, etc.)
@@ -82,13 +81,13 @@ try {
   console.error("❌ Failed to initialize OAuth providers:", error);
 }
 
-const nodeLoader = new NodeLoader(nodeService as any, credentialService as any, db as any);
+const nodeLoader = new NodeLoader(nodeService as any, credentialService as any);
 const socketService = new SocketService(httpServer);
 
 // Initialize ExecutionService (for HTTP endpoints)
-const executionHistoryService = new ExecutionHistoryService(db as any);
+const executionHistoryService = new ExecutionHistoryService();
 const executionService = new ExecutionService(
-  db as any,
+  db,
   nodeService as any,
   executionHistoryService
 );
@@ -261,7 +260,7 @@ realtimeExecutionEngine.on("execution-log", (logEntry) => {
 declare global {
   var socketService: SocketService;
   var nodeLoader: NodeLoader;
-  var nodeService: NodeServiceDrizzle;
+  var nodeService: NodeService;
   var credentialService: any;
   var executionService: ExecutionService;
   var realtimeExecutionEngine: RealtimeExecutionEngine;

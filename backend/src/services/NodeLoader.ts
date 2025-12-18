@@ -42,7 +42,6 @@ export interface NodePackageValidationResult {
 export class NodeLoader {
   private nodeService: NodeService;
   private credentialService: CredentialService;
-  private prisma: PrismaClient;
   private watchers = new Map<string, FSWatcher>();
   private loadedPackages = new Map<string, NodePackageInfo>();
   private customNodesPath: string;
@@ -51,12 +50,10 @@ export class NodeLoader {
   constructor(
     nodeService: NodeService,
     credentialService: CredentialService,
-    prisma: PrismaClient,
     customNodesPath?: string
   ) {
     this.nodeService = nodeService;
     this.credentialService = credentialService;
-    this.prisma = prisma;
     this.customNodesPath =
       customNodesPath || path.join(process.cwd(), "custom-nodes");
     this.hotReloadEnabled = process.env.NODE_ENV === "development";

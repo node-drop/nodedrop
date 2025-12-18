@@ -34,8 +34,6 @@ export interface BuildCredentialsMappingOptions {
   nodeTypeProperties?: NodeTypeProperty[];
   /** User ID for ownership verification */
   userId: string;
-  /** Prisma client for database access */
-  prisma: PrismaClient;
   /** Optional: Legacy credentials array from node */
   legacyCredentials?: string[];
   /** Optional: Log prefix for debugging */
@@ -67,7 +65,6 @@ export interface CredentialsMappingResult {
  *   nodeParameters: { authentication: "cred_123" },
  *   nodeTypeProperties: [{ name: "authentication", type: "credential", allowedTypes: ["apiKey"] }],
  *   userId: "user_456",
- *   prisma: prismaClient,
  * });
  * // mapping = { "apiKey": "cred_123" }
  */

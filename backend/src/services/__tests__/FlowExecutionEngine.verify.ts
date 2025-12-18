@@ -66,10 +66,9 @@ console.log('\n=== Verification Complete ===');
 
 // Verify that we can create an instance (with mocked dependencies)
 try {
-  const mockPrisma = {} as any;
   const mockNodeService = {} as any;
   const mockExecutionHistoryService = {} as any;
-  const engine = new FlowExecutionEngine(mockPrisma, mockNodeService, mockExecutionHistoryService);
+  const engine = new FlowExecutionEngine(mockNodeService, mockExecutionHistoryService);
   console.log('✓ FlowExecutionEngine can be instantiated');
 } catch (error) {
   console.log('✗ FlowExecutionEngine instantiation failed:', error);

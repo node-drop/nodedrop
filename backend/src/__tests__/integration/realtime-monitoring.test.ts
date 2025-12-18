@@ -26,8 +26,8 @@ describe('Real-time Execution Monitoring Integration', () => {
     socketService = new SocketService(httpServer);
     
     // Setup database and services
-    nodeService = new NodeService(prisma);
-    executionService = new ExecutionService(prisma, nodeService);
+    nodeService = new NodeService();
+    executionService = new ExecutionService(prisma as any, nodeService, {} as any);
     
     // Start server
     await new Promise<void>((resolve) => {

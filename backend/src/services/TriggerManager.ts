@@ -1,4 +1,7 @@
 import { EventEmitter } from "events";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { eq, and } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
 import { ExecutionResultCache } from "./ExecutionResultCache";
@@ -57,7 +60,7 @@ export interface ConflictResolutionStrategy {
  * and handles resource sharing and conflict resolution
  */
 export class TriggerManager extends EventEmitter {
-  private prisma: PrismaClient;
+  private db: NodePgDatabase<typeof schema>;
   private executionService: ExecutionService;
   private resourceManager: TriggerResourceManager;
   private executionResultCache: ExecutionResultCache;
@@ -70,13 +73,13 @@ export class TriggerManager extends EventEmitter {
   private conflictStrategy: ConflictResolutionStrategy;
 
   constructor(
-    prisma: PrismaClient,
+    db: NodePgDatabase<typeof schema>,
     executionService: ExecutionService,
     config: Partial<ConcurrencyConfig> = {},
     conflictStrategy: ConflictResolutionStrategy = { type: "queue" }
   ) {
     super();
-    this.prisma = prisma;
+    this.db = db;
     this.executionService = executionService;
     this.resourceManager = new TriggerResourceManager();
     this.executionResultCache = new ExecutionResultCache();
@@ -729,8 +732,8 @@ export class TriggerManager extends EventEmitter {
 
   private async loadWorkflow(workflowId: string): Promise<any | null> {
     try {
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: workflowId },
+      const workflow = await this.db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, workflowId),
       });
 
       if (!workflow) {

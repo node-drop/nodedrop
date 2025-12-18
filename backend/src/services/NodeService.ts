@@ -1,6 +1,6 @@
-
-
-
+import { eq, and, or, inArray, isNull } from 'drizzle-orm';
+import { db } from '../db/client';
+import { nodeTypes } from '../db/schema/nodes';
 import {
   NodeDefinition,
   NodeExecutionContext,
@@ -14,20 +14,20 @@ import {
   NodeValidationError,
   NodeValidationResult,
   StandardizedNodeOutput,
-} from "../types/node.types";
-import { NodeSettingsConfig } from "../types/settings.types";
-import { logger } from "../utils/logger";
+} from '../types/node.types';
+import { NodeSettingsConfig } from '../types/settings.types';
+import { logger } from '../utils/logger';
 import {
   extractJsonData,
   normalizeInputItems,
   resolvePath,
   resolveValue,
   wrapJsonData,
-} from "@nodedrop/utils";
+} from '@nodedrop/utils';
 import {
   SecureExecutionOptions,
   SecureExecutionService,
-} from "./SecureExecutionService";
+} from './SecureExecutionService';
 
 /**
  * Options for workspace-scoped queries
@@ -37,14 +37,12 @@ interface WorkspaceQueryOptions {
 }
 
 export class NodeService {
-  private prisma: PrismaClient;
   private nodeRegistry = new Map<string, NodeDefinition>();
   private secureExecutionService: SecureExecutionService;
   private initializationPromise: Promise<void>;
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
-    this.secureExecutionService = new SecureExecutionService(prisma);
+  constructor() {
+    this.secureExecutionService = new SecureExecutionService();
     this.initializationPromise = this.initializeBuiltInNodes();
   }
 
@@ -61,7 +59,7 @@ export class NodeService {
   private resolveProperties(
     properties: NodeProperty[] | (() => NodeProperty[])
   ): NodeProperty[] {
-    if (typeof properties === "function") {
+    if (typeof properties === 'function') {
       return properties();
     }
     return properties;
@@ -111,7 +109,7 @@ export class NodeService {
     // Detect if this is a branching node by checking if outputs have named branches (not just "main")
     const hasMultipleBranches = outputs.some((output) => {
       const keys = Object.keys(output);
-      return keys.some((key) => key !== "main");
+      return keys.some((key) => key !== 'main');
     });
 
     // Handle branching nodes (IF, IfElse, Switch, Loop, or any future branch-type nodes)
@@ -165,6 +163,50 @@ export class NodeService {
   }
 
   /**
+   * Pre-validate node definition before database operations
+   */
+  private preValidateNodeDefinition(nodeDefinition: NodeDefinition): { valid: boolean; error?: string } {
+    // Check required fields exist and are correct type
+    if (!nodeDefinition.identifier || typeof nodeDefinition.identifier !== 'string') {
+      return { valid: false, error: 'Node identifier is required and must be a string' };
+    }
+
+    if (!nodeDefinition.displayName || typeof nodeDefinition.displayName !== 'string') {
+      return { valid: false, error: 'Node displayName is required and must be a string' };
+    }
+
+    if (!nodeDefinition.name || typeof nodeDefinition.name !== 'string') {
+      return { valid: false, error: 'Node name is required and must be a string' };
+    }
+
+    if (!nodeDefinition.description || typeof nodeDefinition.description !== 'string') {
+      return { valid: false, error: 'Node description is required and must be a string' };
+    }
+
+    // Validate array fields
+    if (!Array.isArray(nodeDefinition.group)) {
+      return { valid: false, error: 'Node group must be an array' };
+    }
+
+    if (!Array.isArray(nodeDefinition.inputs)) {
+      return { valid: false, error: 'Node inputs must be an array' };
+    }
+
+    if (!Array.isArray(nodeDefinition.outputs)) {
+      return { valid: false, error: 'Node outputs must be an array' };
+    }
+
+    // Validate properties is array or function
+    if (nodeDefinition.properties && 
+        !Array.isArray(nodeDefinition.properties) && 
+        typeof nodeDefinition.properties !== 'function') {
+      return { valid: false, error: 'Node properties must be an array or function' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
    * Register a new node type
    */
   async registerNode(
@@ -172,64 +214,165 @@ export class NodeService {
     isCore: boolean = false,
     options?: WorkspaceQueryOptions
   ): Promise<NodeRegistrationResult> {
+    const nodeIdentifier = nodeDefinition?.identifier || 'unknown';
+    const nodeDisplayName = nodeDefinition?.displayName || 'unknown';
+    
     try {
+      // Pre-validate node definition before database operations
+      const preValidation = this.preValidateNodeDefinition(nodeDefinition);
+      if (!preValidation.valid) {
+        const errorMsg = preValidation.error || 'Node definition validation failed';
+        logger.error('Node definition pre-validation failed', {
+          identifier: nodeIdentifier,
+          displayName: nodeDisplayName,
+          error: errorMsg,
+          service: 'node-drop-backend',
+        });
+        return {
+          success: false,
+          errors: [errorMsg],
+        };
+      }
+
       // Validate node definition
       const validation = this.validateNodeDefinition(nodeDefinition);
       if (!validation.valid) {
+        const validationErrors = validation.errors.map((e) => e.message);
+        logger.error('Node definition validation failed', {
+          identifier: nodeIdentifier,
+          displayName: nodeDisplayName,
+          errors: validationErrors,
+          service: 'node-drop-backend',
+        });
         return {
           success: false,
-          errors: validation.errors.map((e) => e.message),
+          errors: validationErrors,
         };
       }
 
       // Resolve properties before saving to database
-      const resolvedProperties = this.resolveProperties(
-        nodeDefinition.properties
-      );
+      let resolvedProperties: NodeProperty[] = [];
+      try {
+        resolvedProperties = this.resolveProperties(nodeDefinition.properties);
+      } catch (propError) {
+        const errorMsg = propError instanceof Error ? propError.message : 'Failed to resolve properties';
+        logger.error('Failed to resolve node properties', {
+          identifier: nodeIdentifier,
+          displayName: nodeDisplayName,
+          error: errorMsg,
+          service: 'node-drop-backend',
+        });
+        return {
+          success: false,
+          errors: [`Failed to resolve properties: ${errorMsg}`],
+        };
+      }
 
-      // Use upsert to handle race conditions and avoid duplicate key errors
-      await this.prisma.nodeType.upsert({
-        where: { identifier: nodeDefinition.identifier },
-        update: {
-          displayName: nodeDefinition.displayName,
-          name: nodeDefinition.name,
-          group: nodeDefinition.group,
-          version: nodeDefinition.version,
-          description: nodeDefinition.description,
-          defaults: nodeDefinition.defaults as any,
-          inputs: nodeDefinition.inputs,
-          outputs: nodeDefinition.outputs,
-          inputsConfig: (nodeDefinition as any).inputsConfig as any,
-          properties: resolvedProperties as any,
-          icon: nodeDefinition.icon,
-          color: nodeDefinition.color,
-          outputComponent: nodeDefinition.outputComponent,
-          nodeCategory: nodeDefinition.nodeCategory, // Include node category
-          isCore: isCore, // Update isCore flag
-          // Don't update active status on update - preserve user's choice
-          // Don't update workspaceId on update - preserve original workspace
-        },
-        create: {
-          identifier: nodeDefinition.identifier,
-          displayName: nodeDefinition.displayName,
-          name: nodeDefinition.name,
-          group: nodeDefinition.group,
-          version: nodeDefinition.version,
-          description: nodeDefinition.description,
-          defaults: nodeDefinition.defaults as any,
-          inputs: nodeDefinition.inputs,
-          outputs: nodeDefinition.outputs,
-          inputsConfig: (nodeDefinition as any).inputsConfig as any,
-          properties: resolvedProperties as any,
-          icon: nodeDefinition.icon,
-          color: nodeDefinition.color,
-          outputComponent: nodeDefinition.outputComponent,
-          nodeCategory: nodeDefinition.nodeCategory, // Include node category
-          isCore: isCore, // Set isCore flag for new nodes
-          active: true,
-          workspaceId: options?.workspaceId, // Workspace-specific custom nodes
-        },
-      });
+      // Check if node already exists
+      let existingNode;
+      try {
+        existingNode = await db.query.nodeTypes.findFirst({
+          where: eq(nodeTypes.identifier, nodeDefinition.identifier),
+        });
+      } catch (dbError) {
+        const errorMsg = dbError instanceof Error ? dbError.message : 'Database query failed';
+        logger.error('Failed to query existing node', {
+          identifier: nodeIdentifier,
+          displayName: nodeDisplayName,
+          error: errorMsg,
+          service: 'node-drop-backend',
+        });
+        return {
+          success: false,
+          errors: [`Database error: ${errorMsg}`],
+        };
+      }
+
+      try {
+        if (existingNode) {
+          // Update existing node
+          await db
+            .update(nodeTypes)
+            .set({
+              displayName: nodeDefinition.displayName,
+              name: nodeDefinition.name,
+              group: nodeDefinition.group,
+              version: nodeDefinition.version,
+              description: nodeDefinition.description,
+              defaults: nodeDefinition.defaults as any,
+              inputs: nodeDefinition.inputs,
+              outputs: nodeDefinition.outputs,
+              inputsConfig: (nodeDefinition as any).inputsConfig as any,
+              properties: resolvedProperties as any,
+              credentials: (nodeDefinition.credentials as any) || null,
+              credentialSelector: (nodeDefinition.credentialSelector as any) || null,
+              icon: nodeDefinition.icon || null,
+              color: nodeDefinition.color || null,
+              outputComponent: nodeDefinition.outputComponent || null,
+              nodeCategory: nodeDefinition.nodeCategory || null,
+              updatedAt: new Date(),
+              // Don't update active status on update - preserve user's choice
+              // Don't update workspaceId on update - preserve original workspace
+            })
+            .where(eq(nodeTypes.identifier, nodeDefinition.identifier));
+        } else {
+          // Create new node
+          await db.insert(nodeTypes).values({
+            identifier: nodeDefinition.identifier,
+            displayName: nodeDefinition.displayName,
+            name: nodeDefinition.name,
+            group: nodeDefinition.group,
+            version: nodeDefinition.version,
+            description: nodeDefinition.description,
+            defaults: nodeDefinition.defaults as any,
+            inputs: nodeDefinition.inputs,
+            outputs: nodeDefinition.outputs,
+            inputsConfig: (nodeDefinition as any).inputsConfig as any,
+            properties: resolvedProperties as any,
+            credentials: (nodeDefinition.credentials as any) || null,
+            credentialSelector: (nodeDefinition.credentialSelector as any) || null,
+            icon: nodeDefinition.icon || null,
+            color: nodeDefinition.color || null,
+            outputComponent: nodeDefinition.outputComponent || null,
+            nodeCategory: nodeDefinition.nodeCategory || null,
+            isCore: isCore,
+            active: true,
+            workspaceId: options?.workspaceId || null,
+          });
+        }
+      } catch (dbWriteError) {
+        const errorMessage = dbWriteError instanceof Error ? dbWriteError.message : String(dbWriteError);
+        const errorCode = (dbWriteError as any)?.code;
+        const errorDetail = (dbWriteError as any)?.detail;
+        
+        // Provide more specific error messages for common database errors
+        let userFriendlyError = errorMessage;
+        if (errorCode === '23505') {
+          // Unique constraint violation
+          userFriendlyError = `Node with identifier '${nodeIdentifier}' already exists`;
+        } else if (errorCode === '23502') {
+          // Not null constraint violation
+          userFriendlyError = `Missing required field: ${errorDetail || 'unknown'}`;
+        } else if (errorCode === '23503') {
+          // Foreign key constraint violation
+          userFriendlyError = `Invalid reference: ${errorDetail || 'unknown'}`;
+        }
+        
+        logger.error('Failed to write node to database', {
+          identifier: nodeIdentifier,
+          displayName: nodeDisplayName,
+          errorMessage,
+          errorCode,
+          errorDetail,
+          userFriendlyError,
+          service: 'node-drop-backend',
+        });
+        
+        return {
+          success: false,
+          errors: [`Database error: ${userFriendlyError}`],
+        };
+      }
 
       // Store in memory registry
       this.nodeRegistry.set(nodeDefinition.identifier, nodeDefinition);
@@ -239,26 +382,24 @@ export class NodeService {
         identifier: nodeDefinition.identifier,
       };
     } catch (error) {
-      // Handle duplicate key errors gracefully (race condition)
-      if (error instanceof Error && error.message.includes('duplicate key')) {
-        logger.warn(`Node ${nodeDefinition.identifier} already registered (race condition), skipping`);
-        // Still store in memory registry
-        this.nodeRegistry.set(nodeDefinition.identifier, nodeDefinition);
-        return {
-          success: true,
-          identifier: nodeDefinition.identifier,
-        };
-      }
-
-      logger.error("Failed to register node", {
-        error,
-        identifier: nodeDefinition.identifier,
+      // Catch-all for unexpected errors
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      const errorName = error instanceof Error ? error.name : typeof error;
+      
+      logger.error('Unexpected error during node registration', {
+        identifier: nodeIdentifier,
+        displayName: nodeDisplayName,
+        errorMessage,
+        errorName,
+        errorStack,
+        service: 'node-drop-backend',
       });
+      
       return {
         success: false,
         errors: [
-          `Failed to register node: ${error instanceof Error ? error.message : "Unknown error"
-          }`,
+          `Unexpected error: ${errorMessage}`,
         ],
       };
     }
@@ -269,18 +410,17 @@ export class NodeService {
    */
   async unregisterNode(nodeType: string): Promise<void> {
     try {
-      await this.prisma.nodeType.update({
-        where: { identifier: nodeType },
-        data: { active: false },
-      });
+      await db
+        .update(nodeTypes)
+        .set({ active: false, updatedAt: new Date() })
+        .where(eq(nodeTypes.identifier, nodeType));
 
       this.nodeRegistry.delete(nodeType);
       logger.info(`Node type unregistered: ${nodeType}`);
     } catch (error) {
-      logger.error("Failed to unregister node", { error, nodeType });
+      logger.error('Failed to unregister node', { error, nodeType });
       throw new Error(
-        `Failed to unregister node: ${error instanceof Error ? error.message : "Unknown error"
-        }`
+        `Failed to unregister node: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -293,17 +433,15 @@ export class NodeService {
       this.nodeRegistry.delete(nodeType);
       logger.info(`Node type unloaded from memory: ${nodeType}`);
     } catch (error) {
-      logger.error("Failed to unload node from memory", { error, nodeType });
+      logger.error('Failed to unload node from memory', { error, nodeType });
       throw new Error(
-        `Failed to unload node from memory: ${error instanceof Error ? error.message : "Unknown error"
-        }`
+        `Failed to unload node from memory: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
 
   /**
    * Get all available node types from in-memory registry (live definitions)
-   * For workspace-specific custom nodes, pass options.workspaceId to include them
    */
   async getNodeTypes(options?: WorkspaceQueryOptions): Promise<NodeTypeInfo[]> {
     try {
@@ -321,79 +459,70 @@ export class NodeService {
           defaults: nodeDefinition.defaults || {},
           inputs: nodeDefinition.inputs,
           outputs: nodeDefinition.outputs,
-          inputNames: nodeDefinition.inputNames, // Include input names for labeled inputs
-          outputNames: nodeDefinition.outputNames, // Include output names for labeled outputs
-          serviceInputs: nodeDefinition.serviceInputs, // Include service inputs for AI Agent and similar nodes
-          inputsConfig: nodeDefinition.inputsConfig, // Include input configuration for service inputs
+          inputNames: nodeDefinition.inputNames,
+          outputNames: nodeDefinition.outputNames,
+          serviceInputs: nodeDefinition.serviceInputs,
+          inputsConfig: nodeDefinition.inputsConfig,
           properties: this.resolveProperties(nodeDefinition.properties || []),
-          credentials: nodeDefinition.credentials, // Include credentials
-          credentialSelector: nodeDefinition.credentialSelector, // Include unified credential selector
+          credentials: nodeDefinition.credentials,
+          credentialSelector: nodeDefinition.credentialSelector,
           icon: nodeDefinition.icon,
           color: nodeDefinition.color,
-          nodeCategory: nodeDefinition.nodeCategory, // Include node category for service/tool nodes
-          triggerType: nodeDefinition.triggerType, // Include trigger type for trigger nodes
-          // Add execution metadata - use provided values or compute from group
+          nodeCategory: nodeDefinition.nodeCategory,
+          triggerType: nodeDefinition.triggerType,
           executionCapability:
             nodeDefinition.executionCapability ||
             this.getExecutionCapability(nodeDefinition),
           canExecuteIndividually:
             nodeDefinition.canExecuteIndividually ??
             this.canExecuteIndividually(nodeDefinition),
-          canBeDisabled: nodeDefinition.canBeDisabled ?? true, // Default to true if not specified
+          canBeDisabled: nodeDefinition.canBeDisabled ?? true,
         });
       }
 
-      // If registry is empty, fallback to database (for built-in nodes that might be stored there)
+      // If registry is empty, fallback to database
       if (nodeTypesFromRegistry.length === 0) {
-        logger.warn("Node registry is empty, falling back to database");
+        logger.warn('Node registry is empty, falling back to database');
         
-        // Build where clause: global nodes (workspaceId = null) + workspace-specific nodes
-        const whereClause: any = {
-          active: true,
-          OR: [
-            { workspaceId: null }, // Global nodes
-          ],
-        };
+        const whereConditions = [eq(nodeTypes.active, true)];
         
         // Include workspace-specific custom nodes if workspaceId provided
+        let dbNodeTypes;
         if (options?.workspaceId) {
-          whereClause.OR.push({ workspaceId: options.workspaceId });
+          dbNodeTypes = await db.query.nodeTypes.findMany({
+            where: and(
+              eq(nodeTypes.active, true),
+              or(
+                isNull(nodeTypes.workspaceId),
+                eq(nodeTypes.workspaceId, options.workspaceId)
+              )
+            ),
+            orderBy: (t) => t.displayName,
+          });
+        } else {
+          dbNodeTypes = await db.query.nodeTypes.findMany({
+            where: and(eq(nodeTypes.active, true), isNull(nodeTypes.workspaceId)),
+            orderBy: (t) => t.displayName,
+          });
         }
-        
-        const nodeTypes = await this.prisma.nodeType.findMany({
-          where: whereClause,
-          select: {
-            identifier: true,
-            displayName: true,
-            name: true,
-            description: true,
-            group: true,
-            version: true,
-            defaults: true,
-            inputs: true,
-            outputs: true,
-            properties: true,
-            icon: true,
-            color: true,
-            workspaceId: true,
-          },
-          orderBy: { displayName: "asc" },
-        });
 
-        return nodeTypes.map((node) => ({
-          ...node,
+        return dbNodeTypes.map((node) => ({
           identifier: node.identifier,
-          icon: node.icon || undefined,
-          color: node.color || undefined,
+          displayName: node.displayName,
+          name: node.name,
+          description: node.description,
+          group: (node.group as string[]) || [],
+          version: (node.version as number) || 1,
+          defaults: typeof node.defaults === 'object' && node.defaults !== null
+            ? (node.defaults as Record<string, any>)
+            : {},
+          inputs: (node.inputs as string[]) || ['main'],
+          outputs: (node.outputs as string[]) || ['main'],
           properties: Array.isArray(node.properties)
             ? (node.properties as unknown as NodeProperty[])
             : [],
-          defaults:
-            typeof node.defaults === "object" && node.defaults !== null
-              ? (node.defaults as Record<string, any>)
-              : {},
-          inputs: Array.isArray(node.inputs) ? node.inputs : ["main"],
-          outputs: Array.isArray(node.outputs) ? node.outputs : ["main"],
+          icon: node.icon || undefined,
+          color: node.color || undefined,
         }));
       }
 
@@ -402,24 +531,20 @@ export class NodeService {
         a.displayName.localeCompare(b.displayName)
       );
 
-      // Return from in-memory registry
       return nodeTypesFromRegistry;
     } catch (error) {
-      logger.error("Failed to get node types", { error });
+      logger.error('Failed to get node types', { error });
       throw new Error(
-        `Failed to get node types: ${error instanceof Error ? error.message : "Unknown error"
-        }`
+        `Failed to get node types: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
 
   /**
    * Get raw node definition by type from in-memory registry (synchronous)
-   * Use this when you need immediate access to node definition without async/await
    */
   getNodeDefinitionSync(nodeType: string): NodeDefinition | null {
     try {
-      // Get from in-memory registry (synchronous)
       const nodeDefinition = this.nodeRegistry.get(nodeType);
       return nodeDefinition || null;
     } catch (error) {
@@ -433,16 +558,11 @@ export class NodeService {
    */
   async getNodeDefinition(nodeType: string): Promise<NodeDefinition | null> {
     try {
-      // Wait for built-in nodes to be initialized before accessing registry
       await this.waitForInitialization();
-
-      // Get from in-memory registry
       const nodeDefinition = this.nodeRegistry.get(nodeType);
-
       if (nodeDefinition) {
         return nodeDefinition;
       }
-
       return null;
     } catch (error) {
       logger.error(`Failed to get node definition for ${nodeType}`, { error });
@@ -455,10 +575,8 @@ export class NodeService {
    */
   async getNodeSchema(nodeType: string): Promise<NodeSchema | null> {
     try {
-      // Wait for built-in nodes to be initialized before accessing registry
       await this.waitForInitialization();
 
-      // First, try to get from in-memory registry
       const nodeDefinition = this.nodeRegistry.get(nodeType);
 
       if (nodeDefinition) {
@@ -473,12 +591,12 @@ export class NodeService {
           inputs: nodeDefinition.inputs,
           outputs: nodeDefinition.outputs,
           properties: this.resolveProperties(nodeDefinition.properties || []),
-          credentials: nodeDefinition.credentials, // Include credentials
-          credentialSelector: nodeDefinition.credentialSelector, // Include unified credential selector
+          credentials: nodeDefinition.credentials,
+          credentialSelector: nodeDefinition.credentialSelector,
           icon: nodeDefinition.icon,
           color: nodeDefinition.color,
-          nodeCategory: nodeDefinition.nodeCategory, // Include node category for service/tool nodes
-          inputsConfig: nodeDefinition.inputsConfig, // Include input configuration
+          nodeCategory: nodeDefinition.nodeCategory,
+          inputsConfig: nodeDefinition.inputsConfig,
         };
       }
 
@@ -486,8 +604,11 @@ export class NodeService {
       logger.warn(
         `Node type ${nodeType} not found in registry, checking database`
       );
-      const node = await this.prisma.nodeType.findUnique({
-        where: { identifier: nodeType, active: true },
+      const node = await db.query.nodeTypes.findFirst({
+        where: and(
+          eq(nodeTypes.identifier, nodeType),
+          eq(nodeTypes.active, true)
+        ),
       });
 
       if (!node) {
@@ -498,21 +619,20 @@ export class NodeService {
         identifier: node.identifier,
         displayName: node.displayName,
         name: node.name,
-        group: node.group,
-        version: node.version,
+        group: node.group || [],
+        version: node.version || 1,
         description: node.description,
         defaults: node.defaults as Record<string, any>,
-        inputs: node.inputs,
-        outputs: node.outputs,
+        inputs: node.inputs || ['main'],
+        outputs: node.outputs || ['main'],
         properties: node.properties as unknown as NodeProperty[],
         icon: node.icon || undefined,
         color: node.color || undefined,
       };
     } catch (error) {
-      logger.error("Failed to get node schema", { error, nodeType });
+      logger.error('Failed to get node schema', { error, nodeType });
       throw new Error(
-        `Failed to get node schema: ${error instanceof Error ? error.message : "Unknown error"
-        }`
+        `Failed to get node schema: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -530,18 +650,16 @@ export class NodeService {
     options?: SecureExecutionOptions,
     workflowId?: string,
     settings?: NodeSettingsConfig,
-    nodeOutputs?: Map<string, any>, // Map of nodeId -> output data for $node expressions
-    nodeIdToName?: Map<string, string> // Map of nodeId -> nodeName for $node["Name"] support
+    nodeOutputs?: Map<string, any>,
+    nodeIdToName?: Map<string, string>
   ): Promise<NodeExecutionResult> {
     const execId =
       executionId ||
       `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Use provided userId or fallback to "system" for backward compatibility
-    const executingUserId = userId || "system";
+    const executingUserId = userId || 'system';
 
     try {
-      // Wait for built-in nodes to be initialized before executing
       await this.waitForInitialization();
 
       const nodeDefinition = this.nodeRegistry.get(nodeType);
@@ -549,17 +667,14 @@ export class NodeService {
         throw new Error(`Node type not found: ${nodeType}`);
       }
 
-      // Validate input data
       const inputValidation =
         this.secureExecutionService.validateInputData(inputData);
       if (!inputValidation.valid) {
         throw new Error(
-          `Invalid input data: ${inputValidation.errors.join(", ")}`
+          `Invalid input data: ${inputValidation.errors.join(', ')}`
         );
       }
 
-      // Create secure execution context
-      // credentials is already a mapping of type -> id (e.g., { "googleSheetsOAuth2": "cred_123" })
       const baseContext = await this.secureExecutionService.createSecureContext(
         parameters,
         inputValidation.sanitizedData!,
@@ -569,22 +684,18 @@ export class NodeService {
         options,
         workflowId,
         settings,
-        options?.nodeId, // Pass nodeId for state management
-        nodeOutputs, // Pass node outputs for $node expression resolution
-        nodeIdToName // Pass nodeId -> nodeName mapping for $node["Name"] support
+        options?.nodeId,
+        nodeOutputs,
+        nodeIdToName
       );
 
-      // Merge context with node definition methods (for nodes with private methods)
-      // This allows private methods to be called via this.methodName()
       const context = Object.create(nodeDefinition);
       Object.assign(context, baseContext);
 
-      // Add execution metadata for logging and event emission
       context._executionId = execId;
       context._nodeId = options?.nodeId;
-      context._serviceNodeId = options?.nodeId; // Alias for consistency with service nodes
+      context._serviceNodeId = options?.nodeId;
 
-      // Inject logging methods into context (automatic logging for all nodes)
       try {
         const { injectLoggingMethods } = require('../../custom-nodes/utils/serviceLogger');
         injectLoggingMethods(context);
@@ -595,29 +706,25 @@ export class NodeService {
         });
       }
 
-      // Execute the node in secure context
       const result = await nodeDefinition.execute.call(
         context,
         inputValidation.sanitizedData!
       );
 
-      // Validate output data
       const outputValidation =
         this.secureExecutionService.validateOutputData(result);
       if (!outputValidation.valid) {
         throw new Error(
-          `Invalid output data: ${outputValidation.errors.join(", ")}`
+          `Invalid output data: ${outputValidation.errors.join(', ')}`
         );
       }
 
-      // Standardize the output format for consistent frontend handling
       const standardizedOutput = this.standardizeNodeOutput(
         nodeType,
         outputValidation.sanitizedData as NodeOutputData[],
         nodeDefinition
       );
 
-      // Cleanup execution resources
       await this.secureExecutionService.cleanupExecution(execId);
 
       return {
@@ -625,7 +732,7 @@ export class NodeService {
         data: standardizedOutput,
       };
     } catch (error) {
-      logger.error("Secure node execution failed", {
+      logger.error('Secure node execution failed', {
         error: {
           message: error instanceof Error ? error.message : String(error),
           name: error instanceof Error ? error.name : typeof error,
@@ -636,25 +743,21 @@ export class NodeService {
         executionId: execId,
       });
 
-      // Cleanup execution resources on error
       await this.secureExecutionService.cleanupExecution(execId);
 
-      // Check if continueOnFail is enabled
       const continueOnFail = settings?.continueOnFail === true;
       const alwaysOutputData = settings?.alwaysOutputData === true;
 
-      // If continueOnFail and alwaysOutputData are enabled, return error data
       if (continueOnFail && alwaysOutputData) {
-        logger.info("Node failed but continueOnFail is enabled - returning error data", {
+        logger.info('Node failed but continueOnFail is enabled - returning error data', {
           nodeType,
           executionId: execId,
         });
 
-        // Return error information as output data
         const errorOutput: StandardizedNodeOutput = {
           main: [{
             json: {
-              error: error instanceof Error ? error.message : "Unknown execution error",
+              error: error instanceof Error ? error.message : 'Unknown execution error',
               errorDetails: {
                 message: error instanceof Error ? error.message : String(error),
                 name: error instanceof Error ? error.name : typeof error,
@@ -670,11 +773,11 @@ export class NodeService {
         };
 
         return {
-          success: false, // Still mark as failed
-          data: errorOutput, // But include data
+          success: false,
+          data: errorOutput,
           error: {
             message:
-              error instanceof Error ? error.message : "Unknown execution error",
+              error instanceof Error ? error.message : 'Unknown execution error',
             stack: error instanceof Error ? error.stack : undefined,
           },
         };
@@ -684,7 +787,7 @@ export class NodeService {
         success: false,
         error: {
           message:
-            error instanceof Error ? error.message : "Unknown execution error",
+            error instanceof Error ? error.message : 'Unknown execution error',
           stack: error instanceof Error ? error.stack : undefined,
         },
       };
@@ -697,78 +800,75 @@ export class NodeService {
   validateNodeDefinition(definition: NodeDefinition): NodeValidationResult {
     const errors: NodeValidationError[] = [];
 
-    // Required fields validation
-    if (!definition.identifier || typeof definition.identifier !== "string") {
+    if (!definition.identifier || typeof definition.identifier !== 'string') {
       errors.push({
-        property: "type",
-        message: "Node type is required and must be a string",
+        property: 'type',
+        message: 'Node type is required and must be a string',
       });
     }
 
-    if (!definition.displayName || typeof definition.displayName !== "string") {
+    if (!definition.displayName || typeof definition.displayName !== 'string') {
       errors.push({
-        property: "displayName",
-        message: "Display name is required and must be a string",
+        property: 'displayName',
+        message: 'Display name is required and must be a string',
       });
     }
 
-    if (!definition.name || typeof definition.name !== "string") {
+    if (!definition.name || typeof definition.name !== 'string') {
       errors.push({
-        property: "name",
-        message: "Name is required and must be a string",
+        property: 'name',
+        message: 'Name is required and must be a string',
       });
     }
 
     if (!Array.isArray(definition.group) || definition.group.length === 0) {
       errors.push({
-        property: "group",
-        message: "Group is required and must be a non-empty array",
+        property: 'group',
+        message: 'Group is required and must be a non-empty array',
       });
     }
 
-    if (typeof definition.version !== "number" || definition.version < 1) {
+    if (typeof definition.version !== 'number' || definition.version < 1) {
       errors.push({
-        property: "version",
-        message: "Version is required and must be a positive number",
+        property: 'version',
+        message: 'Version is required and must be a positive number',
       });
     }
 
-    if (!definition.description || typeof definition.description !== "string") {
+    if (!definition.description || typeof definition.description !== 'string') {
       errors.push({
-        property: "description",
-        message: "Description is required and must be a string",
+        property: 'description',
+        message: 'Description is required and must be a string',
       });
     }
 
     if (!Array.isArray(definition.inputs)) {
-      errors.push({ property: "inputs", message: "Inputs must be an array" });
+      errors.push({ property: 'inputs', message: 'Inputs must be an array' });
     }
 
     if (!Array.isArray(definition.outputs)) {
-      errors.push({ property: "outputs", message: "Outputs must be an array" });
+      errors.push({ property: 'outputs', message: 'Outputs must be an array' });
     }
 
-    // Validate properties - can be an array or a function
     if (
       !definition.properties ||
       (!Array.isArray(definition.properties) &&
-        typeof definition.properties !== "function")
+        typeof definition.properties !== 'function')
     ) {
       errors.push({
-        property: "properties",
+        property: 'properties',
         message:
-          "Properties must be an array or a function that returns an array",
+          'Properties must be an array or a function that returns an array',
       });
     }
 
-    if (typeof definition.execute !== "function") {
+    if (typeof definition.execute !== 'function') {
       errors.push({
-        property: "execute",
-        message: "Execute function is required",
+        property: 'execute',
+        message: 'Execute function is required',
       });
     }
 
-    // Validate properties - resolve them first if they're a function
     const resolvedProperties = this.resolveProperties(definition.properties);
     if (Array.isArray(resolvedProperties)) {
       resolvedProperties.forEach((prop, index) => {
@@ -797,49 +897,48 @@ export class NodeService {
   private validateNodeProperty(property: NodeProperty): NodeValidationResult {
     const errors: NodeValidationError[] = [];
 
-    if (!property.displayName || typeof property.displayName !== "string") {
+    if (!property.displayName || typeof property.displayName !== 'string') {
       errors.push({
-        property: "displayName",
-        message: "Property display name is required",
+        property: 'displayName',
+        message: 'Property display name is required',
       });
     }
 
-    if (!property.name || typeof property.name !== "string") {
-      errors.push({ property: "name", message: "Property name is required" });
+    if (!property.name || typeof property.name !== 'string') {
+      errors.push({ property: 'name', message: 'Property name is required' });
     }
 
     const validTypes = [
-      "string",
-      "number",
-      "boolean",
-      "options",
-      "multiOptions",
-      "json",
-      "dateTime",
-      "collection",
-      "autocomplete", // Support for autocomplete fields
-      "credential", // Support for credential selector fields
-      "custom", // Support for custom components
-      "conditionRow", // Support for condition row (key-expression-value)
-      "columnsMap", // Support for columns map (dynamic column-to-value mapping)
-      "expression", // Support for expression fields
+      'string',
+      'number',
+      'boolean',
+      'options',
+      'multiOptions',
+      'json',
+      'dateTime',
+      'collection',
+      'autocomplete',
+      'credential',
+      'custom',
+      'conditionRow',
+      'columnsMap',
+      'expression',
     ];
     if (!validTypes.includes(property.type)) {
       errors.push({
-        property: "type",
-        message: `Property type must be one of: ${validTypes.join(", ")}`,
+        property: 'type',
+        message: `Property type must be one of: ${validTypes.join(', ')}`,
         value: property.type,
       });
     }
 
-    // Validate options for option-based types
     if (
-      (property.type === "options" || property.type === "multiOptions") &&
+      (property.type === 'options' || property.type === 'multiOptions') &&
       !Array.isArray(property.options)
     ) {
       errors.push({
-        property: "options",
-        message: "Options are required for options/multiOptions type",
+        property: 'options',
+        message: 'Options are required for options/multiOptions type',
       });
     }
 
@@ -850,114 +949,13 @@ export class NodeService {
   }
 
   /**
-   * Create execution context for node execution
-   */
-  private createExecutionContext(
-    parameters: Record<string, any>,
-    inputData: NodeInputData,
-    credentials?: Record<string, any>
-  ): NodeExecutionContext {
-    return {
-      getNodeParameter: (parameterName: string, itemIndex?: number) => {
-        const value = parameters[parameterName];
-
-        // Auto-resolve placeholders if value is a string with {{...}} patterns
-        if (typeof value === "string" && value.includes("{{")) {
-          // Normalize and extract input items
-          const items = normalizeInputItems(inputData.main || []);
-          const processedItems = extractJsonData(items);
-
-          if (processedItems.length > 0) {
-            // Use specified itemIndex or default to first item (0)
-            const targetIndex = itemIndex ?? 0;
-            const itemToUse = processedItems[targetIndex];
-
-            if (itemToUse) {
-              return resolveValue(value, itemToUse);
-            }
-          }
-        }
-
-        return value;
-      },
-      getCredentials: async (type: string) => {
-        return credentials?.[type] || {};
-      },
-      getInputData: (inputName = "main") => {
-        return inputData;
-      },
-      helpers: {
-        request: async (options) => {
-          // Basic HTTP request implementation
-          const fetch = (await import("node-fetch")).default;
-          const response = await fetch(options.url, {
-            method: options.method || "GET",
-            headers: options.headers,
-            body: options.body ? JSON.stringify(options.body) : undefined,
-          });
-
-          if (options.json !== false) {
-            return response.json();
-          }
-          return response.text();
-        },
-        requestWithAuthentication: async (credentialType: string, options) => {
-          // TODO: Implement authentication logic
-          return this.createExecutionContext(
-            parameters,
-            inputData,
-            credentials
-          ).helpers.request(options);
-        },
-        returnJsonArray: (jsonData: any[]) => {
-          return { main: jsonData };
-        },
-        normalizeItems: (items: any[]) => {
-          return items.map((item) => ({ json: item }));
-        },
-      },
-      logger: {
-        debug: (message: string, extra?: any) => logger.debug(message, extra),
-        info: (message: string, extra?: any) => logger.info(message, extra),
-        warn: (message: string, extra?: any) => logger.warn(message, extra),
-        error: (message: string, extra?: any) => logger.error(message, extra),
-      },
-      // Utility functions for common node operations
-      resolveValue,
-      resolvePath,
-      extractJsonData,
-      wrapJsonData,
-      normalizeInputItems,
-    };
-  }
-
-  /**
    * Initialize built-in nodes
    */
   private async initializeBuiltInNodes(): Promise<void> {
     try {
-      // Register built-in nodes
-      await this.registerBuiltInNodes();
-      // Built-in nodes initialized silently
-    } catch (error) {
-      logger.error("Failed to initialize built-in nodes", { error });
-
-      // Don't throw the error - allow the application to start even if node registration fails
-      // This prevents the entire application from failing to start due to node registration issues
-    }
-  }
-
-  /**
-   * Register all discovered nodes from the nodes directory
-   */
-  async registerDiscoveredNodes(): Promise<void> {
-    try {
       await this.registerBuiltInNodes();
     } catch (error) {
-      throw new Error(
-        `Failed to register discovered nodes: ${error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      logger.error('Failed to initialize built-in nodes', { error });
     }
   }
 
@@ -965,36 +963,127 @@ export class NodeService {
    * Register all built-in nodes using auto-discovery
    */
   private async registerBuiltInNodes(): Promise<void> {
-    const { nodeDiscovery } = await import("../utils/NodeDiscovery");
+    const { nodeDiscovery } = await import('../utils/NodeDiscovery');
 
     try {
-      // Load built-in nodes separately from custom nodes
       const builtInNodeInfos = await nodeDiscovery.loadAllNodes();
       const customNodeInfos = await nodeDiscovery.loadCustomNodes();
 
-      // Register built-in nodes with isCore: true
+      let successCount = 0;
+      let failureCount = 0;
+      const failedNodes: Array<{ identifier: string; displayName: string; error: string }> = [];
+
       for (const nodeInfo of builtInNodeInfos) {
         try {
-          // Mark built-in nodes as core (cannot be deleted)
-          await this.registerNode(nodeInfo.definition, true);
+          const result = await this.registerNode(nodeInfo.definition, true);
+          if (!result.success) {
+            failureCount++;
+            const errorMsg = result.errors?.join('; ') || 'Unknown error';
+            failedNodes.push({
+              identifier: nodeInfo.definition.identifier,
+              displayName: nodeInfo.definition.displayName,
+              error: errorMsg,
+            });
+            logger.error(`Error registering built-in node ${nodeInfo.definition.displayName}:`, {
+              errors: result.errors,
+              identifier: nodeInfo.definition.identifier,
+              service: 'node-drop-backend',
+            });
+          } else {
+            successCount++;
+          }
         } catch (error) {
-          logger.error(`Error registering built-in node ${nodeInfo.definition.displayName}:`, error);
+          failureCount++;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          failedNodes.push({
+            identifier: nodeInfo.definition.identifier,
+            displayName: nodeInfo.definition.displayName,
+            error: errorMsg,
+          });
+          logger.error(`Exception registering built-in node ${nodeInfo.definition.displayName}:`, {
+            error: {
+              message: errorMsg,
+              name: error instanceof Error ? error.name : typeof error,
+              stack: error instanceof Error ? error.stack : undefined,
+            },
+            identifier: nodeInfo.definition.identifier,
+            service: 'node-drop-backend',
+          });
         }
       }
 
-      // Register custom nodes with isCore: false
       for (const nodeInfo of customNodeInfos) {
         try {
-          // Custom nodes are not core (can be deleted)
-          await this.registerNode(nodeInfo.definition, false);
+          const result = await this.registerNode(nodeInfo.definition, false);
+          if (!result.success) {
+            failureCount++;
+            const errorMsg = result.errors?.join('; ') || 'Unknown error';
+            failedNodes.push({
+              identifier: nodeInfo.definition.identifier,
+              displayName: nodeInfo.definition.displayName,
+              error: errorMsg,
+            });
+            logger.error(`Error registering custom node ${nodeInfo.definition.displayName}:`, {
+              errors: result.errors,
+              identifier: nodeInfo.definition.identifier,
+              service: 'node-drop-backend',
+            });
+          } else {
+            successCount++;
+          }
         } catch (error) {
-          logger.error(`Error registering custom node ${nodeInfo.definition.displayName}:`, error);
+          failureCount++;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          failedNodes.push({
+            identifier: nodeInfo.definition.identifier,
+            displayName: nodeInfo.definition.displayName,
+            error: errorMsg,
+          });
+          logger.error(`Exception registering custom node ${nodeInfo.definition.displayName}:`, {
+            error: {
+              message: errorMsg,
+              name: error instanceof Error ? error.name : typeof error,
+              stack: error instanceof Error ? error.stack : undefined,
+            },
+            identifier: nodeInfo.definition.identifier,
+            service: 'node-drop-backend',
+          });
         }
       }
+
+      // Log summary
+      if (failureCount > 0) {
+        logger.warn('Node registration summary', {
+          successCount,
+          failureCount,
+          totalAttempted: successCount + failureCount,
+          failedNodes: failedNodes.map(n => ({
+            identifier: n.identifier,
+            displayName: n.displayName,
+            error: n.error,
+          })),
+          service: 'node-drop-backend',
+        });
+      }
     } catch (error) {
-      logger.error("Error during node discovery and registration:", error);
+      logger.error('Error during node discovery and registration:', {
+        error: {
+          message: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : typeof error,
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        service: 'node-drop-backend',
+      });
       throw error;
     }
+  }
+
+  /**
+   * Register all discovered nodes from the nodes directory
+   * This is an alias for registerBuiltInNodes for backward compatibility
+   */
+  async registerDiscoveredNodes(): Promise<void> {
+    await this.registerBuiltInNodes();
   }
 
   /**
@@ -1004,8 +1093,8 @@ export class NodeService {
     nodeType: string
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const existingNode = await this.prisma.nodeType.findUnique({
-        where: { identifier: nodeType },
+      const existingNode = await db.query.nodeTypes.findFirst({
+        where: eq(nodeTypes.identifier, nodeType),
       });
 
       if (!existingNode) {
@@ -1022,22 +1111,21 @@ export class NodeService {
         };
       }
 
-      await this.prisma.nodeType.update({
-        where: { identifier: nodeType },
-        data: { active: true, updatedAt: new Date() },
-      });
+      await db
+        .update(nodeTypes)
+        .set({ active: true, updatedAt: new Date() })
+        .where(eq(nodeTypes.identifier, nodeType));
 
-      logger.info("Node type activated", { nodeType });
+      logger.info('Node type activated', { nodeType });
       return {
         success: true,
         message: `Node type '${nodeType}' activated successfully`,
       };
     } catch (error) {
-      logger.error("Failed to activate node type", { error, nodeType });
+      logger.error('Failed to activate node type', { error, nodeType });
       return {
         success: false,
-        message: `Failed to activate node type: ${error instanceof Error ? error.message : "Unknown error"
-          }`,
+        message: `Failed to activate node type: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -1049,8 +1137,8 @@ export class NodeService {
     nodeType: string
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const existingNode = await this.prisma.nodeType.findUnique({
-        where: { identifier: nodeType },
+      const existingNode = await db.query.nodeTypes.findFirst({
+        where: eq(nodeTypes.identifier, nodeType),
       });
 
       if (!existingNode) {
@@ -1067,22 +1155,21 @@ export class NodeService {
         };
       }
 
-      await this.prisma.nodeType.update({
-        where: { identifier: nodeType },
-        data: { active: false, updatedAt: new Date() },
-      });
+      await db
+        .update(nodeTypes)
+        .set({ active: false, updatedAt: new Date() })
+        .where(eq(nodeTypes.identifier, nodeType));
 
-      logger.info("Node type deactivated", { nodeType });
+      logger.info('Node type deactivated', { nodeType });
       return {
         success: true,
         message: `Node type '${nodeType}' deactivated successfully`,
       };
     } catch (error) {
-      logger.error("Failed to deactivate node type", { error, nodeType });
+      logger.error('Failed to deactivate node type', { error, nodeType });
       return {
         success: false,
-        message: `Failed to deactivate node type: ${error instanceof Error ? error.message : "Unknown error"
-          }`,
+        message: `Failed to deactivate node type: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -1099,20 +1186,25 @@ export class NodeService {
     }>
   > {
     try {
-      const nodes = await this.prisma.nodeType.findMany({
-        where: { active: true },
-        select: {
+      const nodes = await db.query.nodeTypes.findMany({
+        where: eq(nodeTypes.active, true),
+        columns: {
           identifier: true,
           displayName: true,
           group: true,
           description: true,
         },
-        orderBy: { displayName: "asc" },
+        orderBy: (t) => t.displayName,
       });
 
-      return nodes;
+      return nodes.map((node) => ({
+        identifier: node.identifier,
+        displayName: node.displayName,
+        group: (node.group as string[]) || [],
+        description: node.description,
+      }));
     } catch (error) {
-      logger.error("Failed to get active nodes", { error });
+      logger.error('Failed to get active nodes', { error });
       return [];
     }
   }
@@ -1130,23 +1222,26 @@ export class NodeService {
     }>
   > {
     try {
-      const nodes = await this.prisma.nodeType.findMany({
-        select: {
+      const nodes = await db.query.nodeTypes.findMany({
+        columns: {
           identifier: true,
           displayName: true,
           active: true,
           group: true,
           description: true,
         },
-        orderBy: [
-          { active: "desc" }, // Active nodes first
-          { displayName: "asc" }, // Then alphabetical
-        ],
+        orderBy: (t) => [t.active, t.displayName],
       });
 
-      return nodes;
+      return nodes.map((node) => ({
+        identifier: node.identifier,
+        displayName: node.displayName,
+        active: (node.active as boolean) || false,
+        group: (node.group as string[]) || [],
+        description: node.description,
+      }));
     } catch (error) {
-      logger.error("Failed to get nodes with status", { error });
+      logger.error('Failed to get nodes with status', { error });
       return [];
     }
   }
@@ -1155,41 +1250,39 @@ export class NodeService {
    * Bulk activate/deactivate nodes
    */
   async bulkUpdateNodeStatus(
-    nodeTypes: string[],
+    nodeTypeIds: string[],
     active: boolean
   ): Promise<{ success: boolean; message: string; updated: number }> {
     try {
-      const result = await this.prisma.nodeType.updateMany({
-        where: {
-          identifier: { in: nodeTypes },
-        },
-        data: {
+      const result = await db
+        .update(nodeTypes)
+        .set({
           active,
           updatedAt: new Date(),
-        },
-      });
+        })
+        .where(inArray(nodeTypes.identifier, nodeTypeIds));
 
-      const action = active ? "activated" : "deactivated";
+      const action = active ? 'activated' : 'deactivated';
+      const updatedCount = result.rowCount || 0;
       logger.info(`Bulk ${action} node types`, {
-        nodeTypes,
-        count: result.count,
+        nodeTypeIds,
+        count: updatedCount,
       });
 
       return {
         success: true,
-        message: `Successfully ${action} ${result.count} node(s)`,
-        updated: result.count,
+        message: `Successfully ${action} ${updatedCount} node(s)`,
+        updated: updatedCount,
       };
     } catch (error) {
-      logger.error("Failed to bulk update node status", {
+      logger.error('Failed to bulk update node status', {
         error,
-        nodeTypes,
+        nodeTypeIds,
         active,
       });
       return {
         success: false,
-        message: `Failed to update node status: ${error instanceof Error ? error.message : "Unknown error"
-          }`,
+        message: `Failed to update node status: ${error instanceof Error ? error.message : 'Unknown error'}`,
         updated: 0,
       };
     }
@@ -1200,50 +1293,44 @@ export class NodeService {
    */
   private getExecutionCapability(
     nodeDefinition: NodeDefinition
-  ): "trigger" | "action" | "transform" | "condition" {
-    // Use nodeCategory (all nodes should have this now)
+  ): 'trigger' | 'action' | 'transform' | 'condition' {
     if (nodeDefinition.nodeCategory) {
-      // Map nodeCategory to executionCapability
       switch (nodeDefinition.nodeCategory) {
-        case "trigger":
-          return "trigger";
-        case "condition":
-          return "condition";
-        case "transform":
-          return "transform";
-        case "action":
-        case "service":
-        case "tool":
+        case 'trigger':
+          return 'trigger';
+        case 'condition':
+          return 'condition';
+        case 'transform':
+          return 'transform';
+        case 'action':
+        case 'service':
+        case 'tool':
         default:
-          return "action";
+          return 'action';
       }
     }
 
-    // Legacy fallback for nodes without nodeCategory (should be rare)
     const group = nodeDefinition.group;
-    if (group.includes("trigger")) {
-      return "trigger";
-    } else if (group.includes("condition")) {
-      return "condition";
-    } else if (group.includes("transform")) {
-      return "transform";
+    if (group.includes('trigger')) {
+      return 'trigger';
+    } else if (group.includes('condition')) {
+      return 'condition';
+    } else if (group.includes('transform')) {
+      return 'transform';
     } else {
-      return "action";
+      return 'action';
     }
   }
 
   /**
    * Determine if node can execute individually
-   * Only triggers can execute individually, service/tool nodes cannot
    */
   private canExecuteIndividually(nodeDefinition: NodeDefinition): boolean {
-    // Use nodeCategory (all nodes should have this now)
     if (nodeDefinition.nodeCategory) {
-      return nodeDefinition.nodeCategory === "trigger";
+      return nodeDefinition.nodeCategory === 'trigger';
     }
     
-    // Legacy fallback for nodes without nodeCategory (should be rare)
-    return nodeDefinition.group.includes("trigger");
+    return nodeDefinition.group.includes('trigger');
   }
 
   /**
@@ -1251,7 +1338,7 @@ export class NodeService {
    */
   async refreshCustomNodes(): Promise<{ success: boolean; message: string; registered: number }> {
     try {
-      const { nodeDiscovery } = await import("../utils/NodeDiscovery");
+      const { nodeDiscovery } = await import('../utils/NodeDiscovery');
       const customNodeInfos = await nodeDiscovery.loadCustomNodes();
       
       let registered = 0;
@@ -1262,26 +1349,26 @@ export class NodeService {
           const result = await this.registerNode(nodeInfo.definition);
           if (result.success) {
             registered++;
-            logger.info("Registered custom node", {
+            logger.info('Registered custom node', {
               nodeType: nodeInfo.definition.identifier,
               displayName: nodeInfo.definition.displayName,
               path: nodeInfo.path,
             });
           } else {
-            errors.push(`Failed to register ${nodeInfo.definition.identifier}: ${result.errors?.join(", ")}`);
+            errors.push(`Failed to register ${nodeInfo.definition.identifier}: ${result.errors?.join(', ')}`);
           }
         } catch (error) {
-          const errorMsg = `Failed to register ${nodeInfo.definition.identifier}: ${error instanceof Error ? error.message : "Unknown error"}`;
+          const errorMsg = `Failed to register ${nodeInfo.definition.identifier}: ${error instanceof Error ? error.message : 'Unknown error'}`;
           errors.push(errorMsg);
           logger.warn(errorMsg, { error });
         }
       }
       
       const message = registered > 0 
-        ? `Successfully registered ${registered} custom node(s)${errors.length > 0 ? ` (${errors.length} errors)` : ""}`
-        : `No custom nodes registered${errors.length > 0 ? ` (${errors.length} errors)` : ""}`;
+        ? `Successfully registered ${registered} custom node(s)${errors.length > 0 ? ` (${errors.length} errors)` : ''}`
+        : `No custom nodes registered${errors.length > 0 ? ` (${errors.length} errors)` : ''}`;
       
-      logger.info("Custom nodes refresh completed", {
+      logger.info('Custom nodes refresh completed', {
         registered,
         errors: errors.length,
         totalFound: customNodeInfos.length,
@@ -1293,7 +1380,7 @@ export class NodeService {
         registered,
       };
     } catch (error) {
-      const errorMsg = `Failed to refresh custom nodes: ${error instanceof Error ? error.message : "Unknown error"}`;
+      const errorMsg = `Failed to refresh custom nodes: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(errorMsg, { error });
       return {
         success: false,
@@ -1326,10 +1413,9 @@ export class NodeService {
         };
       }
 
-      // Check if node has loadOptions methods
       if (
         !nodeDefinition.loadOptions ||
-        typeof nodeDefinition.loadOptions !== "object"
+        typeof nodeDefinition.loadOptions !== 'object'
       ) {
         return {
           success: false,
@@ -1339,9 +1425,8 @@ export class NodeService {
         };
       }
 
-      // Check if the specific method exists
       const loadOptionsMethod = (nodeDefinition.loadOptions as any)[method];
-      if (typeof loadOptionsMethod !== "function") {
+      if (typeof loadOptionsMethod !== 'function') {
         return {
           success: false,
           error: {
@@ -1350,45 +1435,37 @@ export class NodeService {
         };
       }
 
-      // Build credential type mapping from node properties
-      // Map credential field names to their types (e.g., "authentication" -> "postgresDb")
       const credentialTypeMap: Record<string, string> = {};
       if (nodeDefinition.properties) {
         const properties =
-          typeof nodeDefinition.properties === "function"
+          typeof nodeDefinition.properties === 'function'
             ? nodeDefinition.properties()
             : nodeDefinition.properties;
 
         for (const property of properties) {
           if (
-            property.type === "credential" &&
+            property.type === 'credential' &&
             property.allowedTypes &&
             property.allowedTypes.length > 0
           ) {
-            // Use the first allowed type as the credential type
             credentialTypeMap[property.name] = property.allowedTypes[0];
           }
         }
       }
 
-      // Create execution context for loadOptions
       const context: any = {
         getNodeParameter: (paramName: string) => {
           return parameters[paramName];
         },
         getCredentials: async (credentialType: string) => {
-          // Get credential service
           const credentialService = global.credentialService;
           if (!credentialService) {
-            throw new Error("Credential service not initialized");
+            throw new Error('Credential service not initialized');
           }
 
-          // Try to get credential ID from credentials object
-          // First try by credential type directly
           let credentialId = credentials[credentialType];
 
           if (!credentialId) {
-            // Look for field name that maps to this credential type
             for (const [fieldName, mappedType] of Object.entries(
               credentialTypeMap
             )) {
@@ -1399,10 +1476,9 @@ export class NodeService {
             }
           }
 
-          // If still not found, check all credential fields and match by actual credential type
           if (!credentialId) {
             for (const [fieldName, value] of Object.entries(credentials)) {
-              if (value && (typeof value === "string" || typeof value === "number")) {
+              if (value && (typeof value === 'string' || typeof value === 'number')) {
                 try {
                   const credential = await credentialService.getCredentialById(String(value));
                   if (credential && credential.type === credentialType) {
@@ -1418,8 +1494,8 @@ export class NodeService {
 
           if (credentialId) {
             if (
-              typeof credentialId === "string" ||
-              typeof credentialId === "number"
+              typeof credentialId === 'string' ||
+              typeof credentialId === 'number'
             ) {
               const credential = await credentialService.getCredentialById(
                 String(credentialId)
@@ -1428,7 +1504,6 @@ export class NodeService {
                 return credential.data;
               }
             }
-            // If it's already the data object, return it
             return credentialId;
           }
 
@@ -1442,10 +1517,8 @@ export class NodeService {
         },
       };
 
-      // Execute the loadOptions method
       const options = await loadOptionsMethod.call(context);
 
-      // Validate the returned options format
       if (!Array.isArray(options)) {
         return {
           success: false,
@@ -1470,7 +1543,7 @@ export class NodeService {
           message:
             error instanceof Error
               ? error.message
-              : "Unknown error loading options",
+              : 'Unknown error loading options',
         },
       };
     }

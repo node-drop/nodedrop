@@ -48,14 +48,12 @@ export interface ValidationResult {
 }
 
 export class SecureExecutionService {
-  private prisma: PrismaClient;
   private credentialService: CredentialService;
   private variableService: any;
   private defaultLimits: ExecutionLimits;
   private activeRequests: Map<string, number>;
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
+  constructor() {
     this.credentialService = getCredentialService();
     this.variableService = variableServiceDrizzle;
     this.activeRequests = new Map();

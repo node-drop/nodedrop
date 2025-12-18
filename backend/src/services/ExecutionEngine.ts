@@ -1,5 +1,8 @@
 import Bull, { Job, Queue } from "bull";
 import { EventEmitter } from "events";
+import { db } from "../config/database";
+import { eq, and, count } from "drizzle-orm";
+import * as schema from "../db/schema";
 import {
   Connection,
   ExecutionStatus,
@@ -24,7 +27,6 @@ import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { NodeService } from "./NodeService";
 
 export class ExecutionEngine extends EventEmitter {
-  private prisma: PrismaClient;
   private nodeService: NodeService;
   private executionQueue: Queue<ExecutionJobData>;
   private nodeQueue: Queue<NodeExecutionJob>;
@@ -32,12 +34,10 @@ export class ExecutionEngine extends EventEmitter {
   private retryConfig: RetryConfig;
 
   constructor(
-    prisma: PrismaClient,
     nodeService: NodeService,
     queueConfig: QueueConfig
   ) {
     super();
-    this.prisma = prisma;
     this.nodeService = nodeService;
     this.activeExecutions = new Map();
 
@@ -76,11 +76,11 @@ export class ExecutionEngine extends EventEmitter {
   ): Promise<string> {
     try {
       // Get workflow from database
-      const workflow = await this.prisma.workflow.findFirst({
-        where: { id: workflowId, userId },
-        include: {
-          user: { select: { id: true, email: true } },
-        },
+      const workflow = await db.query.workflows.findFirst({
+        where: and(
+          eq(schema.workflows.id, workflowId),
+          eq(schema.workflows.userId, userId)
+        ),
       });
 
       if (!workflow) {
@@ -100,15 +100,16 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Create execution record
-      const execution = await this.prisma.execution.create({
-        data: {
+      const [execution] = await db
+        .insert(schema.executions)
+        .values({
           workflowId,
           workspaceId: workflow.workspaceId || undefined, // Denormalized for efficient workspace-level queries
           status: ExecutionStatus.RUNNING,
           startedAt: new Date(),
           triggerData: triggerData || {},
-        },
-      });
+        })
+        .returning();
 
       // Build nodeId -> nodeName mapping for $node["Name"] expression support
       const workflowNodes = Array.isArray(workflow.nodes)
@@ -122,7 +123,7 @@ export class ExecutionEngine extends EventEmitter {
         workflowId,
         userId,
         triggerData,
-        startedAt: execution.startedAt,
+        startedAt: execution.startedAt || new Date(),
         nodeExecutions: new Map(),
         nodeOutputs: new Map(),
         nodeIdToName, // Map nodeId -> nodeName for $node["Name"] support
@@ -169,13 +170,13 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Update execution status in database
-      await this.prisma.execution.update({
-        where: { id: executionId },
-        data: {
+      await db
+        .update(schema.executions)
+        .set({
           status: ExecutionStatus.CANCELLED,
           finishedAt: new Date(),
-        },
-      });
+        })
+        .where(eq(schema.executions.id, executionId));
 
       // Cancel any pending jobs for this execution
       const jobs = await this.nodeQueue.getJobs(["waiting", "active"]);
@@ -207,11 +208,11 @@ export class ExecutionEngine extends EventEmitter {
     executionId: string
   ): Promise<ExecutionProgress | null> {
     try {
-      const execution = await this.prisma.execution.findUnique({
-        where: { id: executionId },
-        include: {
+      const execution = await db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+        with: {
           nodeExecutions: true,
-          workflow: { select: { nodes: true } },
+          workflow: { columns: { nodes: true } },
         },
       });
 
@@ -238,7 +239,7 @@ export class ExecutionEngine extends EventEmitter {
         failedNodes,
         currentNode: runningNode?.nodeId,
         status: execution.status.toLowerCase() as any,
-        startedAt: execution.startedAt,
+        startedAt: execution.startedAt || new Date(),
         finishedAt: execution.finishedAt || undefined,
         error: execution.error
           ? {
@@ -264,26 +265,36 @@ export class ExecutionEngine extends EventEmitter {
   async getExecutionStats(): Promise<ExecutionStats> {
     try {
       const [
-        totalExecutions,
-        runningExecutions,
-        completedExecutions,
-        failedExecutions,
-        cancelledExecutions,
+        totalResult,
+        runningResult,
+        completedResult,
+        failedResult,
+        cancelledResult,
       ] = await Promise.all([
-        this.prisma.execution.count(),
-        this.prisma.execution.count({
-          where: { status: ExecutionStatus.RUNNING },
-        }),
-        this.prisma.execution.count({
-          where: { status: ExecutionStatus.SUCCESS },
-        }),
-        this.prisma.execution.count({
-          where: { status: ExecutionStatus.ERROR },
-        }),
-        this.prisma.execution.count({
-          where: { status: ExecutionStatus.CANCELLED },
-        }),
+        db.select({ count: count() }).from(schema.executions),
+        db
+          .select({ count: count() })
+          .from(schema.executions)
+          .where(eq(schema.executions.status, ExecutionStatus.RUNNING)),
+        db
+          .select({ count: count() })
+          .from(schema.executions)
+          .where(eq(schema.executions.status, ExecutionStatus.SUCCESS)),
+        db
+          .select({ count: count() })
+          .from(schema.executions)
+          .where(eq(schema.executions.status, ExecutionStatus.ERROR)),
+        db
+          .select({ count: count() })
+          .from(schema.executions)
+          .where(eq(schema.executions.status, ExecutionStatus.CANCELLED)),
       ]);
+
+      const totalExecutions = totalResult[0]?.count || 0;
+      const runningExecutions = runningResult[0]?.count || 0;
+      const completedExecutions = completedResult[0]?.count || 0;
+      const failedExecutions = failedResult[0]?.count || 0;
+      const cancelledExecutions = cancelledResult[0]?.count || 0;
 
       const queueSize = await this.executionQueue
         .getWaiting()
@@ -352,6 +363,10 @@ export class ExecutionEngine extends EventEmitter {
     const { executionId, workflowId, userId, triggerData } = job.data;
 
     try {
+      if (!workflowId) {
+        throw new Error("Workflow ID is required");
+      }
+
       const context = this.activeExecutions.get(executionId);
       if (!context) {
         throw new Error(`Execution context not found for ${executionId}`);
@@ -362,8 +377,8 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Get workflow with nodes and connections
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: workflowId },
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, workflowId),
       });
 
       if (!workflow) {
@@ -419,8 +434,8 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Get workflow to find the node
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: context.workflowId },
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, context.workflowId),
       });
 
       if (!workflow) {
@@ -434,15 +449,16 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Create node execution record
-      const nodeExecution = await this.prisma.nodeExecution.create({
-        data: {
+      const [nodeExecution] = await db
+        .insert(schema.nodeExecutions)
+        .values({
           nodeId,
           executionId,
           status: NodeExecutionStatus.RUNNING,
           startedAt: new Date(),
           inputData,
-        },
-      });
+        })
+        .returning();
 
       context.nodeExecutions.set(nodeId, nodeExecution as any);
 
@@ -498,31 +514,28 @@ export class ExecutionEngine extends EventEmitter {
       }
 
       // Update node execution record with real execution data
-      await this.prisma.nodeExecution.update({
-        where: { id: nodeExecution.id },
-        data: {
-          status: NodeExecutionStatus.SUCCESS,
-          outputData: result.data as any,
-          finishedAt: new Date(),
-          // Store additional execution metadata for trigger nodes
-          ...(() => {
-            const nodeDef = this.nodeService.getNodeDefinitionSync(node.type);
-            if (nodeDef?.triggerType) {
-              return {
-                real_output_data: result.data,
-                network_metrics: {
-                  executionTime:
-                    new Date().getTime() -
-                    new Date(nodeExecution.startedAt || new Date()).getTime(),
-                  triggerType: nodeDef.triggerType,
-                  triggerDataSize: JSON.stringify(context.triggerData || {}).length,
-                },
-              };
-            }
-            return {};
-          })(),
-        },
-      });
+      const updateData: any = {
+        status: NodeExecutionStatus.SUCCESS,
+        outputData: result.data as any,
+        finishedAt: new Date(),
+      };
+
+      // Store additional execution metadata for trigger nodes
+      if (nodeDef?.triggerType) {
+        updateData.real_output_data = result.data;
+        updateData.network_metrics = {
+          executionTime:
+            new Date().getTime() -
+            new Date(nodeExecution.startedAt || new Date()).getTime(),
+          triggerType: nodeDef.triggerType,
+          triggerDataSize: JSON.stringify(context.triggerData || {}).length,
+        };
+      }
+
+      await db
+        .update(schema.nodeExecutions)
+        .set(updateData)
+        .where(eq(schema.nodeExecutions.id, nodeExecution.id));
 
       // Store output data in context
       // Store the full result.data which includes branches for branching nodes
@@ -556,8 +569,8 @@ export class ExecutionEngine extends EventEmitter {
       // Enhanced error handling for manual triggers
       const currentContext = this.activeExecutions.get(executionId);
       if (currentContext) {
-        const workflow = await this.prisma.workflow.findUnique({
-          where: { id: currentContext.workflowId },
+        const workflow = await db.query.workflows.findFirst({
+          where: eq(schema.workflows.id, currentContext.workflowId),
         });
         const workflowNodes = workflow?.nodes as unknown as Node[];
         const currentNode = workflowNodes?.find((n) => n.id === nodeId);
@@ -1286,8 +1299,11 @@ export class ExecutionEngine extends EventEmitter {
     return new Promise((resolve, reject) => {
       const checkInterval = setInterval(async () => {
         try {
-          const nodeExecution = await this.prisma.nodeExecution.findFirst({
-            where: { executionId, nodeId },
+          const nodeExecution = await db.query.nodeExecutions.findFirst({
+            where: and(
+              eq(schema.nodeExecutions.executionId, executionId),
+              eq(schema.nodeExecutions.nodeId, nodeId)
+            ),
           });
 
           if (nodeExecution) {
@@ -1317,13 +1333,13 @@ export class ExecutionEngine extends EventEmitter {
    * Complete execution
    */
   private async completeExecution(executionId: string): Promise<void> {
-    await this.prisma.execution.update({
-      where: { id: executionId },
-      data: {
+    await db
+      .update(schema.executions)
+      .set({
         status: ExecutionStatus.SUCCESS,
         finishedAt: new Date(),
-      },
-    });
+      })
+      .where(eq(schema.executions.id, executionId));
 
     this.activeExecutions.delete(executionId);
 
@@ -1349,14 +1365,14 @@ export class ExecutionEngine extends EventEmitter {
       timestamp: new Date(),
     };
 
-    await this.prisma.execution.update({
-      where: { id: executionId },
-      data: {
+    await db
+      .update(schema.executions)
+      .set({
         status: ExecutionStatus.ERROR,
         finishedAt: new Date(),
         error: executionError,
-      },
-    });
+      })
+      .where(eq(schema.executions.id, executionId));
 
     this.activeExecutions.delete(executionId);
 
@@ -1414,9 +1430,9 @@ export class ExecutionEngine extends EventEmitter {
       }, delay);
     } else {
       // Update node execution as failed
-      await this.prisma.nodeExecution.updateMany({
-        where: { executionId, nodeId },
-        data: {
+      await db
+        .update(schema.nodeExecutions)
+        .set({
           status: NodeExecutionStatus.ERROR,
           error: {
             message: error.message,
@@ -1424,8 +1440,13 @@ export class ExecutionEngine extends EventEmitter {
             timestamp: new Date(),
           },
           finishedAt: new Date(),
-        },
-      });
+        })
+        .where(
+          and(
+            eq(schema.nodeExecutions.executionId, executionId),
+            eq(schema.nodeExecutions.nodeId, nodeId)
+          )
+        );
 
       this.emitExecutionEvent({
         executionId,

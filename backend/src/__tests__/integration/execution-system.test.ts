@@ -17,9 +17,9 @@ describe('Execution System Integration', () => {
 
   beforeAll(async () => {
     // Initialize services
-    nodeService = new NodeService(prisma);
-    executionService = new ExecutionService(prisma, nodeService);
-    workflowService = new WorkflowService(prisma);
+    nodeService = new NodeService();
+    executionService = new ExecutionService(prisma as any, nodeService, {} as any);
+    workflowService = new WorkflowService(prisma as any);
 
     // Register built-in nodes for testing
     await registerTestNodes();

@@ -92,7 +92,6 @@ export class RealtimeExecutionEngine extends EventEmitter {
             nodeParameters: node.parameters || {},
             nodeTypeProperties,
             userId,
-            prisma: this.prisma,
             legacyCredentials: node.credentials,
             logPrefix: "[RealtimeExecution]",
         });

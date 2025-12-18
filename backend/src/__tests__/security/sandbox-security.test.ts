@@ -10,16 +10,15 @@ const mockDb = {
     },
   },
   insert: jest.fn(),
-    update: jest.fn(),
-    updateMany: jest.fn()
-  }
-} as unknown as PrismaClient;
+  update: jest.fn(),
+  updateMany: jest.fn(),
+} as any;
 
 describe('Sandbox Security Tests', () => {
   let nodeService: NodeService;
 
   beforeEach(() => {
-    nodeService = new NodeService(mockPrisma);
+    nodeService = new NodeService();
     jest.clearAllMocks();
   });
 

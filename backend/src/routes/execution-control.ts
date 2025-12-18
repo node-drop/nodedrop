@@ -13,7 +13,7 @@ const router = express.Router();
 
 // Initialize timeout manager (will be enhanced with proper dependency injection)
 const socketService = new SocketService(null as any); // Placeholder
-const timeoutManager = new ExecutionTimeoutManager(null as any, socketService);
+const timeoutManager = new ExecutionTimeoutManager(socketService);
 
 /**
  * Get pending manual interventions for user

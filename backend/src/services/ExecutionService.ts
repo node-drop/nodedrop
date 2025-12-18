@@ -74,12 +74,10 @@ export class ExecutionService {
     };
 
     this.executionEngine = new ExecutionEngine(
-      db as any,
       nodeService,
       queueConfig
     );
     this.flowExecutionEngine = new FlowExecutionEngine(
-      db as any,
       nodeService,
       executionHistoryService
     );

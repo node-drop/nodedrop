@@ -15,7 +15,7 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
-} as unknown as PrismaClient;
+} as any;
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({

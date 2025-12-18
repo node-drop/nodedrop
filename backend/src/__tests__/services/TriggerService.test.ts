@@ -20,7 +20,7 @@ const mockDb = {
       findFirst: jest.fn(),
     update: jest.fn(),
   }
-} as unknown as PrismaClient;
+} as any;
 
 const mockWorkflowService = {
   getWorkflow: jest.fn(),

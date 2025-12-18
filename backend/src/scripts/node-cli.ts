@@ -6,32 +6,32 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import prisma from "../config/database";
+import { db } from "../config/database";
 import { NodeService } from "../services/NodeService";
 import { NodeDiscovery } from "../utils/NodeDiscovery";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 
 const NODES_DIR = path.join(__dirname, "..", "nodes");
 
 class NodeCLI {
-  private prisma = prisma;
   private nodeService?: NodeService;
   private nodeDiscovery: NodeDiscovery;
 
   constructor() {
-
     this.nodeDiscovery = new NodeDiscovery(NODES_DIR);
     // Don't initialize NodeService automatically to avoid unwanted registration
   }
 
   private async getNodeService(): Promise<NodeService> {
     if (!this.nodeService) {
-      this.nodeService = new NodeService(this.prisma);
+      this.nodeService = new NodeService();
     }
     return this.nodeService;
   }
 
   async cleanup(): Promise<void> {
-    await this.prisma.$disconnect();
+    // Drizzle ORM doesn't require explicit disconnect
   }
 
   async listNodes(): Promise<void> {
@@ -267,17 +267,18 @@ export const ${nodeName}Node: NodeDefinition = {
   async showNodesStatus(): Promise<void> {
     try {
       // Direct database query without triggering node registration
-      const nodes = await this.prisma.nodeType.findMany({
-        select: {
+      const { desc, asc } = await import("drizzle-orm");
+      const nodes = await db.query.nodeTypes.findMany({
+        columns: {
           identifier: true,
           displayName: true,
           active: true,
           group: true,
           description: true,
         },
-        orderBy: [
-          { active: "desc" }, // Active nodes first
-          { displayName: "asc" }, // Then alphabetical
+        orderBy: (fields: any) => [
+          desc(fields.active),
+          asc(fields.displayName),
         ],
       });
 
@@ -289,12 +290,12 @@ export const ${nodeName}Node: NodeDefinition = {
       console.log("📊 Node Status Report");
       console.log("=".repeat(80));
 
-      const activeNodes = nodes.filter((node) => node.active);
-      const inactiveNodes = nodes.filter((node) => !node.active);
+      const activeNodes = nodes.filter((node: any) => node.active);
+      const inactiveNodes = nodes.filter((node: any) => !node.active);
 
       console.log(`\n🟢 Active Nodes (${activeNodes.length}):`);
       if (activeNodes.length > 0) {
-        activeNodes.forEach((node) => {
+        activeNodes.forEach((node: any) => {
           console.log(`  ✅ ${node.displayName} (${node.identifier})`);
           console.log(`     ${node.description || "No description"}`);
           console.log("");
@@ -305,7 +306,7 @@ export const ${nodeName}Node: NodeDefinition = {
 
       console.log(`\n🔴 Inactive Nodes (${inactiveNodes.length}):`);
       if (inactiveNodes.length > 0) {
-        inactiveNodes.forEach((node) => {
+        inactiveNodes.forEach((node: any) => {
           console.log(`  ❌ ${node.displayName} (${node.identifier})`);
           console.log(`     ${node.description || "No description"}`);
           console.log("");

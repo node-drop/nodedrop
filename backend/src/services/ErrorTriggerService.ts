@@ -1,4 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
+import { db } from "../config/database";
+import { eq } from "drizzle-orm";
+import * as schema from "../db/schema";
 import { logger } from "../utils/logger";
 import { WorkflowErrorData } from "../nodes/ErrorTrigger/ErrorTrigger.node";
 
@@ -9,11 +11,9 @@ import { WorkflowErrorData } from "../nodes/ErrorTrigger/ErrorTrigger.node";
  * which workflow to execute when it fails. This is the n8n-style approach.
  */
 export class ErrorTriggerService {
-  private prisma: PrismaClient;
   private executionService: any;
 
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
+  constructor() {
   }
 
   /**
@@ -51,9 +51,9 @@ export class ErrorTriggerService {
   private async fireErrorWorkflow(errorData: WorkflowErrorData): Promise<void> {
     try {
       // Get the failed workflow's settings
-      const workflow = await this.prisma.workflow.findUnique({
-        where: { id: errorData.workflowId },
-        select: { settings: true, userId: true, name: true },
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, errorData.workflowId),
+        columns: { settings: true, userId: true, name: true },
       });
 
       if (!workflow) {
@@ -98,9 +98,9 @@ export class ErrorTriggerService {
       }
 
       // Get the error workflow
-      const errorWorkflow = await this.prisma.workflow.findUnique({
-        where: { id: errorWorkflowId },
-        select: { id: true, active: true, nodes: true, userId: true, name: true },
+      const errorWorkflow = await db.query.workflows.findFirst({
+        where: eq(schema.workflows.id, errorWorkflowId),
+        columns: { id: true, active: true, nodes: true, userId: true, name: true },
       });
 
       if (!errorWorkflow) {
