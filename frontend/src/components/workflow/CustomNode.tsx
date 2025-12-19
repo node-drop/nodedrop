@@ -168,7 +168,9 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
     dynamicHeight,  // Pass dynamic height to node config
     compactMode,  // Pass compact mode to handle rendering
     isServiceNode,  // Pass service node flag to hide labels in compact mode
-  }), [nodeIcon, nodeColor, isTrigger, data.inputs, computedOutputs, (data as any).inputsConfig, data.parameters?.imageUrl, data.nodeType, dynamicHeight, compactMode, isServiceNode])
+    operation: data.parameters?.operation,  // Pass selected operation to display under node title
+    resource: data.parameters?.resource,  // Pass resource for context (e.g., "contact" for HubSpot)
+  }), [nodeIcon, nodeColor, isTrigger, data.inputs, computedOutputs, (data as any).inputsConfig, data.parameters?.imageUrl, data.nodeType, dynamicHeight, compactMode, isServiceNode, data.parameters?.operation, data.parameters?.resource])
 
   // Render node enhancements (badges, overlays, etc.) using the registry
   const nodeEnhancements = useMemo(() => {

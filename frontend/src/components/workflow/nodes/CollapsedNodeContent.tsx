@@ -10,6 +10,28 @@ import { LoadingBorder } from './LoadingBorder'
 import { NodeStatusIcons } from './NodeStatusIcons'
 import { useNodeValidation } from '@/hooks/workflow'
 
+/**
+ * Convert camelCase or snake_case strings to readable text with spaces
+ * Examples: "emailFinder" -> "Email Finder", "batch_create" -> "Batch Create"
+ */
+function formatOperationName(value: string): string {
+  if (!value) return ''
+  
+  // Handle snake_case
+  if (value.includes('_')) {
+    return value
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+  }
+  
+  // Handle camelCase
+  return value
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase())
+    .trim()
+}
+
 interface CollapsedNodeContentProps {
   // Node identification
   id: string
@@ -208,6 +230,13 @@ export function CollapsedNodeContent({
               {isTrigger && !compactMode && (
                 <span className="text-[8px] text-muted-foreground tracking-wide capitalize">
                   trigger
+                </span>
+              )}
+              {!isTrigger && !compactMode && (nodeConfig as any)?.operation && (
+                <span className="text-[8px] text-muted-foreground tracking-wide">
+                  {(nodeConfig as any).resource && (nodeConfig as any).resource !== (nodeConfig as any).operation
+                    ? `${formatOperationName((nodeConfig as any).resource)} • ${formatOperationName((nodeConfig as any).operation)}`
+                    : formatOperationName((nodeConfig as any).operation)}
                 </span>
               )}
             </div>
