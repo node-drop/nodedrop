@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, count } from 'drizzle-orm';
+import { eq, and, desc, gte, lte, count, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   executions,
@@ -21,6 +21,8 @@ import {
   ExecutionStats,
 } from '../types/execution.types';
 import { logger } from '../utils/logger';
+import { RealtimeExecutionEngine } from './RealtimeExecutionEngine';
+import { NodeService } from './NodeService';
 
 /**
  * Options for workspace-scoped queries
@@ -34,6 +36,13 @@ interface WorkspaceQueryOptions {
  * Provides database operations for execution management
  */
 export class ExecutionServiceDrizzle {
+  private realtimeEngine: RealtimeExecutionEngine;
+  private nodeService: NodeService;
+
+  constructor() {
+    this.nodeService = new NodeService();
+    this.realtimeEngine = new RealtimeExecutionEngine(db as any, this.nodeService);
+  }
   /**
    * Get execution by ID
    */
@@ -516,5 +525,260 @@ export class ExecutionServiceDrizzle {
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     } as any;
+  }
+
+  /**
+   * Execute a single node
+   */
+  async executeSingleNode(
+    workflowId: string,
+    nodeId: string,
+    userId: string,
+    inputData?: any,
+    parameters?: any,
+    mode: string = 'single',
+    workflowData?: any
+  ): Promise<{ data: any; error?: any }> {
+    try {
+      logger.info(`Executing single node ${nodeId} in workflow ${workflowId}`, {
+        userId,
+        mode,
+        hasInputData: !!inputData,
+        hasParameters: !!parameters,
+      });
+
+      // Get workflow to extract nodes and connections
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(workflows.id, workflowId),
+      });
+
+      if (!workflow) {
+        throw new Error(`Workflow ${workflowId} not found`);
+      }
+
+      const nodes = (workflow.nodes as any) || [];
+      const connections = (workflow.connections as any) || [];
+
+      // Start execution via realtime engine
+      const executionId = await this.realtimeEngine.startExecution(
+        workflowId,
+        userId,
+        nodeId,
+        inputData || {},
+        nodes,
+        connections,
+        { saveToDatabase: true }
+      );
+
+      return {
+        data: { executionId, status: 'started' },
+      };
+    } catch (error) {
+      logger.error(`Failed to execute single node ${nodeId}:`, error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          code: 'NODE_EXECUTION_ERROR',
+        },
+      };
+    }
+  }
+
+  /**
+   * Execute a workflow
+   */
+  async executeWorkflow(
+    workflowId: string,
+    userId: string,
+    triggerData?: any,
+    options?: ExecutionOptions,
+    triggerNodeId?: string,
+    workflowData?: any
+  ): Promise<{ data: any; error?: any }> {
+    try {
+      logger.info(`Executing workflow ${workflowId}`, {
+        userId,
+        hasTriggerData: !!triggerData,
+        triggerNodeId,
+      });
+
+      // Get workflow to extract nodes and connections
+      const workflow = await db.query.workflows.findFirst({
+        where: eq(workflows.id, workflowId),
+      });
+
+      if (!workflow) {
+        throw new Error(`Workflow ${workflowId} not found`);
+      }
+
+      const nodes = (workflow.nodes as any) || [];
+      const connections = (workflow.connections as any) || [];
+
+      // Use provided trigger node ID or find first trigger node
+      let startNodeId = triggerNodeId;
+      if (!startNodeId) {
+        const triggerNode = nodes.find((n: any) => n.type === 'trigger' || n.type === 'webhook');
+        startNodeId = triggerNode?.id || nodes[0]?.id;
+      }
+
+      if (!startNodeId) {
+        throw new Error('No trigger node found in workflow');
+      }
+
+      // Start execution via realtime engine
+      const executionId = await this.realtimeEngine.startExecution(
+        workflowId,
+        userId,
+        startNodeId,
+        triggerData || {},
+        nodes,
+        connections,
+        { saveToDatabase: true }
+      );
+
+      return {
+        data: { executionId, status: 'started' },
+      };
+    } catch (error) {
+      logger.error(`Failed to execute workflow ${workflowId}:`, error);
+      return {
+        data: null,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          code: 'WORKFLOW_EXECUTION_ERROR',
+        },
+      };
+    }
+  }
+
+  /**
+   * Get execution progress
+   */
+  async getExecutionProgress(
+    executionId: string,
+    userId: string
+  ): Promise<any> {
+    try {
+      const execution = await db.query.executions.findFirst({
+        where: eq(executions.id, executionId),
+        with: {
+          nodeExecutions: {
+            orderBy: (ne: any) => [desc(ne.startedAt)],
+          },
+        },
+      });
+
+      if (!execution) {
+        return null;
+      }
+
+      const nodeExecutionsList = (execution as any).nodeExecutions || [];
+      const totalNodes = nodeExecutionsList.length;
+      const completedNodes = nodeExecutionsList.filter(
+        (ne: any) => ne.status === 'completed' || ne.status === 'success'
+      ).length;
+      const failedNodes = nodeExecutionsList.filter(
+        (ne: any) => ne.status === 'error' || ne.status === 'failed'
+      ).length;
+
+      return {
+        executionId,
+        status: execution.status,
+        progress: totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0,
+        totalNodes,
+        completedNodes,
+        failedNodes,
+        currentNode: nodeExecutionsList[0]?.nodeId,
+        startedAt: execution.startedAt || new Date(),
+        finishedAt: execution.finishedAt || undefined,
+      };
+    } catch (error) {
+      logger.error(`Failed to get execution progress for ${executionId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Cancel execution
+   */
+  async cancelExecution(
+    executionId: string,
+    userId: string
+  ): Promise<{ success: boolean; data?: any; error?: any }> {
+    try {
+      const execution = await this.getExecution(executionId, userId);
+      if (!execution) {
+        return {
+          success: false,
+          error: { message: 'Execution not found' },
+        };
+      }
+
+      // Update execution status to cancelled
+      await this.updateExecutionStatus(
+        executionId,
+        ExecutionStatus.CANCELLED,
+        new Date()
+      );
+
+      logger.info(`Execution ${executionId} cancelled by user ${userId}`);
+
+      return {
+        success: true,
+        data: { executionId, status: ExecutionStatus.CANCELLED },
+      };
+    } catch (error) {
+      logger.error(`Failed to cancel execution ${executionId}:`, error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+      };
+    }
+  }
+
+  /**
+   * Retry execution
+   */
+  async retryExecution(
+    executionId: string,
+    userId: string
+  ): Promise<{ success: boolean; data?: any; error?: any }> {
+    try {
+      const execution = await this.getExecution(executionId, userId);
+      if (!execution) {
+        return {
+          success: false,
+          error: { message: 'Execution not found' },
+        };
+      }
+
+      // Create a new execution with the same trigger data
+      const newExecution = await this.createExecution(
+        execution.workflowId,
+        userId,
+        ExecutionStatus.RUNNING,
+        execution.triggerData
+      );
+
+      logger.info(
+        `Execution ${executionId} retried as ${newExecution.id} by user ${userId}`
+      );
+
+      return {
+        success: true,
+        data: newExecution,
+      };
+    } catch (error) {
+      logger.error(`Failed to retry execution ${executionId}:`, error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+      };
+    }
   }
 }

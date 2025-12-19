@@ -30,9 +30,18 @@ function getExecutionService(): IExecutionService {
 }
 
 /**
- * Export the service instance
+ * Export the service instance - lazy initialize to avoid circular dependencies
  */
-export const executionServiceDrizzle = getExecutionService();
+let serviceInstance: IExecutionService | null = null;
+
+export function getExecutionServiceInstance(): IExecutionService {
+  if (!serviceInstance) {
+    serviceInstance = getExecutionService();
+  }
+  return serviceInstance;
+}
+
+export const executionServiceDrizzle = getExecutionServiceInstance();
 
 // Re-export types from Drizzle implementation
 export { ExecutionServiceDrizzle };

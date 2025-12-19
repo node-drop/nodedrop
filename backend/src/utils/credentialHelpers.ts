@@ -97,8 +97,15 @@ export async function buildCredentialsMapping(
           // Credential verification would be done via CredentialService
           // For now, just map the credential ID
           mapping[property.name] = credentialId;
+          
+          // Also map by each allowed credential type for backward compatibility
+          // This allows nodes to request credentials by type name (e.g., "slack")
+          for (const allowedType of property.allowedTypes) {
+            mapping[allowedType] = credentialId;
+          }
+          
           logger.info(
-            `${logPrefix} Mapped credential ID '${credentialId}' from parameter '${property.name}'`
+            `${logPrefix} Mapped credential ID '${credentialId}' from parameter '${property.name}' with types: ${property.allowedTypes.join(", ")}`
           );
         }
       }

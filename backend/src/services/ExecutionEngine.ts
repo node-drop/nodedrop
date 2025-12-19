@@ -24,6 +24,7 @@ import {
 import { NodeInputData, NodeOutputData } from "../types/node.types";
 import { logger } from "../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
+import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
 import { NodeService } from "./NodeService";
 
 export class ExecutionEngine extends EventEmitter {
@@ -495,11 +496,33 @@ export class ExecutionEngine extends EventEmitter {
         });
       }
 
+      // Build credentials mapping using shared utility
+      let credentialsMapping: Record<string, string> = {};
+      try {
+        const allNodeTypes = await this.nodeService.getNodeTypes();
+        const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === node.type);
+        const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
+        
+        const { mapping } = await buildCredentialsMapping({
+          nodeParameters: node.parameters || {},
+          nodeTypeProperties,
+          userId: context.userId,
+          legacyCredentials: (node as any).credentials,
+          logPrefix: "[ExecutionEngine]",
+        });
+        
+        credentialsMapping = mapping;
+      } catch (error) {
+        logger.warn(`Failed to build credentials mapping for node ${nodeId}`, {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+
       const result = await this.nodeService.executeNode(
         node.type,
         node.parameters,
         inputData,
-        undefined, // credentials - TODO: implement credential retrieval
+        credentialsMapping, // Pass credentials mapping
         executionId,
         context.userId, // userId
         { ...executionOptions, nodeId }, // options with nodeId for state management
@@ -763,7 +786,7 @@ export class ExecutionEngine extends EventEmitter {
         await this.executeLoopNode(nodeId, node, graph, context);
       } else {
         // Regular node execution
-        const inputData = this.prepareNodeInputData(nodeId, graph, context);
+        const inputData = await this.prepareNodeInputData(nodeId, graph, context);
 
         await this.nodeQueue.add({
           nodeId,
@@ -812,7 +835,7 @@ export class ExecutionEngine extends EventEmitter {
       logger.info(`Loop ${nodeId} - Iteration ${iterationCount}`);
 
       // Prepare input data for the loop node
-      const inputData = this.prepareNodeInputData(nodeId, graph, context);
+      const inputData = await this.prepareNodeInputData(nodeId, graph, context);
 
       // Execute the loop node
       await this.nodeQueue.add({
@@ -863,7 +886,7 @@ export class ExecutionEngine extends EventEmitter {
           const targetNode = graph.nodes.get(conn.targetNodeId);
           if (targetNode && !targetNode.disabled) {
             logger.info(`Executing done-connected node ${conn.targetNodeId}`);
-            const targetInputData = this.prepareNodeInputData(
+            const targetInputData = await this.prepareNodeInputData(
               conn.targetNodeId,
               graph,
               context
@@ -944,7 +967,7 @@ export class ExecutionEngine extends EventEmitter {
 
       logger.info(`Executing loop iteration node ${nodeId} (${node.type})`);
 
-      const inputData = this.prepareNodeInputData(nodeId, graph, context);
+      const inputData = await this.prepareNodeInputData(nodeId, graph, context);
 
       await this.nodeQueue.add({
         nodeId,
@@ -1085,11 +1108,11 @@ export class ExecutionEngine extends EventEmitter {
   /**
    * Prepare input data for a node based on its connections
    */
-  private prepareNodeInputData(
+  private async prepareNodeInputData(
     nodeId: string,
     graph: ExecutionGraph,
     context: ExecutionContext
-  ): NodeInputData {
+  ): Promise<NodeInputData> {
     const inputData: NodeInputData = { main: [[]] };
 
     // Find all connections that target this node
@@ -1163,53 +1186,28 @@ export class ExecutionEngine extends EventEmitter {
           for (const connection of connections) {
             const sourceNode = graph.nodes.get(connection.sourceNodeId);
             if (sourceNode) {
-              // Store full node configuration including parameters and credentials
-              // Credentials can be stored in:
-              // 1. A separate credentials field (legacy)
-              // 2. In parameters (for nodes with credential-type properties)
               const nodeParameters = (sourceNode as any).parameters || {};
-              const nodeCredentials = (sourceNode as any).credentials || {};
               
-              // Build credentials mapping from parameters
-              // We need to map credential types to credential IDs
-              // For example: { "apiKey": "cred_123" } instead of { "authentication": "cred_123" }
-              const credentialsMapping: Record<string, string> = { ...nodeCredentials };
-              
-              // Get node definition from registry (synchronous access)
-              const nodeDefinition = this.nodeService['nodeRegistry']?.get(sourceNode.type);
-              if (nodeDefinition && nodeDefinition.properties) {
-                const properties = Array.isArray(nodeDefinition.properties) 
-                  ? nodeDefinition.properties 
-                  : [];
+              // Build credentials mapping using shared utility
+              let credentialsMapping: Record<string, string> = {};
+              try {
+                const allNodeTypes = await this.nodeService.getNodeTypes();
+                const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+                const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
                 
-                // Find credential properties and map their types to IDs
-                for (const property of properties) {
-                  if (property.type === 'credential' && property.allowedTypes && property.allowedTypes.length > 0) {
-                    const credentialId = nodeParameters[property.name];
-                    // Check if this is a valid credential ID (any non-empty string)
-                    if (credentialId && typeof credentialId === 'string' && credentialId.trim().length > 0) {
-                      // Map the credential type to the credential ID
-                      // Use the first allowed type as the key
-                      const credentialType = property.allowedTypes[0];
-                      credentialsMapping[credentialType] = credentialId;
-                      
-                      logger.debug(`Mapped credential type '${credentialType}' to ID '${credentialId}' from parameter '${property.name}'`, {
-                        nodeType: sourceNode.type,
-                        parameterName: property.name,
-                      });
-                    }
-                  }
-                }
-              }
-              
-              // Fallback: Also scan parameters for any credential IDs not yet mapped
-              for (const [key, value] of Object.entries(nodeParameters)) {
-                if (typeof value === 'string' && value.startsWith('cred_')) {
-                  // Store with parameter name as key if not already mapped by type
-                  if (!Object.values(credentialsMapping).includes(value)) {
-                    credentialsMapping[key] = value;
-                  }
-                }
+                const { mapping } = await buildCredentialsMapping({
+                  nodeParameters,
+                  nodeTypeProperties,
+                  userId: context.userId,
+                  legacyCredentials: (sourceNode as any).credentials,
+                  logPrefix: "[ExecutionEngine-ServiceNode]",
+                });
+                
+                credentialsMapping = mapping;
+              } catch (error) {
+                logger.warn(`Failed to build credentials mapping for service node ${connection.sourceNodeId}`, {
+                  error: error instanceof Error ? error.message : "Unknown error",
+                });
               }
               
               serviceNodes.push({
@@ -1414,7 +1412,7 @@ export class ExecutionEngine extends EventEmitter {
       setTimeout(async () => {
         const context = this.activeExecutions.get(executionId);
         if (context && !context.cancelled) {
-          const inputData = this.prepareNodeInputData(
+          const inputData = await this.prepareNodeInputData(
             nodeId,
             this.buildExecutionGraph([], []), // This needs the actual graph
             context
