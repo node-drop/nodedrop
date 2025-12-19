@@ -153,7 +153,7 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
     <div
       ref={nodeRef}
       className={cn(
-        'nodrag relative',
+        ' relative',
         'rounded-lg border bg-popover shadow-lg',
         'animate-in fade-in-0 zoom-in-95'
       )}

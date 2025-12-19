@@ -101,7 +101,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
       </div>
 
       {/* Node list */}
-      <ScrollArea className="h-[300px]">
+      <ScrollArea className="h-[300px] nodrag">
         {isLoading ? (
           <div className="flex items-center justify-center h-20 text-muted-foreground">
             Loading nodes...
@@ -140,9 +140,19 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
                       className="flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{node.displayName}</div>
+                      <div className="text-[10px] font-medium truncate">{node.displayName}</div>
                       {node.description && (
-                        <div className="text-xs text-muted-foreground truncate">
+                        <div
+                          className="text-[8px] text-muted-foreground"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 1,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            wordBreak: 'break-word',
+                            hyphens: 'auto'
+                          }}
+                        >
                           {node.description}
                         </div>
                       )}
@@ -194,7 +204,7 @@ export function NodeSelectorPopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent 
-        className="w-auto p-0" 
+        className="w-[360px] p-0" 
         align="center" 
         side="top"
         sideOffset={8}

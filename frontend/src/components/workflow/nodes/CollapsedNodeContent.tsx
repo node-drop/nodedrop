@@ -233,7 +233,7 @@ export function CollapsedNodeContent({
                 </span>
               )}
               {!isTrigger && !compactMode && (nodeConfig as any)?.operation && (
-                <span className="text-[8px] text-muted-foreground tracking-wide">
+                <span className="text-[8px] text-muted-foreground tracking-wide truncate">
                   {(nodeConfig as any).resource && (nodeConfig as any).resource !== (nodeConfig as any).operation
                     ? `${formatOperationName((nodeConfig as any).resource)} • ${formatOperationName((nodeConfig as any).operation)}`
                     : formatOperationName((nodeConfig as any).operation)}
