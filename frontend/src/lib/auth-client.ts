@@ -19,12 +19,12 @@ import { env } from "@/config/env";
  * Initialize the better-auth client with the backend API URL.
  * 
  * Configuration:
- * - baseURL: Points to the backend API (without /api suffix as better-auth adds /auth)
+ * - baseURL: Points to the backend base URL (better-auth appends /auth)
  * - fetchOptions.credentials: 'include' ensures cookies are sent with requests
  * - plugins: adminClient for role management
  */
 export const authClient = createAuthClient({
-  baseURL: env.API_URL, // Use base URL without /api - better-auth handles routing
+  baseURL: env.API_URL.replace('/api', ''), // Remove /api suffix - better-auth handles /auth routing
   fetchOptions: {
     credentials: "include", // Required for httpOnly cookie-based sessions
   },

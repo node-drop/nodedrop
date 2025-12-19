@@ -16,7 +16,7 @@ COPY frontend/package*.json ./frontend/
 
 # Install workspace dependencies
 RUN npm install -g typescript
-RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=frontend && npm cache clean --force
+RUN rm -rf node_modules package-lock.json && npm install --workspace=packages/types --workspace=packages/utils --workspace=frontend
 
 # Build workspace packages first
 RUN npm run build --workspace=packages/types
@@ -27,7 +27,7 @@ WORKDIR /app/frontend
 COPY frontend/ ./
 
 # Build frontend (Vite)
-ARG VITE_API_URL=/api
+ARG VITE_API_URL=http://localhost:5678
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
@@ -53,7 +53,7 @@ COPY backend/src/db ./backend/src/db
 
 # Install workspace dependencies
 RUN npm install -g typescript
-RUN npm install --workspace=packages/types --workspace=packages/utils --workspace=backend && npm cache clean --force
+RUN rm -rf node_modules package-lock.json && npm install --workspace=packages/types --workspace=packages/utils --workspace=backend
 
 # Build workspace packages first (types, then utils which depends on types)
 RUN npm run build --workspace=packages/types
