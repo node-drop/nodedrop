@@ -2,7 +2,7 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { CredentialService } from "./CredentialService";
 import ExecutionHistoryService from "./ExecutionHistoryService";
-import { ExecutionService } from "./ExecutionService";
+import { IExecutionService } from "./ExecutionService.factory";
 import { SocketService } from "./SocketService";
 import { TriggerService } from "./TriggerService";
 import { IWorkflowService } from "./WorkflowService";
@@ -29,7 +29,7 @@ export function getTriggerService(): TriggerService {
 export async function initializeTriggerService(
   db: NodePgDatabase<typeof schema>,
   workflowService: IWorkflowService,
-  executionService: ExecutionService,
+  executionService: IExecutionService,
   socketService: SocketService,
   nodeService: any,
   executionHistoryService: ExecutionHistoryService,

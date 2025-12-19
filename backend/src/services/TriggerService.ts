@@ -8,7 +8,7 @@ import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
 import { CredentialService } from "./CredentialService";
 import ExecutionHistoryService from "./ExecutionHistoryService";
-import { ExecutionService } from "./ExecutionService";
+import { IExecutionService } from "./ExecutionService.factory";
 import { NodeService } from "./NodeService";
 import { SocketService } from "./SocketService";
 import { TriggerExecutionRequest, TriggerManager } from "./TriggerManager";
@@ -104,7 +104,7 @@ export interface WebhookRequest {
 export class TriggerService {
   private db: NodePgDatabase<typeof schema>;
   private workflowService: IWorkflowService;
-  private executionService: ExecutionService;
+  private executionService: IExecutionService;
   private socketService: SocketService;
   private executionHistoryService: ExecutionHistoryService;
   private credentialService: CredentialService;
@@ -121,7 +121,7 @@ export class TriggerService {
   constructor(
     db: NodePgDatabase<typeof schema>,
     workflowService: IWorkflowService,
-    executionService: ExecutionService,
+    executionService: IExecutionService,
     socketService: SocketService,
     nodeService: NodeService,
     executionHistoryService: ExecutionHistoryService,

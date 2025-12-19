@@ -42,7 +42,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
-import { ExecutionService } from "./services/ExecutionService";
+import { executionServiceDrizzle } from "./services/ExecutionService.factory";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
@@ -87,11 +87,8 @@ const socketService = new SocketService(httpServer);
 
 // Initialize ExecutionService (for HTTP endpoints)
 const executionHistoryService = new ExecutionHistoryService();
-const executionService = new ExecutionService(
-  db,
-  nodeService as any,
-  executionHistoryService
-);
+// Use the Drizzle-based execution service from factory
+const executionService = executionServiceDrizzle;
 
 // Initialize RealtimeExecutionEngine (for WebSocket execution)
 const realtimeExecutionEngine = new RealtimeExecutionEngine(db as any, nodeService as any);

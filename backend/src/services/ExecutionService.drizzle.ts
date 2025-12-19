@@ -1,4 +1,5 @@
 import { eq, and, desc, gte, lte, count, or } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/client';
 import {
   executions,
@@ -529,6 +530,7 @@ export class ExecutionServiceDrizzle {
 
   /**
    * Execute a single node
+   * Executes a node in isolation without waiting for upstream nodes
    */
   async executeSingleNode(
     workflowId: string,
@@ -539,6 +541,8 @@ export class ExecutionServiceDrizzle {
     mode: string = 'single',
     workflowData?: any
   ): Promise<{ data: any; error?: any }> {
+    const startTime = Date.now();
+    
     try {
       logger.info(`Executing single node ${nodeId} in workflow ${workflowId}`, {
         userId,
@@ -547,38 +551,133 @@ export class ExecutionServiceDrizzle {
         hasParameters: !!parameters,
       });
 
-      // Get workflow to extract nodes and connections
-      const workflow = await db.query.workflows.findFirst({
-        where: eq(workflows.id, workflowId),
-      });
+      // Get workflow to find the node
+      let workflowNodes: any[];
+      
+      if (workflowData && workflowData.nodes) {
+        workflowNodes = workflowData.nodes;
+      } else {
+        const workflow = await db.query.workflows.findFirst({
+          where: eq(workflows.id, workflowId),
+        });
 
-      if (!workflow) {
-        throw new Error(`Workflow ${workflowId} not found`);
+        if (!workflow) {
+          throw new Error(`Workflow ${workflowId} not found`);
+        }
+
+        workflowNodes = (workflow.nodes as any) || [];
       }
 
-      const nodes = (workflow.nodes as any) || [];
-      const connections = (workflow.connections as any) || [];
+      // Find the specific node
+      const node = workflowNodes.find((n: any) => n.id === nodeId);
+      if (!node) {
+        throw new Error(`Node ${nodeId} not found in workflow`);
+      }
 
-      // Start execution via realtime engine
-      const executionId = await this.realtimeEngine.startExecution(
-        workflowId,
+      // Get node type info
+      const nodeTypeInfo = await this.nodeService.getNodeSchema(node.type);
+      if (!nodeTypeInfo) {
+        throw new Error(`Unknown node type: ${node.type}`);
+      }
+
+      // Prepare node parameters
+      const nodeParameters = {
+        ...nodeTypeInfo.defaults,
+        ...node.parameters,
+        ...(parameters || {}),
+      };
+
+      // Build credentials mapping using shared utility
+      const { buildCredentialsMapping, extractCredentialProperties } = await import('../utils/credentialHelpers');
+      
+      const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
+      const { mapping: credentialsMapping } = await buildCredentialsMapping({
+        nodeParameters,
+        nodeTypeProperties,
         userId,
-        nodeId,
-        inputData || {},
-        nodes,
-        connections,
-        { saveToDatabase: true }
+        legacyCredentials: node.credentials,
+        logPrefix: "[ExecutionService-SingleNode]",
+      });
+
+      // Prepare input data
+      const nodeInputData = inputData || { main: [[]] };
+
+      // Execute the node directly
+      const result = await this.nodeService.executeNode(
+        node.type,
+        nodeParameters,
+        nodeInputData,
+        credentialsMapping,
+        undefined, // executionId - not needed for single node
+        userId,
+        { timeout: 30000, nodeId },
+        workflowId,
+        node.settings,
+        new Map(), // nodeOutputs - empty for single node
+        new Map()  // nodeIdToName - empty for single node
       );
 
+      if (!result.success) {
+        logger.error(`Node execution failed for ${nodeId}:`, {
+          nodeId,
+          nodeType: node.type,
+          error: result.error?.message,
+          errorStack: result.error?.stack,
+        });
+        throw new Error(result.error?.message || 'Node execution failed');
+      }
+
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      logger.info(`Single node execution completed successfully for ${nodeId}`, {
+        nodeId,
+        nodeType: node.type,
+        hasData: !!result.data,
+        dataKeys: result.data ? Object.keys(result.data) : [],
+        duration,
+      });
+
+      // Generate execution ID for consistency with workflow execution
+      const executionId = uuidv4();
+
+      // Format the response to match the old service structure
+      // This ensures consistency between single node and workflow execution
+      const nodeExecutionResult = {
+        nodeId: nodeId,
+        status: result.success ? "completed" : "failed",
+        data: result.data ? JSON.parse(JSON.stringify(result.data)) : undefined,
+        duration,
+      };
+
       return {
-        data: { executionId, status: 'started' },
+        data: {
+          executionId,
+          status: result.success ? "completed" : "failed",
+          executedNodes: [nodeId],
+          failedNodes: result.success ? [] : [nodeId],
+          duration,
+          hasFailures: !result.success,
+          // Include output data in the same format as workflow execution
+          nodeExecutions: [nodeExecutionResult],
+        },
       };
     } catch (error) {
-      logger.error(`Failed to execute single node ${nodeId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      logger.error(`Failed to execute single node ${nodeId}:`, {
+        nodeId,
+        error: errorMessage,
+        stack: errorStack,
+      });
+      
+      // Return error in a way that the route can handle it
+      // The route will add it to warnings if present
       return {
         data: null,
         error: {
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: errorMessage,
           code: 'NODE_EXECUTION_ERROR',
         },
       };

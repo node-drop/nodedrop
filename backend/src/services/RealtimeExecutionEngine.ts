@@ -48,6 +48,7 @@ interface ExecutionContext {
     startTime: number;
     currentNodeId?: string;
     saveToDatabase?: boolean; // Whether to save execution to database
+    singleNodeMode?: boolean; // Whether this is a single node execution (skip upstream checks)
 }
 
 export class RealtimeExecutionEngine extends EventEmitter {
@@ -120,7 +121,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
         triggerData: any,
         nodes: WorkflowNode[],
         connections: WorkflowConnection[],
-        options?: { saveToDatabase?: boolean; workspaceId?: string | null }
+        options?: { saveToDatabase?: boolean; workspaceId?: string | null; singleNodeMode?: boolean }
     ): Promise<string> {
         // Check limit before creating new execution to prevent memory leaks
         if (this.activeExecutions.size >= this.MAX_ACTIVE_EXECUTIONS) {
@@ -169,6 +170,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
             status: "running",
             startTime: Date.now(),
             saveToDatabase, // Store in context for later use
+            singleNodeMode: options?.singleNodeMode || false, // Flag for single node execution
         };
 
         this.activeExecutions.set(executionId, context);
@@ -387,54 +389,59 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
         // ⚠️ CRITICAL FIX: Wait for ALL upstream nodes to complete before executing
         // This prevents race conditions where a node executes before all its inputs are ready
-        // Example: If a node uses {{ $node["A"].value }} and {{ $node["B"].value }},
-        // we must wait for BOTH A and B to complete, not just one of them
-        const incomingConnections = context.connections.filter(
-            (conn) => conn.targetNodeId === nodeId
-        );
-        
-        if (incomingConnections.length > 0) {
-            const upstreamNodeIds = [...new Set(incomingConnections.map(conn => conn.sourceNodeId))];
-            
-            // Filter out service nodes from upstream dependencies
-            // Service nodes (model, memory, tools) don't execute independently and shouldn't be waited for
-            const nonServiceUpstreamNodeIds: string[] = [];
-            for (const upstreamId of upstreamNodeIds) {
-                const upstreamNode = nodeMap.get(upstreamId);
-                if (upstreamNode) {
-                    const isService = await this.isServiceNode(upstreamNode.type);
-                    if (!isService) {
-                        nonServiceUpstreamNodeIds.push(upstreamId);
-                    } else {
-                        logger.debug(`[RealtimeExecution] Skipping service node ${upstreamId} (${upstreamNode.type}) from upstream dependencies`);
-                    }
-                }
-            }
-            
-            const missingUpstreamNodes = nonServiceUpstreamNodeIds.filter(
-                upstreamId => !context.nodeOutputs.has(upstreamId)
+        // Skip upstream node checks in single node mode
+        if (!context.singleNodeMode) {
+            // Example: If a node uses {{ $node["A"].value }} and {{ $node["B"].value }},
+            // we must wait for BOTH A and B to complete, not just one of them
+            const incomingConnections = context.connections.filter(
+                (conn) => conn.targetNodeId === nodeId
             );
             
-            if (missingUpstreamNodes.length > 0) {
-                logger.info(`[RealtimeExecution] Node ${nodeId} waiting for upstream nodes to complete`, {
+            if (incomingConnections.length > 0) {
+                const upstreamNodeIds = [...new Set(incomingConnections.map(conn => conn.sourceNodeId))];
+                
+                // Filter out service nodes from upstream dependencies
+                // Service nodes (model, memory, tools) don't execute independently and shouldn't be waited for
+                const nonServiceUpstreamNodeIds: string[] = [];
+                for (const upstreamId of upstreamNodeIds) {
+                    const upstreamNode = nodeMap.get(upstreamId);
+                    if (upstreamNode) {
+                        const isService = await this.isServiceNode(upstreamNode.type);
+                        if (!isService) {
+                            nonServiceUpstreamNodeIds.push(upstreamId);
+                        } else {
+                            logger.debug(`[RealtimeExecution] Skipping service node ${upstreamId} (${upstreamNode.type}) from upstream dependencies`);
+                        }
+                    }
+                }
+                
+                const missingUpstreamNodes = nonServiceUpstreamNodeIds.filter(
+                    upstreamId => !context.nodeOutputs.has(upstreamId)
+                );
+                
+                if (missingUpstreamNodes.length > 0) {
+                    logger.info(`[RealtimeExecution] Node ${nodeId} waiting for upstream nodes to complete`, {
+                        nodeId,
+                        nodeName: node.name,
+                        totalUpstream: nonServiceUpstreamNodeIds.length,
+                        missingUpstream: missingUpstreamNodes.length,
+                        missingNodeIds: missingUpstreamNodes,
+                        completedNodeIds: nonServiceUpstreamNodeIds.filter(id => context.nodeOutputs.has(id)),
+                    });
+                    
+                    // Don't execute yet - upstream nodes will trigger this node when they complete
+                    return;
+                }
+                
+                logger.info(`[RealtimeExecution] All upstream nodes completed for ${nodeId}`, {
                     nodeId,
                     nodeName: node.name,
-                    totalUpstream: nonServiceUpstreamNodeIds.length,
-                    missingUpstream: missingUpstreamNodes.length,
-                    missingNodeIds: missingUpstreamNodes,
-                    completedNodeIds: nonServiceUpstreamNodeIds.filter(id => context.nodeOutputs.has(id)),
+                    upstreamCount: nonServiceUpstreamNodeIds.length,
+                    upstreamNodeIds: nonServiceUpstreamNodeIds,
                 });
-                
-                // Don't execute yet - upstream nodes will trigger this node when they complete
-                return;
             }
-            
-            logger.info(`[RealtimeExecution] All upstream nodes completed for ${nodeId}`, {
-                nodeId,
-                nodeName: node.name,
-                upstreamCount: nonServiceUpstreamNodeIds.length,
-                upstreamNodeIds: nonServiceUpstreamNodeIds,
-            });
+        } else {
+            logger.info(`[RealtimeExecution] Single node mode - skipping upstream node checks for ${nodeId}`);
         }
 
         context.currentNodeId = nodeId;

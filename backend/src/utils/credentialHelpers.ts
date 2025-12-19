@@ -82,6 +82,20 @@ export async function buildCredentialsMapping(
   const mapping: Record<string, string> = {};
   const warnings: string[] = [];
 
+  logger.debug(
+    `${logPrefix} buildCredentialsMapping called with:`,
+    {
+      nodeTypePropertiesCount: nodeTypeProperties?.length || 0,
+      nodeTypeProperties: nodeTypeProperties?.map((p) => ({
+        name: p.name,
+        type: p.type,
+        allowedTypes: p.allowedTypes,
+      })),
+      nodeParameterKeys: Object.keys(nodeParameters || {}),
+      legacyCredentialsCount: legacyCredentials?.length || 0,
+    }
+  );
+
   // PRIMARY METHOD: Extract credentials from node type properties
   if (nodeTypeProperties && nodeTypeProperties.length > 0) {
     for (const property of nodeTypeProperties) {
@@ -113,20 +127,34 @@ export async function buildCredentialsMapping(
   }
 
   // FALLBACK: Check legacy credentials array (if no credentials found via properties)
-  if (
-    Object.keys(mapping).length === 0 &&
-    legacyCredentials &&
-    Array.isArray(legacyCredentials) &&
-    legacyCredentials.length > 0
-  ) {
+  if (legacyCredentials && Array.isArray(legacyCredentials) && legacyCredentials.length > 0) {
     logger.info(
-      `${logPrefix} No credentials found via node type, checking legacy credentials array`
+      `${logPrefix} Processing legacy credentials array with ${legacyCredentials.length} credentials`
     );
 
     for (const credId of legacyCredentials) {
+      // If we already have a mapping from properties, skip
+      if (Object.values(mapping).includes(credId)) {
+        logger.debug(`${logPrefix} Credential ${credId} already mapped from properties`);
+        continue;
+      }
+
       // Legacy credential lookup would be done via CredentialService
       // For now, just map the credential ID directly
       mapping[credId] = credId;
+      
+      // Also try to map by common credential type names
+      // This helps when node type properties are not available
+      if (nodeTypeProperties && nodeTypeProperties.length > 0) {
+        for (const property of nodeTypeProperties) {
+          if (property.type === "credential" && property.allowedTypes) {
+            for (const allowedType of property.allowedTypes) {
+              mapping[allowedType] = credId;
+            }
+          }
+        }
+      }
+      
       logger.info(
         `${logPrefix} Mapped legacy credential ID '${credId}'`
       );
@@ -147,6 +175,10 @@ export function extractCredentialProperties(
   nodeTypeInfo: NodeTypeInfo | undefined
 ): NodeTypeProperty[] {
   if (!nodeTypeInfo?.properties) {
+    logger.debug("[extractCredentialProperties] No properties found in nodeTypeInfo", {
+      hasNodeTypeInfo: !!nodeTypeInfo,
+      nodeTypeIdentifier: nodeTypeInfo?.identifier,
+    });
     return [];
   }
 
@@ -154,8 +186,20 @@ export function extractCredentialProperties(
     ? nodeTypeInfo.properties
     : [];
 
-  return properties.filter(
+  const credentialProperties = properties.filter(
     (p) =>
       p.type === "credential" && p.allowedTypes && p.allowedTypes.length > 0
   );
+
+  logger.debug("[extractCredentialProperties] Extracted credential properties", {
+    nodeTypeIdentifier: nodeTypeInfo.identifier,
+    totalProperties: properties.length,
+    credentialPropertiesCount: credentialProperties.length,
+    credentialProperties: credentialProperties.map((p) => ({
+      name: p.name,
+      allowedTypes: p.allowedTypes,
+    })),
+  });
+
+  return credentialProperties;
 }

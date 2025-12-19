@@ -5,7 +5,7 @@ import * as schema from "../db/schema";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
 import { ExecutionResultCache } from "./ExecutionResultCache";
-import { ExecutionService } from "./ExecutionService";
+import { IExecutionService } from "./ExecutionService.factory";
 import {
   TriggerExecutionContext,
   TriggerExecutionContextFactory,
@@ -61,7 +61,7 @@ export interface ConflictResolutionStrategy {
  */
 export class TriggerManager extends EventEmitter {
   private db: NodePgDatabase<typeof schema>;
-  private executionService: ExecutionService;
+  private executionService: IExecutionService;
   private resourceManager: TriggerResourceManager;
   private executionResultCache: ExecutionResultCache;
 
@@ -74,7 +74,7 @@ export class TriggerManager extends EventEmitter {
 
   constructor(
     db: NodePgDatabase<typeof schema>,
-    executionService: ExecutionService,
+    executionService: IExecutionService,
     config: Partial<ConcurrencyConfig> = {},
     conflictStrategy: ConflictResolutionStrategy = { type: "queue" }
   ) {

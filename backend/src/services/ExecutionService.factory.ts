@@ -19,6 +19,8 @@ export interface IExecutionService {
   getNodeExecution(executionId: string, nodeId: string, userId: string): Promise<any>;
   getExecutionStats(userId?: string, options?: any): Promise<any>;
   createExecutionHistory(executionId: string, workflowId: string, triggerType: string, status: string, executedNodes: string[], metrics?: any, error?: any, duration?: number): Promise<void>;
+  executeWorkflow(workflowId: string, userId: string, triggerData?: any, options?: any, triggerNodeId?: string, workflowData?: any, executionId?: string): Promise<any>;
+  executeSingleNode(userId: string, workflowId: string, nodeId: string, inputData?: any, parameters?: any, workflowData?: any): Promise<any>;
 }
 
 /**
