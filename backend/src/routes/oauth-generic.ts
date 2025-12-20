@@ -18,6 +18,7 @@ const pendingOAuthSessions = new Map<string, {
   credentialName: string
   credentialType: string
   userId: string
+  workspaceId?: string
   scopes?: string[]
   expiresAt: number
 }>()
@@ -32,7 +33,7 @@ const pendingOAuthSessions = new Map<string, {
 router.get("/oauth/:provider/authorize", requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { provider } = req.params
-    const { clientId, clientSecret, credentialName, credentialType, credentialId, services, useCustomScopes, customScopes } = req.query
+    const { clientId, clientSecret, credentialName, credentialType, credentialId, services, useCustomScopes, customScopes, workspaceId } = req.query
 
     // Get OAuth provider
     const oauthProvider = oauthProviderRegistry.get(provider)
@@ -52,7 +53,9 @@ router.get("/oauth/:provider/authorize", requireAuth, async (req: AuthenticatedR
       scopes = (customScopes as string).split(",").map(s => s.trim())
     } else if (services) {
       // Service-specific scopes (for Google, Microsoft, etc.)
-      scopes = getScopesForService(provider, services as string)
+      // Handle both single service and multiple services
+      const serviceList = Array.isArray(services) ? services : (services as string).split(",")
+      scopes = getScopesForServices(provider, serviceList)
     }
 
     // Store session data
@@ -63,6 +66,7 @@ router.get("/oauth/:provider/authorize", requireAuth, async (req: AuthenticatedR
       credentialName: credentialName as string || `${oauthProvider.displayName} - ${new Date().toLocaleDateString()}`,
       credentialType: credentialType as string,
       userId,
+      workspaceId: workspaceId as string | undefined,
       scopes,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
     }
@@ -176,7 +180,9 @@ router.post("/oauth/:provider/callback", async (req, res, next) => {
       session.userId,
       session.credentialName,
       session.credentialType,
-      credentialData
+      credentialData,
+      undefined,
+      { workspaceId: session.workspaceId }
     )
 
     // Clean up session after successful credential creation
@@ -298,6 +304,7 @@ function getScopesForService(provider: string, service: string): string[] {
       ],
       sheets: [
         "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
       ],
@@ -342,6 +349,20 @@ function getScopesForService(provider: string, service: string): string[] {
 
   // Default scopes
   return oauthProviderRegistry.get(provider)?.scopes || []
+}
+
+/**
+ * Get scopes for multiple services
+ */
+function getScopesForServices(provider: string, services: string[]): string[] {
+  const allScopes = new Set<string>();
+  
+  for (const service of services) {
+    const scopes = getScopesForService(provider, service);
+    scopes.forEach(scope => allScopes.add(scope));
+  }
+  
+  return Array.from(allScopes);
 }
 
 // Cleanup expired sessions periodically

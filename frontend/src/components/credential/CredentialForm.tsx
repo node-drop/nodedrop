@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { FormFieldConfig, FormGenerator, FormGeneratorRef } from '@/components/ui/form-generator'
 import { apiClient } from '@/services/api'
 import { useCredentialStore } from '@/stores'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { CreateCredentialRequest, Credential, CredentialType } from '@/types'
 import { CheckCircle, Key, Loader2, LogIn, TestTube, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -26,6 +27,7 @@ export function CredentialForm({
   nodeType
 }: CredentialFormProps) {
   const { createCredential, updateCredential, testCredential, isLoading } = useCredentialStore()
+  const { currentWorkspace } = useWorkspace()
   const formRef = useRef<FormGeneratorRef>(null)
 
   const [formValues, setFormValues] = useState<Record<string, any>>({
@@ -177,6 +179,11 @@ export function CredentialForm({
         params.append('clientSecret', credentialData.clientSecret)
         params.append('credentialName', name || `${credentialType.displayName} - ${new Date().toLocaleDateString()}`)
         params.append('credentialType', credentialType.name)
+        
+        // Pass workspace ID if available
+        if (currentWorkspace?.id) {
+          params.append('workspaceId', currentWorkspace.id)
+        }
         
         // Pass service selection and custom scopes if provided
         if (credentialData.services) {

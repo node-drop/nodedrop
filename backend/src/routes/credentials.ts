@@ -223,6 +223,42 @@ router.get(
   })
 );
 
+// Get access token for Google Picker API
+// MUST come before /:id route to avoid being caught by generic ID matcher
+router.get(
+  "/:id/access-token",
+  requireAuth,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    // Get credential
+    const credential = await getCredentialService().getCredential(
+      id,
+      req.user!.id
+    );
+
+    if (!credential) {
+      throw new AppError("Credential not found", 404);
+    }
+
+    // Check if it's a Google OAuth credential
+    if (credential.type !== "googleOAuth2") {
+      throw new AppError("Only Google OAuth credentials support access tokens", 400);
+    }
+
+    // Get access token from credential data
+    const accessToken = credential.data?.accessToken;
+    if (!accessToken) {
+      throw new AppError("No access token found in credential", 400);
+    }
+
+    res.json({
+      success: true,
+      accessToken,
+    });
+  })
+);
+
 // Get a specific credential
 router.get(
   "/:id",

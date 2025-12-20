@@ -432,7 +432,6 @@ export function AutoComplete<T = any>({
         </PopoverContent>
       </Popover>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }

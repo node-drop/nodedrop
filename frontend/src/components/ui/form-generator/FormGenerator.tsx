@@ -315,5 +315,5 @@ function FormFieldError({ error }: FormFieldErrorProps) {
     return null
   }
 
-  return <p className="text-sm font-medium text-destructive">{error}</p>
+  return <p className="text-xs text-destructive">{error}</p>
 }

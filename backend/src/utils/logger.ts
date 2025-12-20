@@ -16,6 +16,23 @@ function serializeError(error: any): any {
   return error;
 }
 
+/**
+ * Safe JSON stringify that handles circular references
+ */
+function safeStringify(obj: any): string {
+  const seen = new WeakSet();
+  
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+}
+
 // Create logger instance
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -40,7 +57,7 @@ export const logger = winston.createLogger({
         }
       }
       
-      return JSON.stringify({
+      return safeStringify({
         timestamp: info.timestamp,
         level: info.level,
         message: info.message,
@@ -80,7 +97,7 @@ if (process.env.NODE_ENV !== 'production') {
           }
         }
         
-        const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+        const metaStr = Object.keys(meta).length > 0 ? ` ${safeStringify(meta)}` : '';
         return `${info.level}: ${info.message}${metaStr}`;
       })
     )
