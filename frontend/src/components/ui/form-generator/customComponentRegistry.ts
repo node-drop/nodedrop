@@ -11,7 +11,6 @@ import {
 } from "@/components/workflow/node-config/custom-fields";
 import { CodeEditor } from "./custom-fields/CodeEditor";
 import { SchedulePreview } from "@/components/workflow/node-config/custom-fields/SchedulePreview";
-import { GooglePickerField } from "./GooglePickerField";
 
 /**
  * Registry of custom field components
@@ -30,7 +29,6 @@ export const customFieldComponents: Record<string, any> = {
   WidgetEmbedGenerator,
   CodeEditor,
   SchedulePreview,
-  GooglePickerField,
 };
 
 /**
