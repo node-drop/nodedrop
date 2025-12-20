@@ -7,8 +7,8 @@ import {
 } from '@/components/ui/dialog'
 import { apiClient } from '@/services/api'
 import { Credential, CredentialType } from '@/types'
-import { Key } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { NodeIcon } from '@/components/workflow/components/NodeIcon'
 import { CredentialForm } from './CredentialForm'
 
 interface CredentialModalProps {
@@ -60,12 +60,15 @@ export function CredentialModal({
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-md flex items-center justify-center text-white text-sm font-bold"
-              style={{ backgroundColor: credentialType.color || '#6B7280' }}
-            >
-              {credentialType.icon || <Key className="w-4 h-4" />}
-            </div>
+            <NodeIcon
+              config={{
+                icon: credentialType.icon,
+                color: credentialType.color || '#6B7280',
+                displayName: contextualDisplayName,
+                nodeType: credentialType.name,
+              }}
+              size="md"
+            />
             <div>
               <DialogTitle>
                 {credential ? 'Edit' : 'Create'} {contextualDisplayName}

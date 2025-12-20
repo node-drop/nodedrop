@@ -54,7 +54,7 @@ router.get("/oauth/:provider/authorize", requireAuth, async (req: AuthenticatedR
     } else if (services) {
       // Service-specific scopes (for Google, Microsoft, etc.)
       // Handle both single service and multiple services
-      const serviceList = Array.isArray(services) ? services : (services as string).split(",")
+      const serviceList = Array.isArray(services) ? services.map(s => String(s)) : (services as string).split(",")
       scopes = getScopesForServices(provider, serviceList)
     }
 

@@ -214,7 +214,7 @@ router.post(
   })
 );
 
-// GET /api/nodes/:type/icon - Serve custom node icon files
+// GET /api/nodes/:type/icon - Serve custom node or credential icon files
 router.get(
   "/:type/icon",
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -250,15 +250,19 @@ router.get(
 
       // Look for the icon file in the node's directory
       // The structure is: custom-nodes/{node-package}/nodes/{icon-file}
+      // Also check credentials folder: custom-nodes/{node-package}/credentials/{icon-file}
       const possiblePaths = [
         // Try the base folder name first (e.g., "slack" for "slack-message")
         path.join(customNodesDir, baseFolder, "nodes", iconFileName),
+        path.join(customNodesDir, baseFolder, "credentials", iconFileName),
         path.join(customNodesDir, baseFolder, iconFileName),
         // Try the full node type as directory name
         path.join(customNodesDir, type, "nodes", iconFileName),
+        path.join(customNodesDir, type, "credentials", iconFileName),
         path.join(customNodesDir, type, iconFileName),
         // Try without hyphens
         path.join(customNodesDir, type.replace(/-/g, ""), "nodes", iconFileName),
+        path.join(customNodesDir, type.replace(/-/g, ""), "credentials", iconFileName),
       ];
 
       let iconPath: string | null = null;
@@ -276,9 +280,14 @@ router.get(
         const packages = fs.readdirSync(customNodesDir, { withFileTypes: true });
         for (const pkg of packages) {
           if (pkg.isDirectory()) {
-            const pkgIconPath = path.join(customNodesDir, pkg.name, "nodes", iconFileName);
-            if (fs.existsSync(pkgIconPath)) {
-              iconPath = pkgIconPath;
+            const pkgNodeIconPath = path.join(customNodesDir, pkg.name, "nodes", iconFileName);
+            const pkgCredIconPath = path.join(customNodesDir, pkg.name, "credentials", iconFileName);
+            if (fs.existsSync(pkgNodeIconPath)) {
+              iconPath = pkgNodeIconPath;
+              break;
+            }
+            if (fs.existsSync(pkgCredIconPath)) {
+              iconPath = pkgCredIconPath;
               break;
             }
           }

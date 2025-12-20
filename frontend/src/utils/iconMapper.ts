@@ -203,13 +203,14 @@ export function getIconComponent(
     return getFallbackIcon(nodeType, nodeGroup, nodeCategory);
   }
 
-  // Check for file: prefix (custom node SVG files from backend)
+  // Check for file: prefix (custom node/credential SVG files from backend)
   if (iconString.startsWith("file:")) {
     if (!nodeType) {
       console.warn("file: icon requires nodeType parameter");
       return null;
     }
-    // Return backend API endpoint for the node's icon
+    // Return backend API endpoint for the node's or credential's icon
+    // Uses the same /api/nodes/:type/icon endpoint for both
     return `${env.API_BASE_URL}/nodes/${nodeType}/icon`;
   }
 
