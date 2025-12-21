@@ -1,6 +1,6 @@
-import { db } from "../config/database";
+import { db } from "../../config/database";
 import { eq, and, gte, lte, inArray, count, desc, asc } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../../db/schema";
 import { EventEmitter } from "events";
 
 export interface ExecutionHistoryQuery {

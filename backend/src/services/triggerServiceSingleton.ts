@@ -1,8 +1,8 @@
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { CredentialService } from "./CredentialService";
-import ExecutionHistoryService from "./ExecutionHistoryService";
-import { IExecutionService } from "./ExecutionService.factory";
+import ExecutionHistoryService from "./execution/ExecutionHistoryService";
+import { IExecutionService } from "./execution/ExecutionService.factory";
 import { SocketService } from "./SocketService";
 import { TriggerService } from "./TriggerService";
 import { IWorkflowService } from "./WorkflowService";

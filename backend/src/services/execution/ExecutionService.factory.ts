@@ -5,7 +5,7 @@
  */
 
 import { ExecutionServiceDrizzle } from './ExecutionService.drizzle';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 
 // Type definitions for the service interface
 export interface IExecutionService {

@@ -13,14 +13,14 @@
  * @module services/ExecutionEventBridge
  */
 
-import { logger } from "../utils/logger";
-import { SocketService } from "./SocketService";
+import { logger } from "../../utils/logger";
+import { SocketService } from "../SocketService";
 import {
   ExecutionEventSubscriber,
   getExecutionEventSubscriber,
 } from "./ExecutionEventSubscriber";
 import { ExecutionEventMessage } from "./ExecutionEventPublisher";
-import { ExecutionEventData } from "../types/execution.types";
+import { ExecutionEventData } from "../../types/execution.types";
 
 /**
  * ExecutionEventBridge class for connecting Redis events to WebSocket broadcasts

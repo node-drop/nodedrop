@@ -1,6 +1,6 @@
 import Redis from "ioredis";
-import { ExecutionResult } from "../types/database";
-import { logger } from "../utils/logger";
+import { ExecutionResult } from "../../types/database";
+import { logger } from "../../utils/logger";
 
 /**
  * Redis-based cache for execution results

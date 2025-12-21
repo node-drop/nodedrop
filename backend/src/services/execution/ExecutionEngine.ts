@@ -1,14 +1,14 @@
 import Bull, { Job, Queue } from "bull";
 import { EventEmitter } from "events";
-import { db } from "../config/database";
+import { db } from "../../config/database";
 import { eq, and, count } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../../db/schema";
 import {
   Connection,
   ExecutionStatus,
   Node,
   NodeExecutionStatus,
-} from "../types/database";
+} from "../../types/database";
 import {
   ExecutionContext,
   ExecutionEventData,
@@ -20,12 +20,12 @@ import {
   NodeExecutionJob,
   QueueConfig,
   RetryConfig,
-} from "../types/execution.types";
-import { NodeInputData, NodeOutputData } from "../types/node.types";
-import { logger } from "../utils/logger";
+} from "../../types/execution.types";
+import { NodeInputData, NodeOutputData } from "../../types/node.types";
+import { logger } from "../../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
-import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
-import { NodeService } from "./NodeService";
+import { buildCredentialsMapping, extractCredentialProperties } from "../../utils/credentialHelpers";
+import { NodeService } from "../NodeService";
 
 export class ExecutionEngine extends EventEmitter {
   private nodeService: NodeService;

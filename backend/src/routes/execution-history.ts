@@ -3,8 +3,8 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService, {
     ExecutionHistoryQuery,
-} from "../services/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+} from "../services/execution/ExecutionHistoryService";
+import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
 
 const router = express.Router();
 const historyService = new ExecutionHistoryService();

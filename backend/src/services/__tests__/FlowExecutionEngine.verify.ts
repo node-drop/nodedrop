@@ -3,7 +3,7 @@
  * This verifies that the core class has all required methods and interfaces
  */
 
-import { FlowExecutionEngine, FlowExecutionContext, FlowExecutionOptions, FlowExecutionResult, NodeExecutionState, ExecutionFlowStatus } from '../FlowExecutionEngine';
+import { FlowExecutionEngine, FlowExecutionContext, FlowExecutionOptions, FlowExecutionResult, NodeExecutionState, ExecutionFlowStatus } from '../execution/FlowExecutionEngine';
 
 // Verify that all required interfaces exist
 const verifyInterfaces = () => {

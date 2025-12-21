@@ -15,7 +15,7 @@
  */
 
 import { createClient } from "redis";
-import { logger } from "../utils/logger";
+import { logger } from "../../utils/logger";
 import {
   EXECUTION_EVENTS_CHANNEL,
   ExecutionEventMessage,

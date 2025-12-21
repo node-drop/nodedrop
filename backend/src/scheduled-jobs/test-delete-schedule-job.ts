@@ -7,8 +7,8 @@
  */
 
 import prisma from "../config/database";
-import ExecutionHistoryService from '../services/ExecutionHistoryService';
-import { ExecutionService } from '../services/ExecutionService';
+import ExecutionHistoryService from '../services/execution/ExecutionHistoryService';
+import { ExecutionServiceDrizzle as ExecutionService } from '../services/execution/ExecutionService.drizzle';
 import { NodeService } from '../services/NodeService';
 import { logger } from '../utils/logger';
 import { ScheduleJobManager } from './ScheduleJobManager';

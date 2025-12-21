@@ -4,9 +4,9 @@ import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
     ExecutionTimeoutManager,
     ManualInterventionResponse,
-} from "../services/ExecutionTimeoutManager";
+} from "../services/execution/ExecutionTimeoutManager";
 import { SocketService } from "../services/SocketService";
-import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
 
 const router = express.Router();
 

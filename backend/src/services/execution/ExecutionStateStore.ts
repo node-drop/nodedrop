@@ -14,8 +14,8 @@
  * @module services/ExecutionStateStore
  */
 
-import { getRedisClient, RedisClient } from "../config/redis";
-import { logger } from "../utils/logger";
+import { getRedisClient, RedisClient } from "../../config/redis";
+import { logger } from "../../utils/logger";
 
 /**
  * Execution status values for queue-based execution

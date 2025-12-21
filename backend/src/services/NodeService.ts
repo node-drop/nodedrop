@@ -27,7 +27,7 @@ import {
 import {
   SecureExecutionOptions,
   SecureExecutionService,
-} from './SecureExecutionService';
+} from './execution/SecureExecutionService';
 
 /**
  * Options for workspace-scoped queries

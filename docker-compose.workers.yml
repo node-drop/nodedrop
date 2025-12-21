@@ -1,49 +1,55 @@
-# Docker Compose configuration for scaling execution workers
+# Docker Compose override for running dedicated execution workers
 #
-# This file provides an optional worker service that can be scaled independently
-# of the main nodedrop service for handling workflow executions.
+# This file enables horizontal scaling of workflow execution by running
+# dedicated worker processes separate from the main API server.
 #
 # Usage:
-#   # Start with workers (default 1 worker)
-#   docker compose -f docker-compose.yml -f docker-compose.workers.yml up -d
-#
-#   # Scale workers to 3 instances
-#   docker compose -f docker-compose.yml -f docker-compose.workers.yml up -d --scale nodedrop-worker=3
+#   # Start with workers (3 replicas)
+#   docker-compose -f docker-compose.yml -f docker-compose.workers.yml up -d
 #
 #   # Scale workers dynamically
-#   docker compose -f docker-compose.yml -f docker-compose.workers.yml scale nodedrop-worker=5
+#   docker-compose -f docker-compose.yml -f docker-compose.workers.yml up -d --scale nodedrop-worker=5
 #
-# Environment Variables:
-#   EXECUTION_WORKER_CONCURRENCY - Number of concurrent jobs per worker (default: 5)
-#   EXECUTION_STATE_TTL - TTL for active execution state in seconds (default: 86400 = 24 hours)
-#   EXECUTION_COMPLETION_TTL - TTL for completed execution state in seconds (default: 3600 = 1 hour)
+# Benefits:
+#   - CPU-intensive workflows don't block the API server
+#   - Independent scaling of workers based on workload
+#   - Fault tolerance - if a worker crashes, others continue processing
+#   - Better resource utilization across multiple containers
 #
-# Scaling Guidelines:
-#   - Each worker can handle EXECUTION_WORKER_CONCURRENCY concurrent workflow executions
-#   - Total capacity = number_of_workers × EXECUTION_WORKER_CONCURRENCY
-#   - Example: 3 workers × 5 concurrency = 15 concurrent workflow executions
-#   - Monitor Redis memory usage when scaling up
-#   - Consider database connection pool limits when scaling
+# Note: The main nodedrop service still processes executions by default.
+# Workers provide additional capacity for high-throughput scenarios.
 
 services:
+  # Dedicated execution worker service
+  # Processes workflow execution jobs from the Redis queue
   nodedrop-worker:
-    image: ghcr.io/node-drop/nodedrop:${NODEDROP_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: "${VERSION:-1.0.9-alpha}"
+        GIT_SHA: "${GIT_SHA:-unknown}"
+        BUILD_DATE: "${BUILD_DATE:-unknown}"
+    # Override the default command to run as a worker
+    # Workers only process queue jobs, they don't serve HTTP requests
+    command: ["node", "dist/worker.js"]
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/node_drop
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - CREDENTIAL_ENCRYPTION_KEY=${CREDENTIAL_ENCRYPTION_KEY}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - NODE_OPTIONS=--max-old-space-size=1024
-      # Execution Queue Configuration
+      # Worker-specific configuration
+      # Number of concurrent jobs this worker can process
       - EXECUTION_WORKER_CONCURRENCY=${EXECUTION_WORKER_CONCURRENCY:-5}
+      # State TTL settings
       - EXECUTION_STATE_TTL=${EXECUTION_STATE_TTL:-86400}
       - EXECUTION_COMPLETION_TTL=${EXECUTION_COMPLETION_TTL:-3600}
-      # Worker mode - only process queue jobs, don't serve HTTP
+      # Worker mode flag - disables HTTP server, only processes queue
       - WORKER_MODE=true
     volumes:
-      - custom_nodes_data:/app/custom-nodes:ro
+      - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp
       - logs_data:/app/logs
     depends_on:
@@ -54,11 +60,21 @@ services:
       nodedrop:
         condition: service_healthy
     restart: unless-stopped
+    # No ports exposed - workers don't serve HTTP
+    # No healthcheck endpoint - workers are headless
     deploy:
+      # Default to 1 replica, scale with --scale flag
+      replicas: 1
       resources:
         limits:
           memory: 1G
         reservations:
           memory: 256M
-      # Default replicas (can be overridden with --scale)
-      replicas: 1
+
+# Reuse existing volumes from main docker-compose.yml
+volumes:
+  postgres_data:
+  redis_data:
+  custom_nodes_data:
+  temp_data:
+  logs_data:

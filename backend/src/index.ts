@@ -41,16 +41,16 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 // Import services
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
-import ExecutionHistoryService from "./services/ExecutionHistoryService";
-import { executionServiceDrizzle } from "./services/ExecutionService.factory";
-import { ExecutionEventBridge, createExecutionEventBridge } from "./services/ExecutionEventBridge";
+import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
+import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
+import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
-import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
+import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
-import { getExecutionQueueService, ExecutionQueueService } from "./services/ExecutionQueueService";
-import { getExecutionWorker, ExecutionWorker } from "./services/ExecutionWorker";
+import { getExecutionQueueService, ExecutionQueueService } from "./services/execution/ExecutionQueueService";
+import { getExecutionWorker, ExecutionWorker } from "./services/execution/ExecutionWorker";
 
 // Import database after dotenv is loaded
 import { db, checkDatabaseConnection, disconnectDatabase } from "./db/client";

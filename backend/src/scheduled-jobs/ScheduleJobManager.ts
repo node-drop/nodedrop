@@ -11,7 +11,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { logger } from '../utils/logger';
-import { ExecutionService } from '../services/ExecutionService';
+import { ExecutionService } from '../services/execution/ExecutionService.drizzle';
 import { triggerJobs } from '../db/schema/triggers';
 
 export interface ScheduleJobData {

@@ -11,14 +11,14 @@
 
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../../db/schema";
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
-import { ExecutionStatus, NodeExecutionStatus } from "../types/database";
-import { buildCredentialsMapping, extractCredentialProperties } from "../utils/credentialHelpers";
-import { logger } from "../utils/logger";
+import { ExecutionStatus, NodeExecutionStatus } from "../../types/database";
+import { buildCredentialsMapping, extractCredentialProperties } from "../../utils/credentialHelpers";
+import { logger } from "../../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
-import { NodeService } from "./NodeService";
+import { NodeService } from "../NodeService";
 import { getExecutionQueueService, ExecutionQueueService } from "./ExecutionQueueService";
 
 interface WorkflowNode {

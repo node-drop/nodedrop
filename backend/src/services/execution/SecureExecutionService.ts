@@ -6,8 +6,8 @@ import {
   NodeLogger,
   NodeOutputData,
   RequestOptions,
-} from "../types/node.types";
-import { logger } from "../utils/logger";
+} from "../../types/node.types";
+import { logger } from "../../utils/logger";
 import {
   extractJsonData,
   normalizeInputItems,
@@ -16,8 +16,8 @@ import {
   wrapJsonData,
 } from "@nodedrop/utils";
 import type { ExpressionContext } from "@nodedrop/types";
-import { getCredentialService, type ICredentialService } from "./CredentialService.factory";
-import { variableServiceDrizzle } from "./VariableService.factory";
+import { getCredentialService, type ICredentialService } from "../CredentialService.factory";
+import { variableServiceDrizzle } from "../VariableService.factory";
 
 export interface SecureExecutionOptions {
   timeout?: number;

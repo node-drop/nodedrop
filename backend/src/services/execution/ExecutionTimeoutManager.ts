@@ -1,8 +1,8 @@
-import { db } from "../config/database";
+import { db } from "../../config/database";
 import { eq } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../../db/schema";
 import { EventEmitter } from "events";
-import { SocketService } from "./SocketService";
+import { SocketService } from "../SocketService";
 
 export interface TimeoutConfig {
   executionTimeoutMs: number;

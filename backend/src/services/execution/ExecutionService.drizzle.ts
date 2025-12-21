@@ -1,29 +1,29 @@
 import { eq, and, desc, gte, lte, count, or } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../db/client';
+import { db } from '../../db/client';
 import {
   executions,
   executionHistory,
   nodeExecutions,
   flowExecutionStates,
-} from '../db/schema/executions';
-import { workflows } from '../db/schema/workflows';
-import { AppError } from '../middleware/errorHandler';
+} from '../../db/schema/executions';
+import { workflows } from '../../db/schema/workflows';
+import { AppError } from '../../middleware/errorHandler';
 import {
   Execution,
   ExecutionFilters,
   ExecutionResult,
   ExecutionStatus,
   NodeExecution,
-} from '../types/database';
+} from '../../types/database';
 import {
   ExecutionOptions,
   ExecutionProgress,
   ExecutionStats,
-} from '../types/execution.types';
-import { logger } from '../utils/logger';
+} from '../../types/execution.types';
+import { logger } from '../../utils/logger';
 import { RealtimeExecutionEngine } from './RealtimeExecutionEngine';
-import { NodeService } from './NodeService';
+import { NodeService } from '../NodeService';
 import { getExecutionQueueService, ExecutionQueueService } from './ExecutionQueueService';
 
 /**
@@ -666,7 +666,7 @@ export class ExecutionServiceDrizzle {
       };
 
       // Build credentials mapping using shared utility
-      const { buildCredentialsMapping, extractCredentialProperties } = await import('../utils/credentialHelpers');
+      const { buildCredentialsMapping, extractCredentialProperties } = await import('../../utils/credentialHelpers');
       
       const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
       const { mapping: credentialsMapping } = await buildCredentialsMapping({

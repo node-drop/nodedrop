@@ -14,9 +14,9 @@
  * @module services/ExecutionEventPublisher
  */
 
-import { getRedisClient, RedisClient } from "../config/redis";
-import { logger } from "../utils/logger";
-import { ExecutionEventType } from "../types/execution.types";
+import { getRedisClient, RedisClient } from "../../config/redis";
+import { logger } from "../../utils/logger";
+import { ExecutionEventType } from "../../types/execution.types";
 
 /**
  * Redis Pub/Sub channel name for execution events

@@ -7,8 +7,8 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { executionServiceDrizzle } from "../services/ExecutionService.factory";
-import ExecutionHistoryService from "../services/ExecutionHistoryService";
+import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
 import { workflowService } from "../services/WorkflowService";
 import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQuerySchema } from "../types/api";
 import { logger } from "../utils/logger";

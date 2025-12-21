@@ -15,11 +15,11 @@
  */
 
 import Bull, { Job, Queue } from "bull";
-import { db } from "../db/client";
-import { executions, nodeExecutions } from "../db/schema/executions";
+import { db } from "../../db/client";
+import { executions, nodeExecutions } from "../../db/schema/executions";
 import { eq } from "drizzle-orm";
-import { logger } from "../utils/logger";
-import { ExecutionStatus, NodeExecutionStatus } from "../types/database";
+import { logger } from "../../utils/logger";
+import { ExecutionStatus, NodeExecutionStatus } from "../../types/database";
 import {
   ExecutionStateStore,
   getExecutionStateStore,
@@ -36,11 +36,11 @@ import {
   ExecutionJobData,
   getExecutionQueueService,
 } from "./ExecutionQueueService";
-import { NodeService } from "./NodeService";
+import { NodeService } from "../NodeService";
 import {
   buildCredentialsMapping,
   extractCredentialProperties,
-} from "../utils/credentialHelpers";
+} from "../../utils/credentialHelpers";
 
 /**
  * Worker status interface

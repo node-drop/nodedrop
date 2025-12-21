@@ -16,10 +16,10 @@
 
 import Bull, { Queue, Job, JobOptions } from "bull";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../db/client";
-import { executions } from "../db/schema/executions";
+import { db } from "../../db/client";
+import { executions } from "../../db/schema/executions";
 import { eq } from "drizzle-orm";
-import { logger } from "../utils/logger";
+import { logger } from "../../utils/logger";
 import {
   ExecutionStateStore,
   getExecutionStateStore,
@@ -27,7 +27,7 @@ import {
   WorkflowConnection,
   QueueExecutionContext,
 } from "./ExecutionStateStore";
-import { ExecutionStatus } from "../types/database";
+import { ExecutionStatus } from "../../types/database";
 
 /**
  * Queue statistics interface
