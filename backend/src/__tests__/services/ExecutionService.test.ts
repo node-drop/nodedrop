@@ -1,4 +1,4 @@
-import { ExecutionService } from '../../services/ExecutionService';
+import { ExecutionService } from '../../services/ExecutionService.factory';
 import { NodeService } from '../../services/NodeService';
 import { ExecutionEngine } from '../../services/ExecutionEngine';
 import {
@@ -18,11 +18,25 @@ const mockDb = {
     executions: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
+      delete: jest.fn()
     },
     nodeExecutions: {
       findFirst: jest.fn()
+    }
   }
 } as any;
+
+// Alias for backward compatibility with tests
+const mockPrisma = {
+  execution: {
+    findFirst: mockDb.query.executions.findFirst,
+    findMany: mockDb.query.executions.findMany,
+    count: mockDb.query.executions.count,
+    delete: mockDb.query.executions.delete
+  },
+  nodeExecution: mockDb.query.nodeExecutions
+};
 
 const mockNodeService = {
   executeNode: jest.fn()

@@ -12,6 +12,13 @@ const mockDb = {
   }
 };
 
+// Alias for backward compatibility with tests
+const mockPrisma = {
+  workflow: {
+    findUnique: mockDb.query.workflows.findUnique
+  }
+};
+
 // Mock NodeService
 const mockNodeService = {
   executeNode: jest.fn()

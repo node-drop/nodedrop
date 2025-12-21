@@ -460,6 +460,95 @@ router.get(
   })
 );
 
+// GET /api/executions/queue/failed - Get failed jobs from the queue
+router.get(
+  "/queue/failed",
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { start = 0, limit = 10 } = req.query as any;
+    const startIndex = parseInt(start.toString(), 10);
+    const endIndex = startIndex + parseInt(limit.toString(), 10);
+
+    const result = await getExecutionService().getFailedJobs(startIndex, endIndex);
+
+    if (!result) {
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          jobs: [],
+          total: 0,
+          message: "Queue service not available",
+        },
+      };
+      return res.json(response);
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      pagination: {
+        start: startIndex,
+        limit: parseInt(limit.toString(), 10),
+        total: result.total,
+      },
+    };
+
+    res.json(response);
+  })
+);
+
+// POST /api/executions/queue/failed/:id/retry - Retry a failed job
+router.post(
+  "/queue/failed/:id/retry",
+  requireAuth,
+  requireWorkspace,
+  validateParams(IdParamSchema),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const result = await getExecutionService().retryFailedJob(
+      req.params.id,
+      req.user!.id
+    );
+
+    if (!result.success) {
+      const errorMessage = result.error?.message || "Failed to retry job";
+      const statusCode = errorMessage.includes("not found") ? 404 : 400;
+      throw new AppError(errorMessage, statusCode, "RETRY_FAILED_JOB_ERROR");
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: result.data,
+    };
+
+    res.status(201).json(response);
+  })
+);
+
+// GET /api/executions/queue/stats - Get queue statistics
+router.get(
+  "/queue/stats",
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const stats = await getExecutionService().getQueueStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats || {
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        message: "Queue service not available",
+      },
+    };
+
+    res.json(response);
+  })
+);
+
 export { router as executionRoutes };
 
 

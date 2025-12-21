@@ -28,17 +28,34 @@ const mockDb = {
     executions: {
       create: jest.fn(),
       update: jest.fn(),
-    findUnique: jest.fn(),
-    count: jest.fn(),
-    aggregate: jest.fn()
-  },
-  nodeExecution: {
-    create: jest.fn(),
-    update: jest.fn(),
-    updateMany: jest.fn(),
-    findFirst: jest.fn()
+      findUnique: jest.fn(),
+      count: jest.fn(),
+      aggregate: jest.fn()
+    },
+    nodeExecution: {
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findFirst: jest.fn()
+    }
   }
 } as any;
+
+// Alias for backward compatibility with tests
+const mockPrisma = {
+  workflow: {
+    findFirst: mockDb.query.workflows.findFirst,
+    findUnique: mockDb.query.workflows.findUnique
+  },
+  execution: {
+    create: mockDb.query.executions.create,
+    update: mockDb.query.executions.update,
+    findUnique: mockDb.query.executions.findUnique,
+    count: mockDb.query.executions.count,
+    aggregate: mockDb.query.executions.aggregate
+  },
+  nodeExecution: mockDb.query.nodeExecution
+};
 
 const mockNodeService = {
   executeNode: jest.fn(),

@@ -1007,4 +1007,102 @@ export class ExecutionServiceDrizzle {
       return null;
     }
   }
+
+  /**
+   * Get failed jobs from the queue
+   * Returns jobs that have exhausted all retry attempts
+   * 
+   * @param start - Start index for pagination
+   * @param end - End index for pagination
+   * @returns Array of failed job information
+   */
+  async getFailedJobs(start: number = 0, end: number = 10): Promise<{
+    jobs: Array<{
+      id: string;
+      executionId: string;
+      workflowId: string;
+      failedReason: string;
+      attemptsMade: number;
+      timestamp: Date;
+      data: any;
+    }>;
+    total: number;
+  } | null> {
+    if (!this.isQueueAvailable() || !this.queueService) {
+      return null;
+    }
+
+    try {
+      const failedJobs = await this.queueService.getFailedJobs(start, end);
+      
+      const jobs = failedJobs.map((job) => ({
+        id: job.id?.toString() || '',
+        executionId: job.data.executionId,
+        workflowId: job.data.workflowId,
+        failedReason: job.failedReason || 'Unknown error',
+        attemptsMade: job.attemptsMade,
+        timestamp: new Date(job.timestamp),
+        data: {
+          triggerNodeId: job.data.triggerNodeId,
+          singleNodeMode: job.data.options?.singleNodeMode || false,
+          lastCompletedNodeId: job.data.lastCompletedNodeId,
+        },
+      }));
+
+      // Get total count of failed jobs
+      const stats = await this.queueService.getQueueStats();
+      const total = stats?.failed || jobs.length;
+
+      return { jobs, total };
+    } catch (error) {
+      logger.error("[ExecutionService] Failed to get failed jobs", { error });
+      return null;
+    }
+  }
+
+  /**
+   * Retry a failed job from the queue
+   * Creates a new execution that resumes from the last completed node
+   * 
+   * @param executionId - The execution ID of the failed job to retry
+   * @param userId - The user ID requesting the retry
+   * @returns The new execution ID
+   */
+  async retryFailedJob(
+    executionId: string,
+    userId: string
+  ): Promise<{ success: boolean; data?: { newExecutionId: string }; error?: any }> {
+    if (!this.isQueueAvailable() || !this.queueService) {
+      return {
+        success: false,
+        error: { message: 'Queue service not available' },
+      };
+    }
+
+    try {
+      const newExecutionId = await this.queueService.retryExecution(executionId);
+      
+      logger.info("[ExecutionService] Retried failed job", {
+        originalExecutionId: executionId,
+        newExecutionId,
+        userId,
+      });
+
+      return {
+        success: true,
+        data: { newExecutionId },
+      };
+    } catch (error) {
+      logger.error("[ExecutionService] Failed to retry failed job", {
+        executionId,
+        error,
+      });
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+      };
+    }
+  }
 }

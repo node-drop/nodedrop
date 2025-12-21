@@ -1,0 +1,64 @@
+# Docker Compose configuration for scaling execution workers
+#
+# This file provides an optional worker service that can be scaled independently
+# of the main nodedrop service for handling workflow executions.
+#
+# Usage:
+#   # Start with workers (default 1 worker)
+#   docker compose -f docker-compose.yml -f docker-compose.workers.yml up -d
+#
+#   # Scale workers to 3 instances
+#   docker compose -f docker-compose.yml -f docker-compose.workers.yml up -d --scale nodedrop-worker=3
+#
+#   # Scale workers dynamically
+#   docker compose -f docker-compose.yml -f docker-compose.workers.yml scale nodedrop-worker=5
+#
+# Environment Variables:
+#   EXECUTION_WORKER_CONCURRENCY - Number of concurrent jobs per worker (default: 5)
+#   EXECUTION_STATE_TTL - TTL for active execution state in seconds (default: 86400 = 24 hours)
+#   EXECUTION_COMPLETION_TTL - TTL for completed execution state in seconds (default: 3600 = 1 hour)
+#
+# Scaling Guidelines:
+#   - Each worker can handle EXECUTION_WORKER_CONCURRENCY concurrent workflow executions
+#   - Total capacity = number_of_workers × EXECUTION_WORKER_CONCURRENCY
+#   - Example: 3 workers × 5 concurrency = 15 concurrent workflow executions
+#   - Monitor Redis memory usage when scaling up
+#   - Consider database connection pool limits when scaling
+
+services:
+  nodedrop-worker:
+    image: ghcr.io/node-drop/nodedrop:${NODEDROP_VERSION:-latest}
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/node_drop
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CREDENTIAL_ENCRYPTION_KEY=${CREDENTIAL_ENCRYPTION_KEY}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - NODE_OPTIONS=--max-old-space-size=1024
+      # Execution Queue Configuration
+      - EXECUTION_WORKER_CONCURRENCY=${EXECUTION_WORKER_CONCURRENCY:-5}
+      - EXECUTION_STATE_TTL=${EXECUTION_STATE_TTL:-86400}
+      - EXECUTION_COMPLETION_TTL=${EXECUTION_COMPLETION_TTL:-3600}
+      # Worker mode - only process queue jobs, don't serve HTTP
+      - WORKER_MODE=true
+    volumes:
+      - custom_nodes_data:/app/custom-nodes:ro
+      - temp_data:/app/temp
+      - logs_data:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nodedrop:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+      # Default replicas (can be overridden with --scale)
+      replicas: 1

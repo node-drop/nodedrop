@@ -87,14 +87,29 @@ const REDIS_KEYS = {
 } as const;
 
 /**
- * TTL values in seconds
+ * Default TTL values in seconds
  */
-const TTL = {
+const DEFAULT_TTL = {
   /** Default TTL for active executions: 24 hours */
   DEFAULT: 24 * 60 * 60,
   /** TTL after completion: 1 hour */
   COMPLETION: 60 * 60,
 } as const;
+
+/**
+ * Get TTL values from environment variables or use defaults
+ */
+const getTTL = () => ({
+  /** TTL for active executions (from EXECUTION_STATE_TTL env var or default 24 hours) */
+  DEFAULT: parseInt(process.env.EXECUTION_STATE_TTL || String(DEFAULT_TTL.DEFAULT), 10) || DEFAULT_TTL.DEFAULT,
+  /** TTL after completion (from EXECUTION_COMPLETION_TTL env var or default 1 hour) */
+  COMPLETION: parseInt(process.env.EXECUTION_COMPLETION_TTL || String(DEFAULT_TTL.COMPLETION), 10) || DEFAULT_TTL.COMPLETION,
+});
+
+/**
+ * TTL values - computed from environment variables
+ */
+const TTL = getTTL();
 
 
 /**

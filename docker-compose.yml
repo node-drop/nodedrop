@@ -52,6 +52,10 @@ services:
       - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
       - INSTALL_DIR=/host-compose
       - DB_SSL_REJECT_UNAUTHORIZED=false
+      # Execution Queue Configuration
+      - EXECUTION_WORKER_CONCURRENCY=${EXECUTION_WORKER_CONCURRENCY:-5}
+      - EXECUTION_STATE_TTL=${EXECUTION_STATE_TTL:-86400}
+      - EXECUTION_COMPLETION_TTL=${EXECUTION_COMPLETION_TTL:-3600}
     volumes:
       - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp

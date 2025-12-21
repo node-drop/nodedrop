@@ -1,7 +1,7 @@
 import prisma from '../../config/database';
-import { ExecutionService } from '../../services/ExecutionService';
+import { ExecutionService } from '../../services/ExecutionService.factory';
 import { NodeService } from '../../services/NodeService';
-import { WorkflowService } from '../../services/WorkflowService';
+import { WorkflowService } from '../../services/WorkflowService.drizzle';
 import {
     ExecutionStatus,
     NodeExecutionStatus
