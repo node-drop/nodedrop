@@ -106,6 +106,109 @@ router.get(
   })
 );
 
+// GET /api/nodes/:type/icon - Serve custom node or credential icon files
+// IMPORTANT: This must come BEFORE the /:type route to match correctly
+router.get(
+  "/:type/icon",
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { type } = req.params;
+
+    // Validate node type to prevent path traversal attacks
+    if (!type || !/^[a-zA-Z0-9-_]+$/.test(type)) {
+      return res.status(400).json({ error: "Invalid node type" });
+    }
+
+    try {
+      // Get the node schema to find its icon path
+      const nodeSchema = await getNodeService().getNodeSchema(type);
+
+      if (!nodeSchema || !nodeSchema.icon) {
+        return res.status(404).json({ error: "Icon not found" });
+      }
+
+      // Check if icon is a file reference (e.g., "file:postgres.svg")
+      if (!nodeSchema.icon.startsWith("file:")) {
+        return res.status(400).json({ error: "Icon is not a file reference" });
+      }
+
+      // Extract filename from icon reference
+      const iconFileName = nodeSchema.icon.replace("file:", "");
+
+      // Find the node's directory in custom-nodes
+      // __dirname is /app/backend/dist/routes, so ../../custom-nodes = /app/backend/custom-nodes
+      const customNodesDir = path.join(__dirname, "../../custom-nodes");
+
+      // Extract base folder name from node type (e.g., "slack-message" -> "slack")
+      // This handles cases where node names have suffixes like -tool, -message, -trigger
+      const baseFolder = type.split('-')[0];
+
+      // Look for the icon file in the node's directory
+      // The structure is: custom-nodes/{node-package}/nodes/{icon-file}
+      // Also check credentials folder: custom-nodes/{node-package}/credentials/{icon-file}
+      const possiblePaths = [
+        // Try the base folder name first (e.g., "slack" for "slack-message")
+        path.join(customNodesDir, baseFolder, "nodes", iconFileName),
+        path.join(customNodesDir, baseFolder, "credentials", iconFileName),
+        path.join(customNodesDir, baseFolder, iconFileName),
+        // Try the full node type as directory name
+        path.join(customNodesDir, type, "nodes", iconFileName),
+        path.join(customNodesDir, type, "credentials", iconFileName),
+        path.join(customNodesDir, type, iconFileName),
+        // Try without hyphens
+        path.join(customNodesDir, type.replace(/-/g, ""), "nodes", iconFileName),
+        path.join(customNodesDir, type.replace(/-/g, ""), "credentials", iconFileName),
+      ];
+
+      let iconPath: string | null = null;
+      
+      // First try the direct paths
+      for (const possiblePath of possiblePaths) {
+        if (fs.existsSync(possiblePath)) {
+          iconPath = possiblePath;
+          break;
+        }
+      }
+
+      // If not found, search all custom-nodes packages
+      if (!iconPath && fs.existsSync(customNodesDir)) {
+        const packages = fs.readdirSync(customNodesDir, { withFileTypes: true });
+        for (const pkg of packages) {
+          if (pkg.isDirectory()) {
+            const pkgNodeIconPath = path.join(customNodesDir, pkg.name, "nodes", iconFileName);
+            const pkgCredIconPath = path.join(customNodesDir, pkg.name, "credentials", iconFileName);
+            if (fs.existsSync(pkgNodeIconPath)) {
+              iconPath = pkgNodeIconPath;
+              break;
+            }
+            if (fs.existsSync(pkgCredIconPath)) {
+              iconPath = pkgCredIconPath;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!iconPath) {
+        return res.status(404).json({
+          error: "Icon file not found",
+          searched: possiblePaths,
+        });
+      }
+
+      // Set appropriate content type for SVG
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+      //res.setHeader("Cross-Origin-Resource-Policy", "cross-origin"); // Allow cross-origin loading
+
+      // Send the file
+      res.sendFile(iconPath);
+    } catch (error) {
+      console.error("Error serving icon:", error);
+      res.status(500).json({ error: "Failed to serve icon" });
+    }
+  })
+);
+
 // GET /api/nodes/:type - Get node type details
 router.get(
   "/:type",
@@ -211,107 +314,6 @@ router.post(
     }
 
     res.json(response);
-  })
-);
-
-// GET /api/nodes/:type/icon - Serve custom node or credential icon files
-router.get(
-  "/:type/icon",
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { type } = req.params;
-
-    // Validate node type to prevent path traversal attacks
-    if (!type || !/^[a-zA-Z0-9-_]+$/.test(type)) {
-      return res.status(400).json({ error: "Invalid node type" });
-    }
-
-    try {
-      // Get the node schema to find its icon path
-      const nodeSchema = await getNodeService().getNodeSchema(type);
-
-      if (!nodeSchema || !nodeSchema.icon) {
-        return res.status(404).json({ error: "Icon not found" });
-      }
-
-      // Check if icon is a file reference (e.g., "file:postgres.svg")
-      if (!nodeSchema.icon.startsWith("file:")) {
-        return res.status(400).json({ error: "Icon is not a file reference" });
-      }
-
-      // Extract filename from icon reference
-      const iconFileName = nodeSchema.icon.replace("file:", "");
-
-      // Find the node's directory in custom-nodes
-      const customNodesDir = path.join(__dirname, "../../custom-nodes");
-
-      // Extract base folder name from node type (e.g., "slack-message" -> "slack")
-      // This handles cases where node names have suffixes like -tool, -message, -trigger
-      const baseFolder = type.split('-')[0];
-
-      // Look for the icon file in the node's directory
-      // The structure is: custom-nodes/{node-package}/nodes/{icon-file}
-      // Also check credentials folder: custom-nodes/{node-package}/credentials/{icon-file}
-      const possiblePaths = [
-        // Try the base folder name first (e.g., "slack" for "slack-message")
-        path.join(customNodesDir, baseFolder, "nodes", iconFileName),
-        path.join(customNodesDir, baseFolder, "credentials", iconFileName),
-        path.join(customNodesDir, baseFolder, iconFileName),
-        // Try the full node type as directory name
-        path.join(customNodesDir, type, "nodes", iconFileName),
-        path.join(customNodesDir, type, "credentials", iconFileName),
-        path.join(customNodesDir, type, iconFileName),
-        // Try without hyphens
-        path.join(customNodesDir, type.replace(/-/g, ""), "nodes", iconFileName),
-        path.join(customNodesDir, type.replace(/-/g, ""), "credentials", iconFileName),
-      ];
-
-      let iconPath: string | null = null;
-      
-      // First try the direct paths
-      for (const possiblePath of possiblePaths) {
-        if (fs.existsSync(possiblePath)) {
-          iconPath = possiblePath;
-          break;
-        }
-      }
-
-      // If not found, search all custom-nodes packages
-      if (!iconPath && fs.existsSync(customNodesDir)) {
-        const packages = fs.readdirSync(customNodesDir, { withFileTypes: true });
-        for (const pkg of packages) {
-          if (pkg.isDirectory()) {
-            const pkgNodeIconPath = path.join(customNodesDir, pkg.name, "nodes", iconFileName);
-            const pkgCredIconPath = path.join(customNodesDir, pkg.name, "credentials", iconFileName);
-            if (fs.existsSync(pkgNodeIconPath)) {
-              iconPath = pkgNodeIconPath;
-              break;
-            }
-            if (fs.existsSync(pkgCredIconPath)) {
-              iconPath = pkgCredIconPath;
-              break;
-            }
-          }
-        }
-      }
-
-      if (!iconPath) {
-        return res.status(404).json({
-          error: "Icon file not found",
-          searched: possiblePaths,
-        });
-      }
-
-      // Set appropriate content type for SVG
-      res.setHeader("Content-Type", "image/svg+xml");
-      res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
-      //res.setHeader("Cross-Origin-Resource-Policy", "cross-origin"); // Allow cross-origin loading
-
-      // Send the file
-      res.sendFile(iconPath);
-    } catch (error) {
-      console.error("Error serving icon:", error);
-      res.status(500).json({ error: "Failed to serve icon" });
-    }
   })
 );
 

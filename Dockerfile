@@ -27,7 +27,8 @@ WORKDIR /app/frontend
 COPY frontend/ ./
 
 # Build frontend (Vite)
-ARG VITE_API_URL=http://localhost:5678
+# Use relative URL so it works in any environment (localhost, production domain, etc.)
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
@@ -105,6 +106,9 @@ COPY --from=backend-builder /app/backend/src/db/migrations ./backend/dist/db/mig
 COPY --from=backend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-builder /app/packages ./packages
+
+# Copy custom nodes
+COPY --from=backend-builder /app/backend/custom-nodes ./backend/custom-nodes
 
 # Copy frontend built files to backend/public directory
 COPY --from=frontend-builder /app/frontend/dist ./backend/public
