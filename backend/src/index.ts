@@ -418,10 +418,17 @@ app.get("/health", async (req, res) => {
       workerStatus = global.executionWorker.getStatus();
     }
 
+    // Get Redis adapter status
+    const adapterStatus = socketService.getAdapterStatus();
+
     // Determine overall status
-    // Degraded if queue is unhealthy but other services are ok
+    // Degraded if queue is unhealthy, adapter is enabled but disconnected, or worker is not running
     let overallStatus = "ok";
     if (queueStatus === "error" || (workerStatus && !workerStatus.isRunning)) {
+      overallStatus = "degraded";
+    }
+    // Check if adapter is enabled but disconnected
+    if (adapterStatus.enabled && !adapterStatus.connected) {
       overallStatus = "degraded";
     }
 
@@ -433,6 +440,11 @@ app.get("/health", async (req, res) => {
       hot_reload: "BACKEND HOT RELOAD WORKING!",
       websocket: {
         connected_users: socketService.getConnectedUsersCount(),
+        adapter: {
+          enabled: adapterStatus.enabled,
+          connected: adapterStatus.connected,
+          ...(adapterStatus.error && { error: adapterStatus.error }),
+        },
       },
       nodes: {
         registered_count: nodeTypes.length,
@@ -450,12 +462,28 @@ app.get("/health", async (req, res) => {
       } : null,
     });
   } catch (error) {
+    // Even in error case, try to get adapter status
+    let adapterStatus = { enabled: false, connected: false };
+    try {
+      adapterStatus = socketService.getAdapterStatus();
+    } catch (adapterError) {
+      // Ignore adapter status errors in error handler
+    }
+
     res.status(500).json({
       status: "error",
       timestamp: new Date().toISOString(),
       service: "node-drop-backend",
       version: "1.0.0",
       error: "Failed to check node status",
+      websocket: {
+        connected_users: 0,
+        adapter: {
+          enabled: adapterStatus.enabled,
+          connected: adapterStatus.connected,
+          ...(adapterStatus.error && { error: adapterStatus.error }),
+        },
+      },
       nodes: {
         registered_count: 0,
         status: "error"

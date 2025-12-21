@@ -36,6 +36,7 @@
     "@anthropic-ai/sdk": "^0.65.0",
     "@nodedrop/types": "*",
     "@nodedrop/utils": "*",
+    "@socket.io/redis-adapter": "^8.3.0",
     "@types/multer": "^2.0.0",
     "abort-controller": "^3.0.0",
     "adm-zip": "^0.5.16",
@@ -56,6 +57,7 @@
     "express-rate-limit": "^8.1.0",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
+    "ioredis": "^5.8.2",
     "isolated-vm": "^6.0.1",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.20.0",
@@ -72,7 +74,6 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.20.14",
     "@types/adm-zip": "^0.5.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
@@ -87,6 +88,7 @@
     "@types/pg": "^8.16.0",
     "@types/supertest": "^2.0.16",
     "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.20.14",
     "fast-check": "^4.4.0",
     "jest": "^29.7.0",
     "supertest": "^6.3.4",

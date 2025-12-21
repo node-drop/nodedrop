@@ -614,10 +614,10 @@ export class TriggerService {
     console.log(`🔄 Activating schedule trigger ${trigger.id} with cron: ${cronExpression}`);
     logger.info(`🔄 Activating schedule trigger ${trigger.id} with cron: ${cronExpression}`);
 
-    // Get workflow for description
+    // Get workflow for description and workspaceId
     const workflows = await this.db.query.workflows.findFirst({
       where: eq(schema.workflows.id, trigger.workflowId),
-      columns: { name: true },
+      columns: { name: true, workspaceId: true },
     });
 
     // Check if trigger job already exists
@@ -644,6 +644,7 @@ export class TriggerService {
       // Create new record
       await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
+        workspaceId: workflows?.workspaceId || null,
         triggerId: trigger.id,
         type: 'schedule',
         jobKey: trigger.id,
@@ -698,10 +699,10 @@ export class TriggerService {
     console.log(`🔄 Activating polling trigger ${trigger.id} with interval ${pollInterval}s`);
     logger.info(`🔄 Activating polling trigger ${trigger.id} with interval ${pollInterval}s`);
 
-    // Get workflow for description
+    // Get workflow for description and workspaceId
     const workflows = await this.db.query.workflows.findFirst({
       where: eq(schema.workflows.id, trigger.workflowId),
-      columns: { name: true },
+      columns: { name: true, workspaceId: true },
     });
 
     // Check if trigger job already exists
@@ -728,6 +729,7 @@ export class TriggerService {
       // Create new record
       await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
+        workspaceId: workflows?.workspaceId || null,
         triggerId: trigger.id,
         type: 'polling',
         jobKey: trigger.id,
@@ -796,6 +798,7 @@ export class TriggerService {
           // Create new record if it doesn't exist
           await this.db.insert(schema.triggerJobs).values({
             workflowId: trigger.workflowId,
+            workspaceId: workflows?.workspaceId || null,
             triggerId: trigger.id,
             type: 'polling',
             jobKey: trigger.id,
