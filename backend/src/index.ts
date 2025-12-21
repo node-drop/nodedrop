@@ -43,11 +43,14 @@ import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import ExecutionHistoryService from "./services/ExecutionHistoryService";
 import { executionServiceDrizzle } from "./services/ExecutionService.factory";
+import { ExecutionEventBridge, createExecutionEventBridge } from "./services/ExecutionEventBridge";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
 import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
+import { getExecutionQueueService, ExecutionQueueService } from "./services/ExecutionQueueService";
+import { getExecutionWorker, ExecutionWorker } from "./services/ExecutionWorker";
 
 // Import database after dotenv is loaded
 import { db, checkDatabaseConnection, disconnectDatabase } from "./db/client";
@@ -265,6 +268,9 @@ declare global {
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
   var triggerService: any;
+  var executionEventBridge: ExecutionEventBridge;
+  var executionQueueService: ExecutionQueueService;
+  var executionWorker: ExecutionWorker;
   var db: any;
 }
 global.socketService = socketService;
@@ -391,8 +397,36 @@ app.use((req, res, next) => {
 app.get("/health", async (req, res) => {
   try {
     const nodeTypes = await nodeService.getNodeTypes();
+    
+    // Get queue statistics if available
+    let queueStats = null;
+    let queueStatus = "not_initialized";
+    
+    if (global.executionQueueService && global.executionQueueService.isConnected()) {
+      try {
+        queueStats = await global.executionQueueService.getQueueStats();
+        queueStatus = "ok";
+      } catch (queueError) {
+        queueStatus = "error";
+        logger.error("Failed to get queue stats for health check", { error: queueError });
+      }
+    }
+
+    // Get worker status if available
+    let workerStatus = null;
+    if (global.executionWorker) {
+      workerStatus = global.executionWorker.getStatus();
+    }
+
+    // Determine overall status
+    // Degraded if queue is unhealthy but other services are ok
+    let overallStatus = "ok";
+    if (queueStatus === "error" || (workerStatus && !workerStatus.isRunning)) {
+      overallStatus = "degraded";
+    }
+
     res.status(200).json({
-      status: "ok",
+      status: overallStatus,
       timestamp: new Date().toISOString(),
       service: "node-drop-backend",
       version: "1.0.0",
@@ -404,6 +438,16 @@ app.get("/health", async (req, res) => {
         registered_count: nodeTypes.length,
         status: nodeTypes.length > 0 ? "ok" : "no_nodes_registered"
       },
+      queue: {
+        status: queueStatus,
+        stats: queueStats,
+      },
+      worker: workerStatus ? {
+        status: workerStatus.isRunning ? "running" : "stopped",
+        activeJobs: workerStatus.activeJobs,
+        processedJobs: workerStatus.processedJobs,
+        failedJobs: workerStatus.failedJobs,
+      } : null,
     });
   } catch (error) {
     res.status(500).json({
@@ -416,6 +460,11 @@ app.get("/health", async (req, res) => {
         registered_count: 0,
         status: "error"
       },
+      queue: {
+        status: "unknown",
+        stats: null,
+      },
+      worker: null,
     });
   }
 });
@@ -590,6 +639,36 @@ httpServer.listen(PORT, async () => {
   } catch (error) {
     console.error(`❌ Failed to initialize ScheduleJobManager:`, error);
   }
+
+  // Initialize ExecutionEventBridge for Redis Pub/Sub to WebSocket forwarding
+  try {
+    global.executionEventBridge = await createExecutionEventBridge(socketService);
+    console.log(`✅ Initialized execution event bridge (Redis -> WebSocket)`);
+  } catch (error) {
+    console.error(`❌ Failed to initialize ExecutionEventBridge:`, error);
+  }
+
+  // Initialize ExecutionQueueService for queue-based workflow execution
+  try {
+    global.executionQueueService = getExecutionQueueService();
+    await global.executionQueueService.initialize();
+    console.log(`✅ Initialized execution queue service`);
+  } catch (error) {
+    console.error(`❌ Failed to initialize ExecutionQueueService:`, error);
+    // Don't throw - allow fallback to direct execution
+  }
+
+  // Initialize ExecutionWorker for processing queued jobs
+  try {
+    global.executionWorker = getExecutionWorker();
+    await global.executionWorker.initialize(nodeService);
+    await global.executionWorker.start();
+    const workerStatus = global.executionWorker.getStatus();
+    console.log(`✅ Initialized execution worker (running: ${workerStatus.isRunning})`);
+  } catch (error) {
+    console.error(`❌ Failed to initialize ExecutionWorker:`, error);
+    // Don't throw - allow fallback to direct execution
+  }
 });
 
 // Memory monitoring to detect leaks
@@ -635,6 +714,21 @@ process.on("SIGTERM", async () => {
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
   
+  // Stop execution event bridge
+  if (global.executionEventBridge) {
+    await global.executionEventBridge.stop();
+  }
+
+  // Stop execution worker
+  if (global.executionWorker) {
+    await global.executionWorker.stop();
+  }
+
+  // Shutdown execution queue service
+  if (global.executionQueueService) {
+    await global.executionQueueService.shutdown();
+  }
+  
   // Drain connection pool before closing
   await drainConnectionPool(30000);
   await disconnectDatabase();
@@ -654,6 +748,21 @@ process.on("SIGINT", async () => {
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
+  
+  // Stop execution event bridge
+  if (global.executionEventBridge) {
+    await global.executionEventBridge.stop();
+  }
+
+  // Stop execution worker
+  if (global.executionWorker) {
+    await global.executionWorker.stop();
+  }
+
+  // Shutdown execution queue service
+  if (global.executionQueueService) {
+    await global.executionQueueService.shutdown();
+  }
   
   // Drain connection pool before closing
   const { drainConnectionPool } = await import('./db/client');

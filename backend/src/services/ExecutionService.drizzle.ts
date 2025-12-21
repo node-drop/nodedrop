@@ -24,6 +24,7 @@ import {
 import { logger } from '../utils/logger';
 import { RealtimeExecutionEngine } from './RealtimeExecutionEngine';
 import { NodeService } from './NodeService';
+import { getExecutionQueueService, ExecutionQueueService } from './ExecutionQueueService';
 
 /**
  * Options for workspace-scoped queries
@@ -35,14 +36,48 @@ interface WorkspaceQueryOptions {
 /**
  * ExecutionService with Drizzle ORM
  * Provides database operations for execution management
+ * 
+ * Supports two execution modes:
+ * - Direct execution (legacy): In-memory execution via RealtimeExecutionEngine
+ * - Queue execution: Redis-backed BullMQ queue for horizontal scaling
  */
 export class ExecutionServiceDrizzle {
   private realtimeEngine: RealtimeExecutionEngine;
   private nodeService: NodeService;
+  private queueService: ExecutionQueueService | null = null;
+  private queueInitialized: boolean = false;
 
   constructor() {
     this.nodeService = new NodeService();
     this.realtimeEngine = new RealtimeExecutionEngine(db as any, this.nodeService);
+  }
+
+  /**
+   * Initialize the queue service for queue-based execution
+   * Call this during application startup to enable queue mode
+   */
+  async initializeQueue(): Promise<void> {
+    if (this.queueInitialized) {
+      return;
+    }
+
+    try {
+      this.queueService = getExecutionQueueService();
+      await this.queueService.initialize();
+      this.queueInitialized = true;
+      logger.info("[ExecutionService] Queue service initialized");
+    } catch (error) {
+      logger.error("[ExecutionService] Failed to initialize queue service", { error });
+      // Don't throw - allow fallback to direct execution
+      this.queueService = null;
+    }
+  }
+
+  /**
+   * Check if queue service is available
+   */
+  isQueueAvailable(): boolean {
+    return this.queueInitialized && this.queueService !== null;
   }
   /**
    * Get execution by ID
@@ -531,6 +566,10 @@ export class ExecutionServiceDrizzle {
   /**
    * Execute a single node
    * Executes a node in isolation without waiting for upstream nodes
+   * 
+   * Supports two modes:
+   * - useQueue: true - Uses Redis-backed BullMQ queue for horizontal scaling
+   * - useQueue: false (default) - Direct in-memory execution for backward compatibility
    */
   async executeSingleNode(
     workflowId: string,
@@ -539,8 +578,10 @@ export class ExecutionServiceDrizzle {
     inputData?: any,
     parameters?: any,
     mode: string = 'single',
-    workflowData?: any
+    workflowData?: any,
+    options?: { useQueue?: boolean }
   ): Promise<{ data: any; error?: any }> {
+    const useQueue = options?.useQueue ?? false;
     const startTime = Date.now();
     
     try {
@@ -549,13 +590,16 @@ export class ExecutionServiceDrizzle {
         mode,
         hasInputData: !!inputData,
         hasParameters: !!parameters,
+        useQueue,
       });
 
       // Get workflow to find the node
       let workflowNodes: any[];
+      let workspaceId: string | null = null;
       
       if (workflowData && workflowData.nodes) {
         workflowNodes = workflowData.nodes;
+        workspaceId = workflowData.workspaceId || null;
       } else {
         const workflow = await db.query.workflows.findFirst({
           where: eq(workflows.id, workflowId),
@@ -566,6 +610,7 @@ export class ExecutionServiceDrizzle {
         }
 
         workflowNodes = (workflow.nodes as any) || [];
+        workspaceId = (workflow as any).workspaceId || null;
       }
 
       // Find the specific node
@@ -574,6 +619,39 @@ export class ExecutionServiceDrizzle {
         throw new Error(`Node ${nodeId} not found in workflow`);
       }
 
+      // If queue mode is requested and queue is available, use queue-based execution
+      if (useQueue && this.isQueueAvailable() && this.queueService) {
+        logger.info("[ExecutionService] Using queue-based single node execution", {
+          workflowId,
+          nodeId,
+        });
+
+        const executionId = await this.queueService.createExecutionJob({
+          workflowId,
+          userId,
+          triggerNodeId: nodeId,
+          triggerData: inputData || {},
+          nodes: workflowNodes,
+          connections: [], // No connections for single node execution
+          options: {
+            saveToDatabase: false, // Don't save single node executions to database
+            workspaceId,
+            singleNodeMode: true,
+          },
+        });
+
+        // For queue-based single node execution, return immediately with execution ID
+        // The actual result will be delivered via WebSocket
+        return {
+          data: {
+            executionId,
+            status: 'started',
+            mode: 'queue',
+          },
+        };
+      }
+
+      // Direct execution (legacy mode)
       // Get node type info
       const nodeTypeInfo = await this.nodeService.getNodeSchema(node.type);
       if (!nodeTypeInfo) {
@@ -686,20 +764,27 @@ export class ExecutionServiceDrizzle {
 
   /**
    * Execute a workflow
+   * 
+   * Supports two modes:
+   * - useQueue: true - Uses Redis-backed BullMQ queue for horizontal scaling
+   * - useQueue: false (default) - Direct in-memory execution for backward compatibility
    */
   async executeWorkflow(
     workflowId: string,
     userId: string,
     triggerData?: any,
-    options?: ExecutionOptions,
+    options?: ExecutionOptions & { useQueue?: boolean },
     triggerNodeId?: string,
     workflowData?: any
   ): Promise<{ data: any; error?: any }> {
+    const useQueue = options?.useQueue ?? false;
+
     try {
       logger.info(`Executing workflow ${workflowId}`, {
         userId,
         hasTriggerData: !!triggerData,
         triggerNodeId,
+        useQueue,
       });
 
       // Get workflow to extract nodes and connections
@@ -725,7 +810,33 @@ export class ExecutionServiceDrizzle {
         throw new Error('No trigger node found in workflow');
       }
 
-      // Start execution via realtime engine
+      // If queue mode is requested and queue is available, use queue-based execution
+      if (useQueue && this.isQueueAvailable() && this.queueService) {
+        logger.info("[ExecutionService] Using queue-based execution", {
+          workflowId,
+          startNodeId,
+        });
+
+        const executionId = await this.queueService.createExecutionJob({
+          workflowId,
+          userId,
+          triggerNodeId: startNodeId,
+          triggerData: triggerData || {},
+          nodes,
+          connections,
+          options: {
+            saveToDatabase: true,
+            workspaceId: (workflow as any).workspaceId || null,
+            singleNodeMode: false,
+          },
+        });
+
+        return {
+          data: { executionId, status: 'started' },
+        };
+      }
+
+      // Start execution via realtime engine (direct mode)
       const executionId = await this.realtimeEngine.startExecution(
         workflowId,
         userId,
@@ -878,6 +989,22 @@ export class ExecutionServiceDrizzle {
           message: error instanceof Error ? error.message : 'Unknown error',
         },
       };
+    }
+  }
+
+  /**
+   * Get queue statistics (if queue is available)
+   */
+  async getQueueStats(): Promise<{ waiting: number; active: number; completed: number; failed: number; delayed: number } | null> {
+    if (!this.isQueueAvailable() || !this.queueService) {
+      return null;
+    }
+
+    try {
+      return await this.queueService.getQueueStats();
+    } catch (error) {
+      logger.error("[ExecutionService] Failed to get queue stats", { error });
+      return null;
     }
   }
 }

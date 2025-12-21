@@ -3,6 +3,10 @@
  * 
  * This engine executes workflows node-by-node with real-time WebSocket updates.
  * No blocking, no polling - pure event-driven execution.
+ * 
+ * Supports two execution modes:
+ * - Direct execution (legacy): In-memory execution for backward compatibility
+ * - Queue execution: Redis-backed BullMQ queue for horizontal scaling
  */
 
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -15,6 +19,7 @@ import { buildCredentialsMapping, extractCredentialProperties } from "../utils/c
 import { logger } from "../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { NodeService } from "./NodeService";
+import { getExecutionQueueService, ExecutionQueueService } from "./ExecutionQueueService";
 
 interface WorkflowNode {
     id: string;
@@ -49,12 +54,15 @@ interface ExecutionContext {
     currentNodeId?: string;
     saveToDatabase?: boolean; // Whether to save execution to database
     singleNodeMode?: boolean; // Whether this is a single node execution (skip upstream checks)
+    useQueue?: boolean; // Whether this execution is using the queue system
 }
 
 export class RealtimeExecutionEngine extends EventEmitter {
     private db: NodePgDatabase<typeof schema>;
     private nodeService: NodeService;
     private activeExecutions: Map<string, ExecutionContext> = new Map();
+    private queueService: ExecutionQueueService | null = null;
+    private queueInitialized: boolean = false;
     
     // Memory leak prevention
     private readonly MAX_ACTIVE_EXECUTIONS = 50;
@@ -63,6 +71,34 @@ export class RealtimeExecutionEngine extends EventEmitter {
         super();
         this.db = db;
         this.nodeService = nodeService;
+    }
+
+    /**
+     * Initialize the queue service for queue-based execution
+     * Call this during application startup to enable queue mode
+     */
+    async initializeQueue(): Promise<void> {
+        if (this.queueInitialized) {
+            return;
+        }
+
+        try {
+            this.queueService = getExecutionQueueService();
+            await this.queueService.initialize();
+            this.queueInitialized = true;
+            logger.info("[RealtimeExecution] Queue service initialized");
+        } catch (error) {
+            logger.error("[RealtimeExecution] Failed to initialize queue service", { error });
+            // Don't throw - allow fallback to direct execution
+            this.queueService = null;
+        }
+    }
+
+    /**
+     * Check if queue service is available
+     */
+    isQueueAvailable(): boolean {
+        return this.queueInitialized && this.queueService !== null;
     }
 
     /**
@@ -113,8 +149,77 @@ export class RealtimeExecutionEngine extends EventEmitter {
     /**
      * Start workflow execution (non-blocking)
      * Returns execution ID immediately and executes in background
+     * 
+     * Supports two modes:
+     * - useQueue: true - Uses Redis-backed BullMQ queue for horizontal scaling
+     * - useQueue: false (default) - Direct in-memory execution for backward compatibility
      */
     async startExecution(
+        workflowId: string,
+        userId: string,
+        triggerNodeId: string,
+        triggerData: any,
+        nodes: WorkflowNode[],
+        connections: WorkflowConnection[],
+        options?: { saveToDatabase?: boolean; workspaceId?: string | null; singleNodeMode?: boolean; useQueue?: boolean }
+    ): Promise<string> {
+        const useQueue = options?.useQueue ?? false;
+
+        // If queue mode is requested and queue is available, use queue-based execution
+        if (useQueue && this.isQueueAvailable() && this.queueService) {
+            logger.info("[RealtimeExecution] Using queue-based execution", {
+                workflowId,
+                triggerNodeId,
+            });
+
+            try {
+                const executionId = await this.queueService.createExecutionJob({
+                    workflowId,
+                    userId,
+                    triggerNodeId,
+                    triggerData,
+                    nodes,
+                    connections,
+                    options: {
+                        saveToDatabase: options?.saveToDatabase,
+                        workspaceId: options?.workspaceId,
+                        singleNodeMode: options?.singleNodeMode,
+                    },
+                });
+
+                // Emit execution started event for WebSocket notification
+                this.emit("execution-started", {
+                    executionId,
+                    workflowId,
+                    userId,
+                    timestamp: new Date(),
+                    useQueue: true,
+                });
+
+                return executionId;
+            } catch (error) {
+                logger.error("[RealtimeExecution] Queue execution failed, falling back to direct execution", { error });
+                // Fall through to direct execution
+            }
+        }
+
+        // Direct execution (legacy mode)
+        return this.startDirectExecution(
+            workflowId,
+            userId,
+            triggerNodeId,
+            triggerData,
+            nodes,
+            connections,
+            options
+        );
+    }
+
+    /**
+     * Start direct in-memory execution (legacy mode)
+     * Used when queue is not available or not requested
+     */
+    private async startDirectExecution(
         workflowId: string,
         userId: string,
         triggerNodeId: string,
@@ -1423,8 +1528,28 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
     /**
      * Cancel execution
+     * Supports both direct (in-memory) and queue-based executions
      */
     async cancelExecution(executionId: string): Promise<void> {
+        // First, try to cancel via queue if available
+        if (this.isQueueAvailable() && this.queueService) {
+            try {
+                await this.queueService.cancelExecution(executionId);
+                
+                this.emit("execution-cancelled", {
+                    executionId,
+                    timestamp: new Date(),
+                });
+
+                logger.info(`[RealtimeExecution] Queue execution ${executionId} cancelled`);
+                return;
+            } catch (error) {
+                // If queue cancellation fails, try direct cancellation
+                logger.warn(`[RealtimeExecution] Queue cancellation failed, trying direct cancellation`, { error });
+            }
+        }
+
+        // Direct execution cancellation
         const context = this.activeExecutions.get(executionId);
         if (!context) {
             throw new Error(`Execution ${executionId} not found`);
@@ -1457,5 +1582,21 @@ export class RealtimeExecutionEngine extends EventEmitter {
      */
     getExecutionStatus(executionId: string): ExecutionContext | undefined {
         return this.activeExecutions.get(executionId);
+    }
+
+    /**
+     * Get queue statistics (if queue is available)
+     */
+    async getQueueStats(): Promise<{ waiting: number; active: number; completed: number; failed: number; delayed: number } | null> {
+        if (!this.isQueueAvailable() || !this.queueService) {
+            return null;
+        }
+
+        try {
+            return await this.queueService.getQueueStats();
+        } catch (error) {
+            logger.error("[RealtimeExecution] Failed to get queue stats", { error });
+            return null;
+        }
     }
 }
