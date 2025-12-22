@@ -43,6 +43,7 @@ import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
 import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
+import { ExecutionListenerManager } from "./services/execution/ExecutionListenerManager";
 import { ExecutionQueueService, getExecutionQueueService } from "./services/execution/ExecutionQueueService";
 import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
 import { ExecutionWorker, getExecutionWorker } from "./services/execution/ExecutionWorker";
@@ -96,6 +97,9 @@ const executionService = executionServiceDrizzle;
 // Initialize RealtimeExecutionEngine (for WebSocket execution)
 const realtimeExecutionEngine = new RealtimeExecutionEngine(db as any, nodeService as any);
 
+// Initialize ExecutionListenerManager (for memory leak prevention)
+const executionListenerManager = new ExecutionListenerManager(realtimeExecutionEngine);
+
 // Initialize ErrorTriggerService (for workflow failure monitoring)
 const errorTriggerService = new ErrorTriggerService(db as any);
 
@@ -120,15 +124,16 @@ const scheduleJobManager = new ScheduleJobManager(
 );
 
 // Connect RealtimeExecutionEngine events to SocketService
-realtimeExecutionEngine.on("execution-started", (data) => {
+// Using named functions for proper cleanup
+function handleExecutionStarted(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "started",
     timestamp: data.timestamp,
   });
-});
+}
 
-realtimeExecutionEngine.on("node-started", (data) => {
+function handleNodeStarted(data: any) {
   logger.info('🔵 [RealtimeEngine] node-started event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
@@ -147,9 +152,9 @@ realtimeExecutionEngine.on("node-started", (data) => {
   logger.info('✅ [RealtimeEngine] node-started event broadcast', {
     nodeId: data.nodeId,
   });
-});
+}
 
-realtimeExecutionEngine.on("node-completed", (data) => {
+function handleNodeCompleted(data: any) {
   logger.info('🟢 [RealtimeEngine] node-completed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
@@ -172,9 +177,9 @@ realtimeExecutionEngine.on("node-completed", (data) => {
   logger.info('✅ [RealtimeEngine] node-completed event broadcast', {
     nodeId: data.nodeId,
   });
-});
+}
 
-realtimeExecutionEngine.on("node-failed", (data) => {
+function handleNodeFailed(data: any) {
   logger.error('🔴 [RealtimeEngine] node-failed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
@@ -195,18 +200,18 @@ realtimeExecutionEngine.on("node-failed", (data) => {
     nodeId: data.nodeId,
     error: data.error,
   });
-});
+}
 
-realtimeExecutionEngine.on("execution-completed", (data) => {
+function handleExecutionCompleted(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "completed",
     data: { duration: data.duration },
     timestamp: data.timestamp,
   });
-});
+}
 
-realtimeExecutionEngine.on("execution-failed", async (data) => {
+async function handleExecutionFailed(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "failed",
@@ -234,18 +239,17 @@ realtimeExecutionEngine.on("execution-failed", async (data) => {
   } catch (errorTriggerError) {
     logger.error("Failed to fire error triggers:", errorTriggerError);
   }
-});
+}
 
-realtimeExecutionEngine.on("execution-cancelled", (data) => {
+function handleExecutionCancelled(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "cancelled",
     timestamp: data.timestamp,
   });
-});
+}
 
-// Listen for execution-log events (tool calls, service calls, etc.)
-realtimeExecutionEngine.on("execution-log", (logEntry) => {
+function handleExecutionLog(logEntry: any) {
   logger.debug('📝 [RealtimeEngine] execution-log event received', {
     executionId: logEntry.executionId,
     nodeId: logEntry.nodeId,
@@ -254,7 +258,17 @@ realtimeExecutionEngine.on("execution-log", (logEntry) => {
   });
   
   socketService.broadcastExecutionLog(logEntry.executionId, logEntry);
-});
+}
+
+// Register global event handlers (these stay for the lifetime of the app)
+realtimeExecutionEngine.on("execution-started", handleExecutionStarted);
+realtimeExecutionEngine.on("node-started", handleNodeStarted);
+realtimeExecutionEngine.on("node-completed", handleNodeCompleted);
+realtimeExecutionEngine.on("node-failed", handleNodeFailed);
+realtimeExecutionEngine.on("execution-completed", handleExecutionCompleted);
+realtimeExecutionEngine.on("execution-failed", handleExecutionFailed);
+realtimeExecutionEngine.on("execution-cancelled", handleExecutionCancelled);
+realtimeExecutionEngine.on("execution-log", handleExecutionLog);
 
 // Make services available globally for other services
 declare global {
@@ -264,6 +278,7 @@ declare global {
   var credentialService: any;
   var executionService: ExecutionService;
   var realtimeExecutionEngine: RealtimeExecutionEngine;
+  var executionListenerManager: ExecutionListenerManager;
   var errorTriggerService: ErrorTriggerService;
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
@@ -279,6 +294,7 @@ global.nodeService = nodeService;
 global.credentialService = credentialService as any;
 global.executionService = executionService;
 global.realtimeExecutionEngine = realtimeExecutionEngine;
+global.executionListenerManager = executionListenerManager;
 global.errorTriggerService = errorTriggerService;
 global.workflowService = workflowService;
 global.scheduleJobManager = scheduleJobManager;
@@ -421,6 +437,9 @@ app.get("/health", async (req, res) => {
     // Get Redis adapter status
     const adapterStatus = socketService.getAdapterStatus();
 
+    // Get listener manager stats
+    const listenerStats = executionListenerManager.getStats();
+
     // Determine overall status
     // Degraded if queue is unhealthy, adapter is enabled but disconnected, or worker is not running
     let overallStatus = "ok";
@@ -429,6 +448,10 @@ app.get("/health", async (req, res) => {
     }
     // Check if adapter is enabled but disconnected
     if (adapterStatus.enabled && !adapterStatus.connected) {
+      overallStatus = "degraded";
+    }
+    // Check for excessive listeners (potential memory leak)
+    if (listenerStats.totalListeners > 500) {
       overallStatus = "degraded";
     }
 
@@ -460,6 +483,12 @@ app.get("/health", async (req, res) => {
         processedJobs: workerStatus.processedJobs,
         failedJobs: workerStatus.failedJobs,
       } : null,
+      listeners: {
+        activeExecutions: listenerStats.activeExecutions,
+        totalListeners: listenerStats.totalListeners,
+        oldestListenerAge: listenerStats.oldestListenerAge,
+        status: listenerStats.totalListeners > 500 ? "high" : "ok",
+      },
     });
   } catch (error) {
     // Even in error case, try to get adapter status
@@ -493,6 +522,12 @@ app.get("/health", async (req, res) => {
         stats: null,
       },
       worker: null,
+      listeners: {
+        activeExecutions: 0,
+        totalListeners: 0,
+        oldestListenerAge: null,
+        status: "unknown",
+      },
     });
   }
 });
@@ -722,10 +757,12 @@ setInterval(() => {
     const activeExecutions = (realtimeExecutionEngine as any).activeExecutions?.size || 0;
     const connectedSockets = socketService.getConnectedUsersCount();
     const eventBufferSize = (socketService as any).executionEventBuffer?.size || 0;
+    const listenerStats = executionListenerManager.getStats();
     
     console.log(`  Active executions: ${activeExecutions}`);
     console.log(`  Connected sockets: ${connectedSockets}`);
     console.log(`  Event buffer size: ${eventBufferSize}`);
+    console.log(`  Event listeners: ${listenerStats.totalListeners} (${listenerStats.activeExecutions} executions)`);
     
     // Force garbage collection if available
     if (global.gc) {
@@ -738,6 +775,9 @@ setInterval(() => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("SIGTERM received, shutting down gracefully...");
+  
+  // Cleanup listener manager first
+  executionListenerManager.cleanupAll();
   
   // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();
@@ -776,6 +816,9 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   console.log("SIGINT received, shutting down gracefully...");
+  
+  // Cleanup listener manager first
+  executionListenerManager.cleanupAll();
   
   // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();

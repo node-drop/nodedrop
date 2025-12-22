@@ -403,3 +403,211 @@ await engine.startExecution(workflowId, userId, triggerNodeId, data, {
   useQueue: true
 });
 ```
+
+```
+## ExecutionListenerManager
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Application Startup                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              RealtimeExecutionEngine (EventEmitter)          │
+│                                                              │
+│  Event: "execution-started"    → [handleExecutionStarted]   │
+│  Event: "node-started"         → [handleNodeStarted]        │
+│  Event: "node-completed"       → [handleNodeCompleted]      │
+│  Event: "node-failed"          → [handleNodeFailed]         │
+│  Event: "execution-completed"  → [handleExecutionCompleted] │
+│  Event: "execution-failed"     → [handleExecutionFailed]    │
+│  Event: "execution-cancelled"  → [handleExecutionCancelled] │
+│  Event: "execution-log"        → [handleExecutionLog]       │
+│                                                              │
+│  ✅ Named functions (can be removed)                        │
+│  ✅ Global listeners (application lifetime)                 │
+│  ✅ Stable listener count                                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              ExecutionListenerManager                        │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Execution: exec_123                                 │  │
+│  │  Listeners: [onNodeStarted, onNodeCompleted, ...]   │  │
+│  │  Registered: 2024-12-22 10:30:00                     │  │
+│  │  Cleanup: () => removeAllListeners()                 │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Execution: exec_456                                 │  │
+│  │  Listeners: [onNodeStarted, onNodeCompleted, ...]   │  │
+│  │  Registered: 2024-12-22 10:31:00                     │  │
+│  │  Cleanup: () => removeAllListeners()                 │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ✅ Per-execution tracking                                  │
+│  ✅ Automatic cleanup (every 60s)                           │
+│  ✅ Stale listener removal (>1 hour)                        │
+│  ✅ Statistics and monitoring                               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ✅ No Memory Leak ✅
+              (Listeners cleaned up properly)
+```
+
+## Event Flow
+
+### Execution Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    1. Execution Starts                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  RealtimeExecutionEngine.startExecution()                    │
+│  • Creates execution context                                 │
+│  • Emits "execution-started" event                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Global Listener: handleExecutionStarted()                   │
+│  • Broadcasts to WebSocket clients                           │
+│  • Stays registered (global listener)                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    2. Node Execution                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  RealtimeExecutionEngine.executeNode()                       │
+│  • Emits "node-started" event                                │
+│  • Executes node logic                                       │
+│  • Emits "node-completed" or "node-failed" event             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Global Listeners: handleNode*()                             │
+│  • Broadcasts to WebSocket clients                           │
+│  • Logs execution progress                                   │
+│  • Stays registered (global listener)                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 3. Execution Completes                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  RealtimeExecutionEngine.completeExecution()                 │
+│  • Emits "execution-completed" event                         │
+│  • Removes execution from activeExecutions map               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Global Listener: handleExecutionCompleted()                 │
+│  • Broadcasts to WebSocket clients                           │
+│  • Stays registered (global listener)                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ExecutionListenerManager (if used)                          │
+│  • Cleanup per-execution listeners                           │
+│  • Remove from tracking map                                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Listener Cleanup Strategy
+
+### Global Listeners (Application Lifetime)
+
+```
+Application Start
+      │
+      ▼
+Register Global Listeners
+  • handleExecutionStarted
+  • handleNodeStarted
+  • handleNodeCompleted
+  • handleNodeFailed
+  • handleExecutionCompleted
+  • handleExecutionFailed
+  • handleExecutionCancelled
+  • handleExecutionLog
+      │
+      │ (Stay registered)
+      │
+      ▼
+Application Shutdown (SIGTERM/SIGINT)
+      │
+      ▼
+executionListenerManager.cleanupAll()
+      │
+      ▼
+realtimeExecutionEngine.removeAllListeners()
+      │
+      ▼
+Process Exit
+```
+
+### Per-Execution Listeners (Temporary)
+
+```
+Execution Starts
+      │
+      ▼
+executionListenerManager.registerExecutionListeners()
+  • Creates wrapped handlers
+  • Stores in tracking map
+  • Returns cleanup function
+      │
+      │ (Active during execution)
+      │
+      ▼
+Execution Completes/Fails/Cancelled
+      │
+      ▼
+cleanup() called
+      │
+      ▼
+executionListenerManager.cleanupExecution()
+  • Removes all listeners for this execution
+  • Deletes from tracking map
+      │
+      ▼
+Listeners Garbage Collected
+```
+
+### Automatic Stale Cleanup
+
+```
+Every 60 seconds
+      │
+      ▼
+executionListenerManager.cleanupStaleListeners()
+      │
+      ▼
+Check all tracked executions
+      │
+      ▼
+Find executions older than 1 hour
+      │
+      ▼
+Remove their listeners
+      │
+      ▼
+Log cleanup action
+```
