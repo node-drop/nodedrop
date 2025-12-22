@@ -41,19 +41,19 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 // Import services
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
-import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
 import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
+import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
+import { ExecutionQueueService, getExecutionQueueService } from "./services/execution/ExecutionQueueService";
+import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
+import { ExecutionWorker, getExecutionWorker } from "./services/execution/ExecutionWorker";
+import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
 import { NodeLoader } from "./services/NodeLoader";
 import { NodeService } from "./services/NodeService";
-import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
-import { getExecutionQueueService, ExecutionQueueService } from "./services/execution/ExecutionQueueService";
-import { getExecutionWorker, ExecutionWorker } from "./services/execution/ExecutionWorker";
 
 // Import database after dotenv is loaded
-import { db, checkDatabaseConnection, disconnectDatabase } from "./db/client";
+import { db, disconnectDatabase } from "./db/client";
 
 const app = express();
 const httpServer = createServer(app);
@@ -101,8 +101,8 @@ const errorTriggerService = new ErrorTriggerService(db as any);
 
 // Import WorkflowService, TriggerService singleton, and ScheduleJobManager
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
-import { workflowService } from "./services/WorkflowService";
 import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
+import { workflowService } from "./services/WorkflowService";
 
 // WorkflowService is already initialized as a singleton
 
@@ -687,15 +687,22 @@ httpServer.listen(PORT, async () => {
   }
 
   // Initialize ExecutionWorker for processing queued jobs
-  try {
-    global.executionWorker = getExecutionWorker();
-    await global.executionWorker.initialize(nodeService);
-    await global.executionWorker.start();
-    const workerStatus = global.executionWorker.getStatus();
-    console.log(`✅ Initialized execution worker (running: ${workerStatus.isRunning})`);
-  } catch (error) {
-    console.error(`❌ Failed to initialize ExecutionWorker:`, error);
-    // Don't throw - allow fallback to direct execution
+  // Only start worker if not in API-only mode
+  const workerMode = process.env.WORKER_MODE || 'hybrid'; // hybrid | api-only | worker-only
+  
+  if (workerMode !== 'api-only') {
+    try {
+      global.executionWorker = getExecutionWorker();
+      await global.executionWorker.initialize(nodeService);
+      await global.executionWorker.start();
+      const workerStatus = global.executionWorker.getStatus();
+      console.log(`✅ Initialized execution worker (running: ${workerStatus.isRunning}, mode: ${workerMode})`);
+    } catch (error) {
+      console.error(`❌ Failed to initialize ExecutionWorker:`, error);
+      // Don't throw - allow fallback to direct execution
+    }
+  } else {
+    console.log(`ℹ️  Worker disabled (WORKER_MODE=${workerMode})`);
   }
 });
 
