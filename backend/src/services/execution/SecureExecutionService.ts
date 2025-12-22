@@ -1,4 +1,3 @@
-import ivm from "isolated-vm";
 import {
   NodeExecutionContext,
   NodeHelpers,
@@ -18,6 +17,7 @@ import {
 import type { ExpressionContext } from "@nodedrop/types";
 import { getCredentialService, type ICredentialService } from "../CredentialService.factory";
 import { variableServiceDrizzle } from "../VariableService.factory";
+import { getBunVMService } from "./BunVMService";
 
 export interface SecureExecutionOptions {
   timeout?: number;
@@ -69,7 +69,7 @@ export class SecureExecutionService {
   }
 
   /**
-   * Execute JavaScript code in a secure isolated-vm sandbox
+   * Execute JavaScript code in a secure Bun VM sandbox
    */
   async executeInSandbox(
     code: string,
@@ -77,47 +77,22 @@ export class SecureExecutionService {
     options: SecureExecutionOptions = {}
   ): Promise<any> {
     const limits = this.mergeLimits(options);
-    let isolate: ivm.Isolate | null = null;
+    const vmService = getBunVMService();
 
     try {
-      // Create isolated VM with memory limit
-      isolate = new ivm.Isolate({
-        memoryLimit: Math.floor(limits.memoryLimit / (1024 * 1024)), // Convert to MB
-        inspector: false, // Disable debugging
-      });
-
-      // Create context within the isolate
-      const vmContext = await isolate.createContext();
-      const jail = vmContext.global;
-
-      // Note: Console is not available in the sandbox for security
-
-      // Add context variables securely
+      // Filter context to only include safe values
+      const safeContext: Record<string, any> = {};
       for (const [key, value] of Object.entries(context)) {
         if (this.isSafeContextValue(key, value)) {
-          await jail.set(key, new ivm.ExternalCopy(value).copyInto());
+          safeContext[key] = value;
         }
       }
 
-      // Wrap code to return result and handle errors
-      const wrappedCode = `
-        (function() {
-          try {
-            const result = (function() {
-              ${code}
-            })();
-            return { success: true, result: result };
-          } catch (error) {
-            return { success: false, error: error.message };
-          }
-        })()
-      `;
-
-      // Compile and run the script with timeout
-      const script = await isolate.compileScript(wrappedCode);
-      const result = await script.run(vmContext, {
+      // Execute code with BunVMService
+      const result = await vmService.execute(code, {
         timeout: limits.timeout,
-        copy: true,
+        memoryLimit: limits.memoryLimit,
+        context: safeContext,
       });
 
       // Check if execution was successful
@@ -133,17 +108,12 @@ export class SecureExecutionService {
 
       return result.result;
     } catch (error) {
-      logger.error("Sandbox execution failed:", error);
+      logger.error("Sandbox execution failed:", error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       throw new Error(
         `Sandbox execution failed: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
-    } finally {
-      // Clean up isolate
-      if (isolate) {
-        isolate.dispose();
-      }
     }
   }
 
@@ -758,7 +728,7 @@ export class SecureExecutionService {
         tokenObtainedAt: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error('Failed to refresh OAuth token:', error);
+      logger.error('Failed to refresh OAuth token:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       throw error;
     }
   }

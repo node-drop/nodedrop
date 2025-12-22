@@ -1,4 +1,4 @@
-import Bull, { Job, Queue } from "bull";
+import { Worker, Job, Queue } from "bullmq";
 import { EventEmitter } from "events";
 import { db } from "../../config/database";
 import { eq, and, count } from "drizzle-orm";

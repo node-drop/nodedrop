@@ -9,9 +9,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
-    "clean": "rimraf dist",
-    "prepublishOnly": "npm run build"
+    "build": "bun build src/index.ts --outdir dist --target node --format esm && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "nodedrop",
@@ -24,8 +25,8 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "typescript": "^5.2.2",
-    "rimraf": "^5.0.5"
+    "bun-types": "latest",
+    "typescript": "^5.2.2"
   },
   "publishConfig": {
     "access": "public"

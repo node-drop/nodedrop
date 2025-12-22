@@ -4,7 +4,7 @@ The Code node allows you to execute JavaScript or Python code to process data in
 
 ## Features
 
-- **JavaScript Execution**: Execute JavaScript code in a secure VM sandbox using vm2
+- **JavaScript Execution**: Execute JavaScript code in a secure VM sandbox using BunVMService
 - **Python Execution**: Execute Python code using Python 3
 - **Enhanced Code Editor**: Custom code editor with line numbers, syntax-aware indentation, and auto-completion
 - **Secure Sandboxing**: JavaScript code runs in an isolated environment with limited access
@@ -88,9 +88,10 @@ Standard Python libraries are available. The code must:
 ## Security
 
 ### JavaScript
-- Runs in an isolated VM using vm2
-- No access to Node.js modules, file system, or network
+- Runs in an isolated VM using BunVMService (Bun-compatible sandboxing)
+- No access to Node.js modules, file system, or network by default
 - Limited to safe JavaScript operations
+- Timeout protection prevents infinite loops
 
 ### Python
 - Executes in a subprocess with Python 3

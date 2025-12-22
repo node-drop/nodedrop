@@ -14,7 +14,7 @@
  * @module services/ExecutionQueueService
  */
 
-import Bull, { Queue, Job, JobOptions } from "bull";
+import { Queue, Job, JobsOptions } from "bullmq";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../db/client";
 import { executions } from "../../db/schema/executions";
@@ -103,7 +103,7 @@ export interface ExecutionJobData {
 /**
  * Default job options for execution queue
  */
-const DEFAULT_JOB_OPTIONS: JobOptions = {
+const DEFAULT_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: 100, // Keep last 100 completed jobs
   removeOnFail: 50, // Keep last 50 failed jobs
   attempts: 3, // Retry up to 3 times
@@ -111,7 +111,6 @@ const DEFAULT_JOB_OPTIONS: JobOptions = {
     type: "exponential",
     delay: 2000, // Start with 2s, then 4s, then 8s
   },
-  timeout: 30 * 60 * 1000, // 30 minute timeout
 };
 
 /**
@@ -181,8 +180,8 @@ export class ExecutionQueueService {
       await this.stateStore.initialize();
 
       // Create BullMQ queue with Redis connection
-      this.executionQueue = new Bull<ExecutionJobData>(EXECUTION_QUEUE_NAME, {
-        redis: {
+      this.executionQueue = new Queue<ExecutionJobData>(EXECUTION_QUEUE_NAME, {
+        connection: {
           host: process.env.REDIS_HOST || "localhost",
           port: parseInt(process.env.REDIS_PORT || "6379"),
           password: process.env.REDIS_PASSWORD,
@@ -213,39 +212,9 @@ export class ExecutionQueueService {
       logger.error("[ExecutionQueueService] Queue error", { error });
     });
 
-    this.executionQueue.on("waiting", (jobId) => {
-      logger.debug("[ExecutionQueueService] Job waiting", { jobId });
-    });
-
-    this.executionQueue.on("active", (job) => {
-      logger.info("[ExecutionQueueService] Job started", {
-        jobId: job.id,
-        executionId: job.data.executionId,
-      });
-    });
-
-    this.executionQueue.on("completed", (job) => {
-      logger.info("[ExecutionQueueService] Job completed", {
-        jobId: job.id,
-        executionId: job.data.executionId,
-      });
-    });
-
-    this.executionQueue.on("failed", (job, error) => {
-      logger.error("[ExecutionQueueService] Job failed", {
-        jobId: job?.id,
-        executionId: job?.data?.executionId,
-        error: error?.message,
-        attemptsMade: job?.attemptsMade,
-      });
-    });
-
-    this.executionQueue.on("stalled", (job) => {
-      logger.warn("[ExecutionQueueService] Job stalled", {
-        jobId: job.id,
-        executionId: job.data.executionId,
-      });
-    });
+    // Note: BullMQ doesn't have 'waiting', 'active', 'completed', 'failed', 'stalled' events on Queue
+    // These are handled by QueueEvents or Worker
+    // For now, we'll just log errors
   }
 
   /**
@@ -359,7 +328,7 @@ export class ExecutionQueueService {
       };
 
       // Add job to queue
-      await queue.add(jobData, {
+      await queue.add('execute-workflow', jobData, {
         jobId: executionId,
       });
 
@@ -600,7 +569,7 @@ export class ExecutionQueueService {
       };
 
       // Add job to queue
-      await queue.add(jobData, {
+      await queue.add('execute-workflow', jobData, {
         jobId: newExecutionId,
       });
 

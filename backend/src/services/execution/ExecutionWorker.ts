@@ -14,7 +14,7 @@
  * @module services/ExecutionWorker
  */
 
-import Bull, { Job, Queue } from "bull";
+import { Worker, Job, Queue, ConnectionOptions } from "bullmq";
 import { db } from "../../db/client";
 import { executions, nodeExecutions } from "../../db/schema/executions";
 import { eq } from "drizzle-orm";
@@ -87,6 +87,7 @@ const EXECUTION_QUEUE_NAME = "workflow-executions";
 export class ExecutionWorker {
   private static instance: ExecutionWorker;
   private queue: Queue<ExecutionJobData> | null = null;
+  private worker: Worker<ExecutionJobData> | null = null;
   private stateStore: ExecutionStateStore;
   private eventPublisher: ExecutionEventPublisher;
   private nodeService: NodeService | null = null;
@@ -175,9 +176,40 @@ export class ExecutionWorker {
     }
 
     try {
-      // Register the job processor
-      this.queue.process(this.concurrency, async (job: Job<ExecutionJobData>) => {
-        return this.processJob(job);
+      // Get Redis connection config from queue
+      const queueService = getExecutionQueueService();
+      const connection: ConnectionOptions = {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379", 10),
+        password: process.env.REDIS_PASSWORD,
+      };
+
+      // Create BullMQ Worker instance
+      this.worker = new Worker<ExecutionJobData>(
+        EXECUTION_QUEUE_NAME,
+        async (job: Job<ExecutionJobData>) => {
+          return this.processJob(job);
+        },
+        {
+          connection,
+          concurrency: this.concurrency,
+        }
+      );
+
+      // Set up event handlers
+      this.worker.on("completed", (job) => {
+        logger.info("[ExecutionWorker] Job completed", {
+          jobId: job.id,
+          executionId: job.data.executionId,
+        });
+      });
+
+      this.worker.on("failed", (job, err) => {
+        logger.error("[ExecutionWorker] Job failed", {
+          jobId: job?.id,
+          executionId: job?.data?.executionId,
+          error: err.message,
+        });
       });
 
       this.isRunning = true;
@@ -201,8 +233,13 @@ export class ExecutionWorker {
     }
 
     try {
+      if (this.worker) {
+        // Close the worker (waits for active jobs to complete)
+        await this.worker.close();
+      }
+
       if (this.queue) {
-        // Close the queue (waits for active jobs to complete)
+        // Close the queue
         await this.queue.close();
       }
 
