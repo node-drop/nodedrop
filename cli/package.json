@@ -11,6 +11,8 @@
     "build": "bun build src/index.ts --outdir dist --target node --format esm",
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
     "prepublishOnly": "bun run build"
   },
   "keywords": [

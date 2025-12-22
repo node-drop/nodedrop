@@ -1,18 +1,5 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "isolatedModules": true,
-    "types": ["bun-types"]
-  },
+  "extends": "@nodedrop/config/tsconfig.backend.json",
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -21,6 +21,7 @@
     "no-code"
   ],
   "workspaces": [
+    "packages/config",
     "packages/types",
     "packages/utils",
     "frontend",
@@ -58,7 +59,9 @@
     "cli:build": "npm run build --workspace=cli",
     "cli:dev": "node scripts/nodedrop.js",
     "nodedrop": "node scripts/nodedrop.js",
-    "check-version": "node scripts/check-version.js"
+    "check-version": "node scripts/check-version.js",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
   },
   "devDependencies": {
     "@types/pg": "^8.16.0",

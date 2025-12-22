@@ -12,6 +12,8 @@
     "build": "bun build src/index.ts --outdir dist --target node --format esm && bun run build:types",
     "build:types": "tsc --emitDeclarationOnly",
     "clean": "rm -rf dist",
+    "lint": "eslint .",
+    "format": "prettier --write .",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
