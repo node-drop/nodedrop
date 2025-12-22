@@ -1,4 +1,4 @@
-import winston from 'winston'
+import winston from 'winston';
 
 /**
  * Custom serializer for Error objects to ensure they're properly logged
@@ -33,8 +33,8 @@ function safeStringify(obj: any): string {
   });
 }
 
-// Create logger instance
-export const logger = winston.createLogger({
+// Create base logger instance
+const baseLogger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
@@ -78,7 +78,7 @@ export const logger = winston.createLogger({
 // If we're not in production then log to the `console` with the format:
 // `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
 if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
+  baseLogger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
       winston.format.printf((info: any) => {
@@ -103,5 +103,104 @@ if (process.env.NODE_ENV !== 'production') {
     )
   }))
 }
+
+/**
+ * Performance timing storage
+ */
+const timers = new Map<string, number>();
+
+/**
+ * Enhanced logger with convenience methods and performance utilities
+ */
+export const logger = {
+  // Standard logging methods
+  error: (message: string, meta?: Record<string, any>) => baseLogger.error(message, meta),
+  warn: (message: string, meta?: Record<string, any>) => baseLogger.warn(message, meta),
+  info: (message: string, meta?: Record<string, any>) => baseLogger.info(message, meta),
+  debug: (message: string, meta?: Record<string, any>) => baseLogger.debug(message, meta),
+  
+  /**
+   * Start a performance timer
+   * @param label - Unique label for the timer
+   */
+  time: (label: string) => {
+    timers.set(label, Date.now());
+  },
+  
+  /**
+   * End a performance timer and log the duration
+   * @param label - Label of the timer to end
+   */
+  timeEnd: (label: string) => {
+    const startTime = timers.get(label);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      timers.delete(label);
+      baseLogger.debug(`Timer ${label}: ${duration}ms`, { duration, label });
+    } else {
+      baseLogger.warn(`Timer ${label} was never started`);
+    }
+  },
+  
+  /**
+   * Log execution-related events with structured data
+   */
+  execution: (data: {
+    executionId: string;
+    nodeId?: string;
+    status?: string;
+    duration?: number;
+    error?: Error;
+    [key: string]: any;
+  }) => {
+    const { executionId, nodeId, status, duration, error, ...rest } = data;
+    const message = `Execution ${executionId}${nodeId ? ` - Node ${nodeId}` : ''}${status ? ` - ${status}` : ''}`;
+    
+    if (error) {
+      baseLogger.error(message, { executionId, nodeId, status, duration, error, ...rest });
+    } else {
+      baseLogger.debug(message, { executionId, nodeId, status, duration, ...rest });
+    }
+  },
+  
+  /**
+   * Log workflow-related events
+   */
+  workflow: (data: {
+    workflowId: string;
+    action: string;
+    userId?: string;
+    [key: string]: any;
+  }) => {
+    const { workflowId, action, ...rest } = data;
+    baseLogger.info(`Workflow ${workflowId} - ${action}`, { workflowId, action, ...rest });
+  },
+  
+  /**
+   * Log API request/response
+   */
+  http: (data: {
+    method: string;
+    path: string;
+    status?: number;
+    duration?: number;
+    userId?: string;
+    [key: string]: any;
+  }) => {
+    const { method, path, status, duration, ...rest } = data;
+    const message = `${method} ${path}${status ? ` - ${status}` : ''}${duration ? ` (${duration}ms)` : ''}`;
+    
+    if (status && status >= 400) {
+      baseLogger.warn(message, { method, path, status, duration, ...rest });
+    } else {
+      baseLogger.debug(message, { method, path, status, duration, ...rest });
+    }
+  },
+  
+  /**
+   * Access to the underlying Winston logger for advanced use cases
+   */
+  _winston: baseLogger,
+};
 
 export default logger

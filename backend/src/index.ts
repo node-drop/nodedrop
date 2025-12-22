@@ -74,7 +74,7 @@ try {
   credentialService.registerCoreCredentials();
   logger.info("✅ Core credentials registered successfully");
 } catch (error) {
-  console.error("❌ Failed to register core credentials:", error);
+  logger.error("❌ Failed to register core credentials", { error });
 }
 
 // Initialize OAuth providers (Google, Microsoft, Slack, GitHub)
@@ -83,7 +83,7 @@ try {
   initializeOAuthProviders();
   logger.info("✅ OAuth providers initialized successfully");
 } catch (error) {
-  console.error("❌ Failed to initialize OAuth providers:", error);
+  logger.error("❌ Failed to initialize OAuth providers", { error });
 }
 
 const nodeLoader = new NodeLoader(nodeService as any, credentialService as any);
@@ -134,7 +134,7 @@ function handleExecutionStarted(data: any) {
 }
 
 function handleNodeStarted(data: any) {
-  logger.info('🔵 [RealtimeEngine] node-started event received', {
+  logger.debug('🔵 [RealtimeEngine] node-started event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -148,14 +148,10 @@ function handleNodeStarted(data: any) {
     data: { nodeName: data.nodeName, nodeType: data.nodeType },
     timestamp: data.timestamp,
   });
-  
-  logger.info('✅ [RealtimeEngine] node-started event broadcast', {
-    nodeId: data.nodeId,
-  });
 }
 
 function handleNodeCompleted(data: any) {
-  logger.info('🟢 [RealtimeEngine] node-completed event received', {
+  logger.debug('🟢 [RealtimeEngine] node-completed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -173,14 +169,10 @@ function handleNodeCompleted(data: any) {
     },
     timestamp: data.timestamp,
   });
-  
-  logger.info('✅ [RealtimeEngine] node-completed event broadcast', {
-    nodeId: data.nodeId,
-  });
 }
 
 function handleNodeFailed(data: any) {
-  logger.error('🔴 [RealtimeEngine] node-failed event received', {
+  logger.debug('🔴 [RealtimeEngine] node-failed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -194,11 +186,6 @@ function handleNodeFailed(data: any) {
     nodeId: data.nodeId,
     error: data.error,
     timestamp: data.timestamp,
-  });
-  
-  logger.error('✅ [RealtimeEngine] node-failed event broadcast', {
-    nodeId: data.nodeId,
-    error: data.error,
   });
 }
 
@@ -313,9 +300,9 @@ async function initializeNodeSystems() {
       try {
         await nodeService.registerDiscoveredNodes();
         const newNodeTypes = await nodeService.getNodeTypes();
-        console.log(`✅ Registered ${newNodeTypes.length} nodes`);
+        logger.info(`✅ Registered ${newNodeTypes.length} nodes`);
       } catch (registrationError) {
-        console.error("Failed to register nodes:", registrationError);
+        logger.error("Failed to register nodes", { error: registrationError });
       }
     }
 
@@ -324,9 +311,9 @@ async function initializeNodeSystems() {
     
     // Show total nodes loaded
     const totalNodes = await nodeService.getNodeTypes();
-    console.log(`✅ Loaded ${totalNodes.length} nodes`);
+    logger.info(`✅ Loaded ${totalNodes.length} nodes`);
   } catch (error) {
-    console.error("❌ Failed to initialize node systems:", error);
+    logger.error("❌ Failed to initialize node systems", { error });
     // Don't throw the error - allow the application to start
   }
 }
@@ -362,7 +349,7 @@ const corsOriginFunction = (origin: string | undefined, callback: (err: Error | 
   }
 
   // Log rejected origins for debugging
-  console.warn(`CORS: Rejected origin: ${origin}`);
+  logger.warn(`CORS: Rejected origin: ${origin}`, { origin });
   return callback(new Error('Not allowed by CORS'), false);
 };
 
@@ -405,7 +392,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  logger.http({ method: req.method, path: req.path });
   next();
 });
 
@@ -650,21 +637,21 @@ app.use(errorHandler);
 
 // Start server
 httpServer.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT} - BACKEND HOT RELOAD WORKS!`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔌 Socket.io enabled for real-time updates`);
-  console.log(`🔗 API endpoints:`);
-  console.log(`   - Auth: http://localhost:${PORT}/api/auth`);
-  console.log(`   - Workflows: http://localhost:${PORT}/api/workflows`);
-  console.log(`   - Executions: http://localhost:${PORT}/api/executions`);
-  console.log(`   - Nodes: http://localhost:${PORT}/api/nodes`);
-  console.log(`   - Node Types: http://localhost:${PORT}/api/node-types`);
-  console.log(`   - Credentials: http://localhost:${PORT}/api/credentials`);
-  console.log(`   - Variables: http://localhost:${PORT}/api/variables`);
-  console.log(`   - Triggers: http://localhost:${PORT}/api/triggers`);
-  console.log(`   - Custom Nodes: http://localhost:${PORT}/api/custom-nodes`);
-  console.log(`📨 Webhook endpoint (public):`);
-  console.log(`   - http://localhost:${PORT}/webhook/{webhookId}`);
+  logger.info(`🚀 Server running on port ${PORT} - BACKEND HOT RELOAD WORKS!`);
+  logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+  logger.info(`🔌 Socket.io enabled for real-time updates`);
+  logger.info(`🔗 API endpoints:`);
+  logger.info(`   - Auth: http://localhost:${PORT}/api/auth`);
+  logger.info(`   - Workflows: http://localhost:${PORT}/api/workflows`);
+  logger.info(`   - Executions: http://localhost:${PORT}/api/executions`);
+  logger.info(`   - Nodes: http://localhost:${PORT}/api/nodes`);
+  logger.info(`   - Node Types: http://localhost:${PORT}/api/node-types`);
+  logger.info(`   - Credentials: http://localhost:${PORT}/api/credentials`);
+  logger.info(`   - Variables: http://localhost:${PORT}/api/variables`);
+  logger.info(`   - Triggers: http://localhost:${PORT}/api/triggers`);
+  logger.info(`   - Custom Nodes: http://localhost:${PORT}/api/custom-nodes`);
+  logger.info(`📨 Webhook endpoint (public):`);
+  logger.info(`   - http://localhost:${PORT}/webhook/{webhookId}`);
 
   // Initialize node systems after server starts
   await initializeNodeSystems();
@@ -681,43 +668,43 @@ httpServer.listen(PORT, async () => {
       credentialService as any
     );
     global.triggerService = getTriggerService();
-    console.log(`✅ Initialized triggers & webhooks`);
+    logger.info(`✅ Initialized triggers & webhooks`);
   } catch (error) {
-    console.error(`Failed to initialize TriggerService:`, error);
+    logger.error(`Failed to initialize TriggerService`, { error });
   }
 
   // Initialize ErrorTriggerService for workflow failure monitoring
   try {
     errorTriggerService.setExecutionService(executionService);
     await errorTriggerService.initialize();
-    console.log(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
+    logger.info(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
   } catch (error) {
-    console.error(`Failed to initialize ErrorTriggerService:`, error);
+    logger.error(`Failed to initialize ErrorTriggerService`, { error });
   }
 
   // Initialize ScheduleJobManager for persistent schedule jobs
   try {
     await scheduleJobManager.initialize();
-    console.log(`✅ Initialized schedule jobs`);
+    logger.info(`✅ Initialized schedule jobs`);
   } catch (error) {
-    console.error(`❌ Failed to initialize ScheduleJobManager:`, error);
+    logger.error(`❌ Failed to initialize ScheduleJobManager`, { error });
   }
 
   // Initialize ExecutionEventBridge for Redis Pub/Sub to WebSocket forwarding
   try {
     global.executionEventBridge = await createExecutionEventBridge(socketService);
-    console.log(`✅ Initialized execution event bridge (Redis -> WebSocket)`);
+    logger.info(`✅ Initialized execution event bridge (Redis -> WebSocket)`);
   } catch (error) {
-    console.error(`❌ Failed to initialize ExecutionEventBridge:`, error);
+    logger.error(`❌ Failed to initialize ExecutionEventBridge`, { error });
   }
 
   // Initialize ExecutionQueueService for queue-based workflow execution
   try {
     global.executionQueueService = getExecutionQueueService();
     await global.executionQueueService.initialize();
-    console.log(`✅ Initialized execution queue service`);
+    logger.info(`✅ Initialized execution queue service`);
   } catch (error) {
-    console.error(`❌ Failed to initialize ExecutionQueueService:`, error);
+    logger.error(`❌ Failed to initialize ExecutionQueueService`, { error });
     // Don't throw - allow fallback to direct execution
   }
 
@@ -731,13 +718,13 @@ httpServer.listen(PORT, async () => {
       await global.executionWorker.initialize(nodeService);
       await global.executionWorker.start();
       const workerStatus = global.executionWorker.getStatus();
-      console.log(`✅ Initialized execution worker (running: ${workerStatus.isRunning}, mode: ${workerMode})`);
+      logger.info(`✅ Initialized execution worker (running: ${workerStatus.isRunning}, mode: ${workerMode})`);
     } catch (error) {
-      console.error(`❌ Failed to initialize ExecutionWorker:`, error);
+      logger.error(`❌ Failed to initialize ExecutionWorker`, { error });
       // Don't throw - allow fallback to direct execution
     }
   } else {
-    console.log(`ℹ️  Worker disabled (WORKER_MODE=${workerMode})`);
+    logger.info(`ℹ️  Worker disabled (WORKER_MODE=${workerMode})`);
   }
 });
 
@@ -751,7 +738,7 @@ setInterval(() => {
   
   // Alert if memory usage is high
   if (heapUsedMB > 1024) { // 1GB threshold
-    console.warn(`⚠️  High memory usage detected: ${heapUsedMB}MB`);
+    logger.warn(`⚠️  High memory usage detected: ${heapUsedMB}MB`);
     
     // Log active resources
     const activeExecutions = (realtimeExecutionEngine as any).activeExecutions?.size || 0;
@@ -759,14 +746,14 @@ setInterval(() => {
     const eventBufferSize = (socketService as any).executionEventBuffer?.size || 0;
     const listenerStats = executionListenerManager.getStats();
     
-    console.log(`  Active executions: ${activeExecutions}`);
-    console.log(`  Connected sockets: ${connectedSockets}`);
-    console.log(`  Event buffer size: ${eventBufferSize}`);
-    console.log(`  Event listeners: ${listenerStats.totalListeners} (${listenerStats.activeExecutions} executions)`);
+    logger.debug(`  Active executions: ${activeExecutions}`);
+    logger.debug(`  Connected sockets: ${connectedSockets}`);
+    logger.debug(`  Event buffer size: ${eventBufferSize}`);
+    logger.debug(`  Event listeners: ${listenerStats.totalListeners} (${listenerStats.activeExecutions} executions)`);
     
     // Force garbage collection if available
     if (global.gc) {
-      console.log('  Running garbage collection...');
+      logger.debug('  Running garbage collection...');
       global.gc();
     }
   }
@@ -774,7 +761,7 @@ setInterval(() => {
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, shutting down gracefully...");
+  logger.info("SIGTERM received, shutting down gracefully...");
   
   // Cleanup listener manager first
   executionListenerManager.cleanupAll();
@@ -809,13 +796,13 @@ process.on("SIGTERM", async () => {
   await disconnectDatabase();
   
   httpServer.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });
 
 process.on("SIGINT", async () => {
-  console.log("SIGINT received, shutting down gracefully...");
+  logger.info("SIGINT received, shutting down gracefully...");
   
   // Cleanup listener manager first
   executionListenerManager.cleanupAll();
@@ -848,7 +835,7 @@ process.on("SIGINT", async () => {
   await disconnectDatabase();
   
   httpServer.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });

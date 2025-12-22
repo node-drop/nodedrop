@@ -9,17 +9,17 @@
  * - Queue execution: Redis-backed BullMQ queue for horizontal scaling
  */
 
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { eq } from "drizzle-orm";
-import * as schema from "../../db/schema";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
+import * as schema from "../../db/schema";
 import { ExecutionStatus, NodeExecutionStatus } from "../../types/database";
 import { buildCredentialsMapping, extractCredentialProperties } from "../../utils/credentialHelpers";
 import { logger } from "../../utils/logger";
-import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { NodeService } from "../NodeService";
-import { getExecutionQueueService, ExecutionQueueService } from "./ExecutionQueueService";
+import { ExecutionQueueService, getExecutionQueueService } from "./ExecutionQueueService";
 
 interface WorkflowNode {
     id: string;
@@ -293,8 +293,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
                     triggerData: triggerData || null,
                 });
         } else {
-            console.log(`⏭️  Skipping database save for realtime execution ${executionId} (saveToDatabase: false)`);
-            logger.info(`Skipping database save for realtime execution`, {
+            logger.info(`⏭️  Skipping database save for realtime execution ${executionId} (saveToDatabase: false)`, {
                 executionId,
                 workflowId,
             });
@@ -311,7 +310,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
         // Execute workflow in background (don't await)
         this.executeWorkflow(executionId, triggerNodeId, nodes, connections).catch(
             (error) => {
-                logger.error(`[RealtimeExecution] Execution ${executionId} failed:`, error);
+                logger.error(`[RealtimeExecution] Execution ${executionId} failed`, { error });
                 this.failExecution(executionId, error);
             }
         );
@@ -603,7 +602,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
 
             const duration = Date.now() - startTime;
 
-            logger.info(`[RealtimeExecution] Node ${nodeId} execution result:`, {
+            logger.debug(`[RealtimeExecution] Node ${nodeId} execution result`, {
                 success: result.success,
                 hasData: !!result.data,
                 hasError: !!result.error,
@@ -678,7 +677,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
                 }
             }
 
-            logger.info(`[RealtimeExecution] Node ${nodeId} completed - active connections:`, {
+            logger.debug(`[RealtimeExecution] Node ${nodeId} completed - active connections`, {
                 totalConnections: allConnections.length,
                 activeConnectionsCount: activeConnections.length,
                 activeConnections,
@@ -697,13 +696,13 @@ export class RealtimeExecutionEngine extends EventEmitter {
                 activeConnections, // NEW: Include which connections are active
             });
 
-            logger.info(
+            logger.debug(
                 `[RealtimeExecution] Node ${nodeId} completed in ${duration}ms`
             );
 
             // Execute downstream nodes (outside try-catch so errors don't affect this node)
         } catch (error: any) {
-            logger.error(`[RealtimeExecution] Node ${nodeId} failed:`, error);
+            logger.error(`[RealtimeExecution] Node ${nodeId} failed`, { error });
 
             // Update node execution record (if saveToDatabase is enabled)
             if (context.saveToDatabase !== false && nodeExecution) {
@@ -741,7 +740,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
         // This way, if a downstream node fails, it doesn't affect this node's status
         const downstreamNodes = graph.get(nodeId) || [];
 
-        logger.info(`[RealtimeExecution] Node ${nodeId} has ${downstreamNodes.length} downstream nodes`);
+        logger.debug(`[RealtimeExecution] Node ${nodeId} has ${downstreamNodes.length} downstream nodes`);
 
         for (const downstreamNodeId of downstreamNodes) {
             // Check if downstream node will have data from this connection
@@ -934,7 +933,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
                     throw new Error(`Loop node ${nodeId} produced no output - loop is stuck`);
                 }
             } catch (error: any) {
-                logger.error(`[RealtimeExecution] Loop node ${nodeId} failed:`, error);
+                logger.error(`[RealtimeExecution] Loop node ${nodeId} failed`, { error });
 
                 if (context.saveToDatabase !== false && nodeExecution) {
                     await this.db
@@ -1511,7 +1510,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
             },
         });
 
-        logger.error(`[RealtimeExecution] Execution ${executionId} failed:`, error);
+        logger.error(`[RealtimeExecution] Execution ${executionId} failed`, { error });
 
         // Cleanup after a short delay (reduced from 60s to 5s to prevent memory leaks)
         setTimeout(() => {

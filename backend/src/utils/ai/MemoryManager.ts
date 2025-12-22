@@ -16,8 +16,9 @@
  * @module utils/ai/MemoryManager
  */
 
-import { AIMessage, ConversationMemory } from "../../types/ai.types";
 import { getRedisClient, RedisClient } from "../../config/redis";
+import { AIMessage, ConversationMemory } from "../../types/ai.types";
+import { logger } from "../logger";
 
 /**
  * Singleton class for managing AI conversation memory
@@ -82,11 +83,11 @@ export class MemoryManager {
     try {
       this.redisClient = await getRedisClient();
       this.useRedis = true;
-      console.log("MemoryManager: Using Redis for persistence");
+      logger.info("MemoryManager: Using Redis for persistence");
     } catch (error) {
-      console.warn(
+      logger.warn(
         "MemoryManager: Redis unavailable, falling back to in-memory storage",
-        error
+        { error }
       );
       this.useRedis = false;
     }
@@ -108,7 +109,7 @@ export class MemoryManager {
         this.useRedis = true;
         return true;
       } catch (error) {
-        console.warn("MemoryManager: Redis connection failed", error);
+        logger.warn("MemoryManager: Redis connection failed", { error });
         this.useRedis = false;
         return false;
       }
@@ -157,7 +158,7 @@ export class MemoryManager {
           return memory;
         }
       } catch (error) {
-        console.error("MemoryManager: Redis get failed", error);
+        logger.error("MemoryManager: Redis get failed", { error });
         // Fall through to in-memory
       }
     }
@@ -242,7 +243,7 @@ export class MemoryManager {
           JSON.stringify(memory)
         );
       } catch (error) {
-        console.error("MemoryManager: Redis save failed", error);
+        logger.error("MemoryManager: Redis save failed", { error });
         // Fall through to in-memory
       }
     }
@@ -292,7 +293,7 @@ export class MemoryManager {
         const key = this.getRedisKey(sessionId);
         await this.redisClient!.del(key);
       } catch (error) {
-        console.error("MemoryManager: Redis delete failed", error);
+        logger.error("MemoryManager: Redis delete failed", { error });
       }
     }
 
@@ -328,7 +329,7 @@ export class MemoryManager {
           sessions.add(sessionId);
         });
       } catch (error) {
-        console.error("MemoryManager: Redis keys failed", error);
+        logger.error("MemoryManager: Redis keys failed", { error });
       }
     }
 
@@ -410,7 +411,7 @@ export class MemoryManager {
     }
 
     if (toDelete.length > 0) {
-      console.log(
+      logger.info(
         `MemoryManager: Cleaned up ${toDelete.length} old conversations`
       );
     }
@@ -453,7 +454,7 @@ export class MemoryManager {
           }
         }
       } catch (error) {
-        console.error("MemoryManager: Stats calculation failed", error);
+        logger.error("MemoryManager: Stats calculation failed", { error });
       }
     }
 
