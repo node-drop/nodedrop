@@ -1,12 +1,13 @@
 import { WorkflowEditorWrapper } from '@/components'
 import { BaseLayout } from '@/components/layout/BaseLayout'
 import { WorkflowLandingPage } from '@/components/workflow/WorkflowLandingPage'
+import { WorkflowEditorSkeleton } from '@/components/workflow/WorkflowEditorSkeleton'
 import { WorkflowToolbar } from '@/components/workflow/WorkflowToolbar'
 import { useWorkflowOperations } from '@/hooks/workflow'
 import { workflowService } from '@/services'
 import { useAuthStore, useNodeTypes, useWorkflowStore } from '@/stores'
 import { Workflow } from '@/types'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -106,14 +107,7 @@ export function WorkflowEditorLayout() {
     }
 
     if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="text-gray-600">Loading workflow...</span>
-          </div>
-        </div>
-      )
+      return <WorkflowEditorSkeleton />
     }
 
     if (!id) {

@@ -2,6 +2,7 @@ import { ExecutionToolbar, WorkflowEditorWrapper } from '@/components'
 import { BaseLayout } from '@/components/layout/BaseLayout'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WorkflowOnboardingDialog } from '@/components/workflow/WorkflowOnboardingDialog'
+import { WorkflowEditorSkeleton } from '@/components/workflow/WorkflowEditorSkeleton'
 import { WorkflowToolbar } from '@/components/workflow/WorkflowToolbar'
 import {
     useWorkflowOperations
@@ -12,7 +13,7 @@ import { executionService } from '@/services/execution'
 import { socketService } from '@/services/socket'
 import { useAuthStore, useNodeTypes, useWorkflowStore } from '@/stores'
 import { Workflow } from '@/types'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -371,16 +372,7 @@ export function WorkflowEditorPage() {
     // Node types load lazily when user opens add node dialog or nodes sidebar
     // This improves initial page load performance
     if (isLoading || isLoadingExecution) {
-      return (
-        <div className="flex items-center justify-center h-full w-full bg-background">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            <span className="text-muted-foreground">
-              {isLoadingExecution ? 'Loading execution...' : 'Loading workflow...'}
-            </span>
-          </div>
-        </div>
-      )
+      return <WorkflowEditorSkeleton />
     }
 
     if (error) {

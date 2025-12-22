@@ -10,6 +10,7 @@ export { TitleManager } from "./TitleManager";
 export { ToolbarButtonsDemo } from "./ToolbarButtonsDemo";
 export { WorkflowBreadcrumb } from "./WorkflowBreadcrumb";
 export { WorkflowEditor, WorkflowEditorWrapper } from "./WorkflowEditor";
+export { WorkflowEditorSkeleton } from "./WorkflowEditorSkeleton";
 export { RightSidebar } from "./RightSidebar";
 export { WorkflowExecuteButton } from "./WorkflowExecuteButton";
 export { WorkflowLandingPage } from "./WorkflowLandingPage";
