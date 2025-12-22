@@ -38,25 +38,64 @@ class NodeCLI {
     console.log("📋 Available nodes:\n");
 
     try {
+      // Get both built-in and custom nodes
       const nodesByDir = await this.nodeDiscovery.getNodesByDirectory();
+      const customNodeInfos = await this.nodeDiscovery.loadCustomNodes();
 
-      if (Object.keys(nodesByDir).length === 0) {
+      if (Object.keys(nodesByDir).length === 0 && customNodeInfos.length === 0) {
         console.log("   No nodes found");
         return;
       }
 
-      for (const [dirName, nodes] of Object.entries(nodesByDir)) {
-        console.log(`📁 ${dirName}/`);
-        nodes.forEach((node) => {
-          console.log(`   └─ ${node.displayName} (${node.identifier})`);
-          if (node.description) {
-            console.log(`      ${node.description}`);
-          }
-        });
-        console.log("");
+      // Display built-in nodes
+      if (Object.keys(nodesByDir).length > 0) {
+        console.log("🔧 Built-in Nodes:\n");
+        for (const [dirName, nodes] of Object.entries(nodesByDir)) {
+          console.log(`📁 ${dirName}/`);
+          nodes.forEach((node) => {
+            console.log(`   └─ ${node.displayName} (${node.identifier})`);
+            if (node.description) {
+              console.log(`      ${node.description}`);
+            }
+          });
+          console.log("");
+        }
       }
 
-      console.log(`📊 Total: ${Object.values(nodesByDir).flat().length} nodes`);
+      // Display custom nodes
+      if (customNodeInfos.length > 0) {
+        console.log("📦 Custom Nodes:\n");
+        
+        // Group custom nodes by package
+        const customNodesByPackage: Record<string, typeof customNodeInfos> = {};
+        customNodeInfos.forEach((nodeInfo) => {
+          const packageName = nodeInfo.name.split('/')[0];
+          if (!customNodesByPackage[packageName]) {
+            customNodesByPackage[packageName] = [];
+          }
+          customNodesByPackage[packageName].push(nodeInfo);
+        });
+
+        for (const [packageName, nodes] of Object.entries(customNodesByPackage)) {
+          console.log(`📦 ${packageName}/`);
+          nodes.forEach((nodeInfo) => {
+            console.log(`   └─ ${nodeInfo.definition.displayName} (${nodeInfo.definition.identifier})`);
+            if (nodeInfo.definition.description) {
+              console.log(`      ${nodeInfo.definition.description}`);
+            }
+          });
+          console.log("");
+        }
+      }
+
+      const builtInCount = Object.values(nodesByDir).flat().length;
+      const customCount = customNodeInfos.length;
+      const totalCount = builtInCount + customCount;
+
+      console.log(`📊 Summary:`);
+      console.log(`   Built-in: ${builtInCount} nodes`);
+      console.log(`   Custom: ${customCount} nodes`);
+      console.log(`   Total: ${totalCount} nodes`);
     } catch (error) {
       console.error("❌ Error listing nodes:", error);
     }

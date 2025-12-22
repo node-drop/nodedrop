@@ -554,6 +554,84 @@ router.post("/refresh-custom", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/node-types/reload
+ * Reload all nodes (built-in and custom) from filesystem into the in-memory registry
+ * This is useful after running registration scripts to sync the registry with the database
+ */
+router.post("/reload", async (req: Request, res: Response) => {
+  try {
+    // Get the global NodeService instance
+    const nodeService = global.nodeService;
+    if (!nodeService) {
+      return res.status(500).json({
+        success: false,
+        error: "NodeService not available",
+      });
+    }
+
+    logger.info("Reloading all nodes into registry");
+    const result = await nodeService.reloadAllNodes();
+
+    res.json({
+      success: result.success,
+      message: result.message,
+      data: {
+        loaded: result.loaded,
+      },
+    });
+  } catch (error) {
+    logger.error("Failed to reload nodes", { error });
+    res.status(500).json({
+      success: false,
+      error: "Failed to reload nodes",
+    });
+  }
+});
+
+/**
+ * GET /api/node-types/debug/registry
+ * Debug endpoint to see what's in the in-memory node registry
+ */
+router.get("/debug/registry", async (req: Request, res: Response) => {
+  try {
+    // Get the global NodeService instance
+    const nodeService = global.nodeService;
+    if (!nodeService) {
+      return res.status(500).json({
+        success: false,
+        error: "NodeService not available",
+      });
+    }
+
+    // Access the private nodeRegistry using type assertion
+    const registry = (nodeService as any).nodeRegistry as Map<string, any>;
+    
+    const registryData = {
+      size: registry.size,
+      nodeTypes: Array.from(registry.keys()).sort(),
+      nodes: Array.from(registry.entries()).map(([identifier, definition]) => ({
+        identifier,
+        displayName: definition.displayName,
+        name: definition.name,
+        group: definition.group,
+        hasExecute: typeof definition.execute === 'function',
+      })),
+    };
+
+    res.json({
+      success: true,
+      data: registryData,
+    });
+  } catch (error) {
+    logger.error("Failed to get registry debug info", { error });
+    res.status(500).json({
+      success: false,
+      error: "Failed to get registry debug info",
+    });
+  }
+});
+
+/**
  * GET /api/node-types/groups/list
  * Get all unique groups from node types
  */

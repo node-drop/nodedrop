@@ -75,8 +75,30 @@ async function registerAllDiscoveredNodes() {
 
 // Run the registration
 registerAllDiscoveredNodes()
-  .then(() => {
+  .then(async () => {
     logger.info("\n✅ Auto-registration complete");
+    
+    // Try to reload nodes in the running server
+    try {
+      logger.info("\n🔄 Reloading nodes in running server...");
+      const serverUrl = process.env.BACKEND_URL || 'http://localhost:5678';
+      const response = await fetch(`${serverUrl}/api/node-types/reload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        logger.info(`✅ Server registry reloaded: ${result.message}`);
+      } else {
+        logger.warn(`⚠️  Could not reload server registry (server may not be running): ${response.status} ${response.statusText}`);
+      }
+    } catch (reloadError) {
+      logger.warn("⚠️  Could not reload server registry (server may not be running)");
+    }
+    
     process.exit(0);
   })
   .catch((error) => {

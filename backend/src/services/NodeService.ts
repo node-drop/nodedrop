@@ -546,6 +546,13 @@ export class NodeService {
   getNodeDefinitionSync(nodeType: string): NodeDefinition | null {
     try {
       const nodeDefinition = this.nodeRegistry.get(nodeType);
+      if (!nodeDefinition) {
+        logger.warn(`Node definition not found in registry: ${nodeType}`, {
+          nodeType,
+          registrySize: this.nodeRegistry.size,
+          availableNodes: Array.from(this.nodeRegistry.keys()).slice(0, 10), // Show first 10
+        });
+      }
       return nodeDefinition || null;
     } catch (error) {
       logger.error(`Failed to get node definition for ${nodeType}`, { error });
@@ -664,6 +671,11 @@ export class NodeService {
 
       const nodeDefinition = this.nodeRegistry.get(nodeType);
       if (!nodeDefinition) {
+        logger.error(`Node type not found in registry during execution`, {
+          nodeType,
+          registrySize: this.nodeRegistry.size,
+          availableNodes: Array.from(this.nodeRegistry.keys()).sort(),
+        });
         throw new Error(`Node type not found: ${nodeType}`);
       }
 
@@ -953,7 +965,9 @@ export class NodeService {
    */
   private async initializeBuiltInNodes(): Promise<void> {
     try {
+      logger.info('Starting built-in nodes initialization');
       await this.registerBuiltInNodes();
+      logger.info(`Built-in nodes initialization complete. Registry size: ${this.nodeRegistry.size}`);
     } catch (error) {
       logger.error('Failed to initialize built-in nodes', { error });
     }
@@ -1386,6 +1400,67 @@ export class NodeService {
         success: false,
         message: errorMsg,
         registered: 0,
+      };
+    }
+  }
+
+  /**
+   * Reload all nodes from filesystem into the in-memory registry
+   * This is useful after running registration scripts to sync the registry with the database
+   */
+  async reloadAllNodes(): Promise<{ success: boolean; message: string; loaded: number }> {
+    try {
+      const { nodeDiscovery } = await import('../utils/NodeDiscovery');
+      
+      // Clear the current registry
+      this.nodeRegistry.clear();
+      logger.info('Cleared node registry');
+      
+      // Load built-in nodes
+      const builtInNodeInfos = await nodeDiscovery.loadAllNodes();
+      
+      // Load custom nodes
+      const customNodeInfos = await nodeDiscovery.loadCustomNodes();
+      
+      const allNodeInfos = [...builtInNodeInfos, ...customNodeInfos];
+      
+      let loaded = 0;
+      const errors: string[] = [];
+      
+      // Add all nodes to the registry (without writing to database)
+      for (const nodeInfo of allNodeInfos) {
+        try {
+          this.nodeRegistry.set(nodeInfo.definition.identifier, nodeInfo.definition);
+          loaded++;
+        } catch (error) {
+          const errorMsg = `Failed to load ${nodeInfo.definition.identifier}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          errors.push(errorMsg);
+          logger.warn(errorMsg, { error });
+        }
+      }
+      
+      const message = loaded > 0 
+        ? `Successfully loaded ${loaded} node(s) into registry${errors.length > 0 ? ` (${errors.length} errors)` : ''}`
+        : `No nodes loaded${errors.length > 0 ? ` (${errors.length} errors)` : ''}`;
+      
+      logger.info('Node registry reload completed', {
+        loaded,
+        errors: errors.length,
+        totalFound: allNodeInfos.length,
+      });
+      
+      return {
+        success: loaded > 0 || errors.length === 0,
+        message,
+        loaded,
+      };
+    } catch (error) {
+      const errorMsg = `Failed to reload nodes: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.error(errorMsg, { error });
+      return {
+        success: false,
+        message: errorMsg,
+        loaded: 0,
       };
     }
   }
