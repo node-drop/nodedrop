@@ -1,3 +1,47 @@
+/**
+ * NodeSelectorPopover - A reusable popover component for selecting and adding nodes to the workflow
+ * 
+ * This component provides a searchable, categorized list of available node types that can be
+ * added to the workflow. It's used throughout the application for various node insertion scenarios.
+ * 
+ * USAGE LOCATIONS:
+ * ================
+ * 
+ * 1. EdgeButton (frontend/src/components/workflow/edges/EdgeButton.tsx)
+ *    - Triggered by: Clicking the + button on edge connections
+ *    - Purpose: Insert a node between two connected nodes
+ *    - Behavior: Removes existing connection, creates two new connections through the new node
+ * 
+ * 2. NodeSelectorNode (frontend/src/components/workflow/nodes/NodeSelectorNode.tsx)
+ *    - Triggered by: Multiple scenarios that create a temporary selector node:
+ *      a) Dragging a connection to empty canvas space
+ *      b) Clicking + button on a node's output handle
+ *      c) Clicking + button on a node's service input handle (model, tool, memory)
+ *      d) Keyboard shortcut (Ctrl/Cmd+K)
+ *    - Purpose: Show node selector at a specific canvas position with connection context
+ *    - Behavior: Replaces the temporary selector node with the selected node type
+ * 
+ * 3. useNodeActions hook (frontend/src/components/workflow/hooks/useNodeActions.ts)
+ *    - Creates NodeSelectorNode instances for:
+ *      - handleOutputClick: Adding nodes after a node's output
+ *      - handleServiceInputClick: Adding service provider nodes (models, tools, memory)
+ * 
+ * 4. useReactFlowInteractions hook (frontend/src/hooks/workflow/useReactFlowInteractions.ts)
+ *    - handleConnectEnd: Creates NodeSelectorNode when dragging connection to empty space
+ * 
+ * 5. WorkflowEditor (frontend/src/components/workflow/WorkflowEditor.tsx)
+ *    - handleAddNode: Creates NodeSelectorNode at viewport center via keyboard shortcut
+ * 
+ * COMPONENTS:
+ * ===========
+ * 
+ * - NodeSelectorContent: Shared content component with search and node list
+ *   Used by both NodeSelectorNode (canvas-positioned) and NodeSelectorPopover (UI-positioned)
+ * 
+ * - NodeSelectorPopover: Wrapper component for toolbar/UI-triggered node selection
+ *   Currently not actively used but available for future toolbar integration
+ */
+
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,6 +56,8 @@ interface NodeSelectorContentProps {
   onSelectNode: (nodeType: NodeType) => void
   onClose: () => void
   inputRef?: React.RefObject<HTMLInputElement>
+  /** Whether to use fixed width (for connection context) or full width (for popover) */
+  fixedWidth?: boolean
 }
 
 /**
@@ -21,6 +67,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
   onSelectNode,
   onClose,
   inputRef: externalInputRef,
+  fixedWidth = true,
 }: NodeSelectorContentProps) {
   const { activeNodeTypes, fetchNodeTypes, isLoading, hasFetched } = useNodeTypes()
   const [searchQuery, setSearchQuery] = useState('')
@@ -85,7 +132,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
   }, [filteredNodes])
 
   return (
-    <div className="flex flex-col w-[320px]">
+    <div className={cn("flex flex-col", fixedWidth && "w-[320px]")}>
       {/* Search input */}
       <div className="p-3 border-b">
         <div className="relative">
@@ -140,10 +187,10 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
                       className="flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-medium truncate">{node.displayName}</div>
+                      <div className="text-sm font-medium truncate">{node.displayName}</div>
                       {node.description && (
                         <div
-                          className="text-[8px] text-muted-foreground"
+                          className="text-xs text-muted-foreground"
                           style={{
                             display: '-webkit-box',
                             WebkitLineClamp: 1,
@@ -209,7 +256,7 @@ export function NodeSelectorPopover({
         side="top"
         sideOffset={8}
       >
-        <NodeSelectorContent onSelectNode={handleSelectNode} onClose={handleClose} />
+        <NodeSelectorContent onSelectNode={handleSelectNode} onClose={handleClose} fixedWidth={false} />
       </PopoverContent>
     </Popover>
   )

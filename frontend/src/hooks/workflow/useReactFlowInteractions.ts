@@ -515,18 +515,32 @@ export function useReactFlowInteractions() {
         handleType: string | null;
       }
     ) => {
-      if (params.nodeId && params.handleType === "source") {
-        // Reset the connection made flag
-        connectionMadeRef.current = false;
+      // Reset the connection made flag
+      connectionMadeRef.current = false;
 
-        const connection = {
-          source: params.nodeId,
-          sourceHandle: params.handleId ?? null,
-          target: "",
-          targetHandle: null,
-        };
-        setConnectionInProgress(connection);
-        connectionRef.current = connection;
+      if (params.nodeId) {
+        if (params.handleType === "source") {
+          // Dragging FROM a source handle (normal output)
+          const connection = {
+            source: params.nodeId,
+            sourceHandle: params.handleId ?? null,
+            target: "",
+            targetHandle: null,
+          };
+          setConnectionInProgress(connection);
+          connectionRef.current = connection;
+        } else if (params.handleType === "target") {
+          // Dragging TO a target handle (service input or regular input)
+          // Store as reverse connection - we'll create a node that connects TO this target
+          const connection = {
+            source: "", // Will be the new node
+            sourceHandle: null,
+            target: params.nodeId,
+            targetHandle: params.handleId ?? null,
+          };
+          setConnectionInProgress(connection);
+          connectionRef.current = connection;
+        }
       }
     },
     []
@@ -556,7 +570,10 @@ export function useReactFlowInteractions() {
         }
 
         // Connection was not made to an existing node, so it was dropped on canvas
-        if (activeConnection.source) {
+        const hasSource = !!activeConnection.source;
+        const hasTarget = !!activeConnection.target;
+
+        if (hasSource || hasTarget) {
           // Get the mouse position
           const clientX =
             "clientX" in event
@@ -596,14 +613,44 @@ export function useReactFlowInteractions() {
             disabled: false,
           };
 
-          // Create a temporary connection from source to selector node
-          const tempConnection = {
-            id: `temp-${activeConnection.source}-${selectorNodeId}`,
-            sourceNodeId: activeConnection.source,
-            sourceOutput: activeConnection.sourceHandle || "main",
-            targetNodeId: selectorNodeId,
-            targetInput: "main",
-          };
+          // Create temporary connection based on whether we have source or target
+          let tempConnection;
+          let insertionContext;
+
+          if (hasSource) {
+            // Normal case: dragging FROM a source handle TO empty space
+            tempConnection = {
+              id: `temp-${activeConnection.source}-${selectorNodeId}`,
+              sourceNodeId: activeConnection.source,
+              sourceOutput: activeConnection.sourceHandle || "main",
+              targetNodeId: selectorNodeId,
+              targetInput: "main",
+            };
+
+            insertionContext = {
+              sourceNodeId: activeConnection.source,
+              targetNodeId: "", // Empty target since we're adding a new node
+              sourceOutput: activeConnection.sourceHandle || undefined,
+              targetInput: undefined,
+            };
+          } else {
+            // Reverse case: dragging TO a target handle FROM empty space
+            // The new node will be the SOURCE connecting TO the target
+            tempConnection = {
+              id: `temp-${selectorNodeId}-${activeConnection.target}`,
+              sourceNodeId: selectorNodeId,
+              sourceOutput: "main",
+              targetNodeId: activeConnection.target,
+              targetInput: activeConnection.targetHandle || "main",
+            };
+
+            insertionContext = {
+              sourceNodeId: "", // Empty source - new node will be source
+              targetNodeId: activeConnection.target,
+              sourceOutput: undefined,
+              targetInput: activeConnection.targetHandle || undefined,
+            };
+          }
 
           // Add node to workflow store (connection will be added after node renders)
           const { workflow, updateWorkflow } = useWorkflowStore.getState();
@@ -662,12 +709,7 @@ export function useReactFlowInteractions() {
           }, 50);
 
           // Store insertion context for when user selects a node
-          showPlaceholder(position, {
-            sourceNodeId: activeConnection.source,
-            targetNodeId: "", // Empty target since we're adding a new node
-            sourceOutput: activeConnection.sourceHandle || undefined,
-            targetInput: undefined,
-          });
+          showPlaceholder(position, insertionContext);
         }
 
         setConnectionInProgress(null);
@@ -675,7 +717,7 @@ export function useReactFlowInteractions() {
         connectionMadeRef.current = false;
       }, 0);
     },
-    [connectionInProgress, reactFlowInstance, showPlaceholder]
+    [connectionInProgress, reactFlowInstance, showPlaceholder, setNodes, setEdges]
   );
 
   // ReactFlow control functions

@@ -1,11 +1,54 @@
+/**
+ * NodeSelectorNode - A temporary React Flow node that displays the node selector popover
+ * 
+ * This is a special node type that acts as a placeholder in the workflow canvas,
+ * showing the NodeSelectorContent popover for selecting which node to add.
+ * 
+ * USAGE SCENARIOS:
+ * ================
+ * 
+ * 1. Drag connection to empty space (useReactFlowInteractions.handleConnectEnd)
+ *    - User drags from a node's output handle and drops on empty canvas
+ *    - Creates NodeSelectorNode at drop position with temporary connection
+ * 
+ * 2. Click + on node output handle (useNodeActions.handleOutputClick)
+ *    - User clicks + button on a node's output handle
+ *    - Creates NodeSelectorNode to the right of the source node
+ * 
+ * 3. Click + on node service input (useNodeActions.handleServiceInputClick)
+ *    - User clicks + button on service input handles (model, tool, memory)
+ *    - Creates NodeSelectorNode below the target node
+ * 
+ * 4. Keyboard shortcut Ctrl/Cmd+K (WorkflowEditor.handleAddNode)
+ *    - User presses keyboard shortcut
+ *    - Creates NodeSelectorNode at viewport center
+ * 
+ * BEHAVIOR:
+ * =========
+ * - Renders as a real React Flow node at canvas coordinates
+ * - Shows NodeSelectorContent popover for node selection
+ * - Maintains connection context (source/target info) via usePlaceholderNodeStore
+ * - When node is selected: replaces itself with the chosen node type
+ * - When closed/cancelled: removes itself and any temporary connections
+ * - Automatically closes on click outside
+ * 
+ * ADVANTAGES OVER DIALOG:
+ * =======================
+ * - Positioned in canvas coordinates (stays with workflow zoom/pan)
+ * - Visual connection preview with temporary edges
+ * - More intuitive spatial relationship to connected nodes
+ * - Seamless integration with React Flow's node system
+ */
+
 import { memo, useCallback, useEffect, useRef } from 'react'
-import { Node, NodeProps, Handle, Position } from '@xyflow/react'
+import { Node, NodeProps, Handle } from '@xyflow/react'
 import { cn } from '@/lib/utils'
 import { usePlaceholderNodeStore } from '@/stores/placeholderNode'
 import { useWorkflowStore } from '@/stores'
 import { NodeType } from '@/types'
 import { createWorkflowNode } from '@/utils/nodeCreation'
 import { NodeSelectorContent } from '../NodeSelectorPopover'
+import { useNodeSelectorHandles } from '@/hooks/workflow/useNodeSelectorHandles'
 
 interface NodeSelectorNodeData extends Record<string, unknown> {
   label?: string
@@ -27,24 +70,8 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
   const removeConnection = useWorkflowStore(state => state.removeConnection)
   const nodeRef = useRef<HTMLDivElement>(null)
 
-  // Handle click outside to close
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (nodeRef.current && !nodeRef.current.contains(e.target as HTMLElement)) {
-        handleClose()
-      }
-    }
-
-    // Delay adding listener to avoid immediate close
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside)
-    }, 100)
-
-    return () => {
-      clearTimeout(timer)
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
+  // Get handle configurations based on insertion context
+  const handles = useNodeSelectorHandles(insertionContext)
 
   // Remove this selector node and its temporary connection from the workflow
   const removeSelectorNode = useCallback(() => {
@@ -68,6 +95,56 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
     hidePlaceholder()
   }, [removeSelectorNode, hidePlaceholder])
 
+  // Handle click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // Check if click is outside the node selector
+      if (nodeRef.current && !nodeRef.current.contains(target)) {
+        // Also check if clicking on canvas or other workflow elements
+        const isCanvasClick = target.classList.contains('react-flow__pane') ||
+                             target.classList.contains('react-flow__renderer') ||
+                             target.closest('.react-flow__pane') !== null
+        
+        const isOtherNode = target.closest('.react-flow__node') !== null && 
+                           !target.closest('.react-flow__node')?.contains(nodeRef.current)
+        
+        // Close if clicking on canvas or other nodes
+        if (isCanvasClick || isOtherNode) {
+          handleClose()
+        }
+      }
+    }
+
+    // Also handle pointerdown for better canvas interaction
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement
+      
+      if (nodeRef.current && !nodeRef.current.contains(target)) {
+        const isCanvasClick = target.classList.contains('react-flow__pane') ||
+                             target.classList.contains('react-flow__renderer') ||
+                             target.closest('.react-flow__pane') !== null
+        
+        if (isCanvasClick) {
+          handleClose()
+        }
+      }
+    }
+
+    // Delay adding listeners to avoid immediate close
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside, true) // Use capture phase
+      document.addEventListener('pointerdown', handlePointerDown, true)
+    }, 100)
+
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+    }
+  }, [handleClose])
+
   // Handle node selection
   const handleSelectNode = useCallback(
     (nodeType: NodeType) => {
@@ -86,6 +163,7 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
 
       // Handle connections based on insertion context
       if (insertionContext?.sourceNodeId) {
+        // FORWARD MODE: Source node exists (normal output connection)
         // Check if this is an "insert between" case (both source and target exist)
         if (insertionContext.targetNodeId) {
           // Find and remove the existing connection between source and target
@@ -132,6 +210,17 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
           }
           addConnection(newConnection)
         }
+      } else if (insertionContext?.targetNodeId) {
+        // REVERSE MODE: Target node exists (service input connection)
+        // The new node will be the SOURCE connecting TO the target
+        const newConnection = {
+          id: `${newNode.id}-${insertionContext.targetNodeId}-${Date.now()}`,
+          sourceNodeId: newNode.id,
+          sourceOutput: nodeType.outputs?.[0] || insertionContext.targetInput || 'main',
+          targetNodeId: insertionContext.targetNodeId,
+          targetInput: insertionContext.targetInput || 'main',
+        }
+        addConnection(newConnection)
       }
 
       // Clean up
@@ -158,14 +247,17 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
         'animate-in fade-in-0 zoom-in-95'
       )}
     >
-      {/* Input handle - positioned at top left, offset to align with edge */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="main"
-        className="!w-3 !h-3 !bg-primary !border-2 !border-background !top-[28px]"
-        style={{ top: '20px' }}
-      />
+      {/* Render handles based on connection context */}
+      {handles.map((handle) => (
+        <Handle
+          key={handle.id}
+          type={handle.type}
+          position={handle.position}
+          id={handle.id}
+          className="!w-3 !h-3 !bg-primary !border-2 !border-background"
+          style={handle.style}
+        />
+      ))}
 
       <NodeSelectorContent onSelectNode={handleSelectNode} onClose={handleClose} />
     </div>

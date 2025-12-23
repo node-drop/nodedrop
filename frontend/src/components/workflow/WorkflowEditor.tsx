@@ -89,7 +89,7 @@ export function WorkflowEditor({
             group: GroupNode as any,
             annotation: AnnotationNode as any,
             'node-selector': NodeSelectorNode as any,
-          //  'ai-agent': AIAgentNode,
+  
         }
 
         // For dynamically uploaded nodes, they all use the CustomNode component

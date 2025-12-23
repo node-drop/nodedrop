@@ -52,32 +52,3 @@ export function WorkflowEditorSkeleton() {
     </div>
   )
 }
-
-/**
- * Skeleton for individual workflow nodes
- */
-function NodeSkeleton() {
-  return (
-    <div className="w-64 bg-card border-2 border-muted rounded-lg shadow-md relative">
-      {/* Node header */}
-      <div className="flex items-center gap-2 p-3 border-b bg-muted/30">
-        <div className="w-8 h-8 bg-muted rounded animate-pulse" />
-        <div className="flex-1">
-          <div className="h-4 w-32 bg-muted rounded mb-1 animate-pulse" />
-          <div className="h-3 w-24 bg-muted/60 rounded animate-pulse" />
-        </div>
-      </div>
-      
-      {/* Node content */}
-      <div className="p-3 space-y-2">
-        <div className="h-3 w-full bg-muted/60 rounded animate-pulse" />
-        <div className="h-3 w-4/5 bg-muted/60 rounded animate-pulse" />
-        <div className="h-3 w-3/5 bg-muted/60 rounded animate-pulse" />
-      </div>
-
-      {/* Connection points */}
-      <div className="absolute -left-2 top-1/2 w-4 h-4 bg-muted border-2 border-background rounded-full animate-pulse" />
-      <div className="absolute -right-2 top-1/2 w-4 h-4 bg-muted border-2 border-background rounded-full animate-pulse" />
-    </div>
-  )
-}

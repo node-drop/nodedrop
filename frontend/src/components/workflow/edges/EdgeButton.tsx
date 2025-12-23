@@ -1,3 +1,23 @@
+/**
+ * EdgeButton - Interactive button overlay for workflow edges
+ * 
+ * Displays a compact button group on edge connections when hovered, providing:
+ * - Add node button (+): Opens NodeSelectorPopover to insert a node between connections
+ * - Edge type selector: Switch between Step and Bezier edge rendering
+ * - Delete button: Remove the connection
+ * 
+ * POPOVER INTEGRATION:
+ * ====================
+ * Uses NodeSelectorContent from NodeSelectorPopover.tsx to show a searchable node list.
+ * When a node is selected, it:
+ * 1. Removes the existing connection between source and target
+ * 2. Creates a new node at the edge midpoint
+ * 3. Creates two new connections: source → new node → target
+ * 
+ * This allows users to easily insert nodes into existing workflow paths without
+ * manually reconnecting nodes.
+ */
+
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NodeSelectorContent } from '@/components/workflow/NodeSelectorPopover';
 import { useWorkflowStore } from '@/stores';
@@ -193,17 +213,23 @@ export function EdgeButton({
             </button>
           </PopoverTrigger>
           <PopoverContent 
-            className="w-auto p-0" 
+            className="w-[320px] p-0" 
             align="center" 
             side="top"
             sideOffset={10}
-            onPointerDownOutside={(_e) => {
-               // Optional: specific closing logic? Default should work
+            onPointerDownOutside={() => {
+              // Close popover when clicking outside (including canvas)
+              setIsPopoverOpen(false)
+            }}
+            onEscapeKeyDown={() => {
+              // Close popover on Escape key
+              setIsPopoverOpen(false)
             }}
           >
             <NodeSelectorContent 
               onSelectNode={handleSelectNode} 
-              onClose={() => setIsPopoverOpen(false)} 
+              onClose={() => setIsPopoverOpen(false)}
+              fixedWidth={true}
             />
           </PopoverContent>
         </Popover>
