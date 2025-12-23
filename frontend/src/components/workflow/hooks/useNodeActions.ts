@@ -57,7 +57,7 @@ export function useNodeActions(nodeId: string) {
   const { copy, cut, paste, canCopy, canPaste } = useCopyPasteStore();
   const detachNodes = useDetachNodes();
   const deleteNodes = useDeleteNodes();
-  const { getNodes, setNodes, getNodesBounds } = useReactFlow();
+  const { getNodes, setNodes, getNodesBounds, setEdges } = useReactFlow();
 
   // Wrapper to select this node before copying (for context menu)
   const handleCopyFromContext = useCallback(() => {
@@ -249,6 +249,106 @@ export function useNodeActions(nodeId: string) {
   };
 
   /**
+   * Shared helper to create a NodeSelectorNode with temporary connection
+   * Reduces code duplication across handleOutputClick, handleInputClick, and handleServiceInputClick
+   */
+  const createNodeSelectorWithConnection = (
+    position: { x: number; y: number },
+    tempConnection: {
+      id: string;
+      sourceNodeId: string;
+      sourceOutput: string;
+      targetNodeId: string;
+      targetInput: string;
+    },
+    insertionContext: {
+      sourceNodeId: string;
+      targetNodeId: string;
+      sourceOutput: string;
+      targetInput: string;
+    }
+  ) => {
+    const selectorNodeId = `node-selector-${Date.now()}`;
+    const selectorNode = {
+      id: selectorNodeId,
+      type: "node-selector",
+      name: "Select Node",
+      parameters: {},
+      position,
+      disabled: false,
+    };
+
+    // Add node to workflow store
+    if (workflow) {
+      updateWorkflow(
+        {
+          nodes: [...workflow.nodes, selectorNode],
+        },
+        true
+      ); // Skip history for temporary selector node
+    }
+
+    // Add node directly to React Flow for immediate rendering
+    setNodes((nodes) => [
+      ...nodes,
+      {
+        id: selectorNodeId,
+        type: "node-selector",
+        position,
+        data: {
+          label: "Select Node",
+          nodeType: "node-selector",
+        },
+      },
+    ]);
+
+    // Add edge after a delay to ensure node is rendered with correct dimensions
+    setTimeout(() => {
+      // Add connection to workflow store
+      const {
+        workflow: currentWorkflow,
+        updateWorkflow: update,
+      } = useWorkflowStore.getState();
+      if (currentWorkflow) {
+        update(
+          {
+            connections: [...currentWorkflow.connections, tempConnection],
+          },
+          true
+        );
+      }
+
+      // Also add directly to React Flow
+      setEdges((edges) => {
+        // Check if edge already exists to avoid duplicates
+        if (edges.some((e) => e.id === tempConnection.id)) {
+          return edges;
+        }
+        return [
+          ...edges,
+          {
+            id: tempConnection.id,
+            source: tempConnection.sourceNodeId,
+            target: tempConnection.targetNodeId,
+            sourceHandle: tempConnection.sourceOutput,
+            targetHandle: tempConnection.targetInput,
+            type: "editable-edge",
+            data: {
+              algorithm: "Step",
+              points: [],
+            },
+          },
+        ];
+      });
+    }, 50);
+
+    // Store insertion context for the selector node
+    showPlaceholder(position, insertionContext);
+
+    return selectorNodeId;
+  };
+
+  /**
    * Handle clicking the + button on a node's output handle
    * Creates a NodeSelectorNode to insert a new node after this one
    * 
@@ -273,16 +373,7 @@ export function useNodeActions(nodeId: string) {
       y: currentNode.position.y,
     };
 
-    // Create a node-selector node at the calculated position
     const selectorNodeId = `node-selector-${Date.now()}`;
-    const selectorNode = {
-      id: selectorNodeId,
-      type: "node-selector",
-      name: "Select Node",
-      parameters: {},
-      position,
-      disabled: false,
-    };
 
     // Create a temporary connection from source to selector node
     const tempConnection = {
@@ -293,37 +384,60 @@ export function useNodeActions(nodeId: string) {
       targetInput: "main",
     };
 
-    // Add node to workflow store
-    if (workflow) {
-      updateWorkflow(
-        {
-          nodes: [...workflow.nodes, selectorNode],
-          connections: [...workflow.connections, tempConnection],
-        },
-        true
-      ); // Skip history for temporary selector node
-    }
-
-    // Add node directly to React Flow for immediate rendering
-    setNodes((nodes) => [
-      ...nodes,
-      {
-        id: selectorNodeId,
-        type: "node-selector",
-        position,
-        data: {
-          label: "Select Node",
-          nodeType: "node-selector",
-        },
-      },
-    ]);
-
-    // Store insertion context for the selector node
-    showPlaceholder(position, {
+    createNodeSelectorWithConnection(position, tempConnection, {
       sourceNodeId: nodeId,
       targetNodeId: "",
       sourceOutput: outputHandle,
       targetInput: "main",
+    });
+  };
+
+  /**
+   * Handle clicking the + button on a node's regular input handle (left side handles)
+   * Creates a NodeSelectorNode to insert a new node before this one
+   * 
+   * Position calculation:
+   * - Places the selector node to the left of this node with proper spacing
+   * - This ensures consistent horizontal layout for input connections
+   * 
+   * Connection direction:
+   * - The new node will be the SOURCE (provides data)
+   * - This node will be the TARGET (receives data)
+   */
+  const handleInputClick = (
+    event: React.MouseEvent<HTMLDivElement>,
+    inputHandle: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Get the current node to calculate position
+    const currentNode = getNodes().find((n) => n.id === nodeId);
+    if (!currentNode) return;
+
+    // Calculate position to the left of the current node
+    // NodeSelectorNode width is 320px, add 100px gap for spacing
+    const position = {
+      x: currentNode.position.x - 420, // 320px (selector width) + 100px (gap)
+      y: currentNode.position.y,
+    };
+
+    const selectorNodeId = `node-selector-${Date.now()}`;
+
+    // Create a temporary connection from selector to this node
+    const tempConnection = {
+      id: `temp-${selectorNodeId}-${nodeId}`,
+      sourceNodeId: selectorNodeId,
+      sourceOutput: "main",
+      targetNodeId: nodeId,
+      targetInput: inputHandle,
+    };
+
+    createNodeSelectorWithConnection(position, tempConnection, {
+      sourceNodeId: "",
+      targetNodeId: nodeId,
+      sourceOutput: "main",
+      targetInput: inputHandle,
     });
   };
 
@@ -351,61 +465,31 @@ export function useNodeActions(nodeId: string) {
     if (!currentNode) return;
 
     // Calculate position below the current node
+    // Center the selector node horizontally relative to current node
+    // NodeSelectorNode width is 320px, current node width varies
+    const selectorWidth = 320;
+    const currentWidth = currentNode.width || 200;
     const position = {
-      x: currentNode.position.x,
-      y: currentNode.position.y + (currentNode.height || 100) + 100,
+      x: currentNode.position.x + currentWidth / 2 - selectorWidth / 2, // Center horizontally
+      y: currentNode.position.y + (currentNode.height || 100) + 80, // Position below with gap
     };
 
-    // Create a node-selector node at the calculated position
     const selectorNodeId = `node-selector-${Date.now()}`;
-    const selectorNode = {
-      id: selectorNodeId,
-      type: "node-selector",
-      name: "Select Node",
-      parameters: {},
-      position,
-      disabled: false,
-    };
 
     // Create a temporary connection from selector to this node
+    // Note: NodeSelectorNode always uses 'main' as its handle ID
     const tempConnection = {
       id: `temp-${selectorNodeId}-${nodeId}`,
       sourceNodeId: selectorNodeId,
-      sourceOutput: inputHandle,
+      sourceOutput: "main", // NodeSelectorNode uses 'main' handle
       targetNodeId: nodeId,
       targetInput: inputHandle,
     };
 
-    // Add node to workflow store
-    if (workflow) {
-      updateWorkflow(
-        {
-          nodes: [...workflow.nodes, selectorNode],
-          connections: [...workflow.connections, tempConnection],
-        },
-        true
-      ); // Skip history for temporary selector node
-    }
-
-    // Add node directly to React Flow for immediate rendering
-    setNodes((nodes) => [
-      ...nodes,
-      {
-        id: selectorNodeId,
-        type: "node-selector",
-        position,
-        data: {
-          label: "Select Node",
-          nodeType: "node-selector",
-        },
-      },
-    ]);
-
-    // Store insertion context for the selector node
-    showPlaceholder(position, {
+    createNodeSelectorWithConnection(position, tempConnection, {
       sourceNodeId: "",
       targetNodeId: nodeId,
-      sourceOutput: inputHandle,
+      sourceOutput: "main", // NodeSelectorNode uses 'main' handle
       targetInput: inputHandle,
     });
   };
@@ -422,6 +506,7 @@ export function useNodeActions(nodeId: string) {
     handleUngroup,
     handleGroup,
     handleOutputClick,
+    handleInputClick,
     handleServiceInputClick,
     handleCopyFromContext,
     handleCutFromContext,

@@ -212,6 +212,7 @@ export function BaseNodeWrapper({
     handleUngroup,
     handleGroup,
     handleOutputClick,
+    handleInputClick,
     handleServiceInputClick,
     handleToggleDisabled,
     handleToggleDisabledFromContext,
@@ -325,6 +326,7 @@ export function BaseNodeWrapper({
 
   // Local state for tracking which output connector is hovered (for default rendering)
   const [hoveredOutput, setHoveredOutput] = React.useState<string | null>(null)
+  const [hoveredInput, setHoveredInput] = React.useState<string | null>(null)
 
   // Get inputs/outputs from data or use defaults
   // If nodeConfig has outputs, use those (for dynamic outputs like Switch node)
@@ -376,9 +378,13 @@ export function BaseNodeWrapper({
     showInputLabels,
     showOutputLabels,
     hoveredOutput,
+    hoveredInput,
     onOutputMouseEnter: setHoveredOutput,
     onOutputMouseLeave: () => setHoveredOutput(null),
+    onInputMouseEnter: setHoveredInput,
+    onInputMouseLeave: () => setHoveredInput(null),
     handleOutputClick: handleOutputClick,
+    handleInputClick: handleInputClick,
     handleServiceInputClick: handleServiceInputClick,
     handleDoubleClick,
     handleToggleExpandClick,
@@ -504,9 +510,13 @@ export function BaseNodeWrapper({
               disabled={data.disabled}
               isTrigger={isTrigger}
               hoveredOutput={hoveredOutput}
+              hoveredInput={hoveredInput}
               onOutputMouseEnter={setHoveredOutput}
               onOutputMouseLeave={() => setHoveredOutput(null)}
+              onInputMouseEnter={setHoveredInput}
+              onInputMouseLeave={() => setHoveredInput(null)}
               onOutputClick={handleOutputClick}
+              onInputClick={handleInputClick}
               onServiceInputClick={handleServiceInputClick}
               readOnly={isReadOnly}
               showInputLabels={showInputLabels}

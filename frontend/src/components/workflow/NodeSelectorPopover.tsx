@@ -58,6 +58,8 @@ interface NodeSelectorContentProps {
   inputRef?: React.RefObject<HTMLInputElement>
   /** Whether to use fixed width (for connection context) or full width (for popover) */
   fixedWidth?: boolean
+  /** Filter nodes based on connection context */
+  filterType?: 'trigger' | 'model' | 'memory' | 'tool' | 'regular' | 'all'
 }
 
 /**
@@ -68,6 +70,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
   onClose,
   inputRef: externalInputRef,
   fixedWidth = true,
+  filterType = 'all',
 }: NodeSelectorContentProps) {
   const { activeNodeTypes, fetchNodeTypes, isLoading, hasFetched } = useNodeTypes()
   const [searchQuery, setSearchQuery] = useState('')
@@ -99,22 +102,61 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Filter nodes based on search query
+  // Filter nodes based on type and search query
   const filteredNodes = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return activeNodeTypes.slice(0, 50)
+    let nodes = activeNodeTypes
+
+    // Apply type filter
+    if (filterType !== 'all') {
+      nodes = nodes.filter(node => {
+        switch (filterType) {
+          case 'trigger':
+            // Show only trigger nodes
+            return node.nodeCategory === 'trigger'
+          
+          case 'model':
+            // Show only model service nodes
+            // Check if outputs contain 'model' or if it's in the model group
+            return node.outputs?.some(o => o.toLowerCase().includes('model')) || 
+                   node.group.some(g => g.toLowerCase() === 'models' || g.toLowerCase() === 'model')
+          
+          case 'memory':
+            // Show only memory service nodes
+            return node.outputs?.some(o => o.toLowerCase().includes('memory')) || 
+                   node.group.some(g => g.toLowerCase() === 'memories' || g.toLowerCase() === 'memory')
+          
+          case 'tool':
+            // Show only tool service nodes
+            return node.outputs?.some(o => o.toLowerCase().includes('tool')) || 
+                   node.group.some(g => g.toLowerCase() === 'tools' || g.toLowerCase() === 'tool')
+          
+          case 'regular':
+            // Show regular nodes (exclude triggers and services)
+            const hasServiceOutput = node.outputs?.some(o => {
+              const lower = o.toLowerCase()
+              return lower.includes('model') || lower.includes('memory') || lower.includes('tool') || lower.includes('service')
+            })
+            return node.nodeCategory !== 'trigger' && !hasServiceOutput
+          
+          default:
+            return true
+        }
+      })
     }
 
-    const query = searchQuery.toLowerCase()
-    return activeNodeTypes
-      .filter(
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      nodes = nodes.filter(
         node =>
           node.displayName.toLowerCase().includes(query) ||
           node.description?.toLowerCase().includes(query) ||
           node.group.some(g => g.toLowerCase().includes(query))
       )
-      .slice(0, 50)
-  }, [activeNodeTypes, searchQuery])
+    }
+
+    return nodes.slice(0, 50)
+  }, [activeNodeTypes, searchQuery, filterType])
 
   // Group nodes by category
   const groupedNodes = useMemo(() => {

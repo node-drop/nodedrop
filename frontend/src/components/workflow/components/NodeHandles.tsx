@@ -18,9 +18,13 @@ interface NodeHandlesProps {
   disabled: boolean
   isTrigger: boolean
   hoveredOutput: string | null
+  hoveredInput?: string | null
   onOutputMouseEnter: (output: string) => void
   onOutputMouseLeave: () => void
+  onInputMouseEnter?: (input: string) => void
+  onInputMouseLeave?: () => void
   onOutputClick: (event: React.MouseEvent<HTMLDivElement>, output: string) => void
+  onInputClick?: (event: React.MouseEvent<HTMLDivElement>, input: string) => void
   onServiceInputClick?: (event: React.MouseEvent<HTMLDivElement>, input: string) => void
   readOnly?: boolean
   showInputLabels?: boolean
@@ -37,9 +41,13 @@ export const NodeHandles = memo(function NodeHandles({
   disabled,
   isTrigger,
   hoveredOutput,
+  hoveredInput,
   onOutputMouseEnter,
   onOutputMouseLeave,
+  onInputMouseEnter,
+  onInputMouseLeave,
   onOutputClick,
+  onInputClick,
   onServiceInputClick,
   readOnly = false,
   showInputLabels = false,
@@ -70,6 +78,7 @@ export const NodeHandles = memo(function NodeHandles({
           {leftInputs.map((input, index) => {
             const top = calculateHandlePosition(index, leftInputs.length)
             const inputLabel = inputsConfig?.[input]?.displayName || inputNames?.[inputs?.indexOf(input) || 0] || input
+            const isHovered = hoveredInput === input
 
             return (
               <div
@@ -80,23 +89,40 @@ export const NodeHandles = memo(function NodeHandles({
                   left: '-6px',
                   transform: 'translateY(-50%)',
                 }}
+                onMouseEnter={() => onInputMouseEnter?.(input)}
+                onMouseLeave={onInputMouseLeave}
               >
-                <Handle
-                  id={input}
-                  type="target"
-                  position={Position.Left}
-                  style={{
-                    position: 'relative',
-                    top: 0,
-                    left: 0,
-                    right: 'auto',
-                    transform: 'none',
-                  }}
-                  className={clsx(
-                    "w-3 h-3 border-2 border-white dark:border-background",
-                    disabled ? "!bg-muted" : "!bg-muted-foreground"
+                <div className="relative">
+                  <Handle
+                    id={input}
+                    type="target"
+                    position={Position.Left}
+                    style={{
+                      position: 'relative',
+                      top: 0,
+                      left: 0,
+                      right: 'auto',
+                      transform: 'none',
+                    }}
+                    className={clsx(
+                      "w-3 h-3 border-2 border-white dark:border-background cursor-pointer transition-all duration-200",
+                      disabled ? "!bg-muted" : "!bg-muted-foreground hover:!bg-primary hover:scale-125"
+                    )}
+                    onClick={(e) => onInputClick ? onInputClick(e, input) : onOutputClick(e, input)}
+                  />
+
+                  {/* Plus icon on hover */}
+                  {isHovered && !disabled && !readOnly && (
+                    <div
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ zIndex: 10 }}
+                    >
+                      <div className="bg-primary rounded-full p-0.5 shadow-lg animate-in fade-in zoom-in duration-150">
+                        <Plus className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
+                      </div>
+                    </div>
                   )}
-                />
+                </div>
                 
                 {/* Label */}
                 {showInputLabels && (

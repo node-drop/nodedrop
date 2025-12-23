@@ -40,7 +40,7 @@
  * - Seamless integration with React Flow's node system
  */
 
-import { memo, useCallback, useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Node, NodeProps, Handle } from '@xyflow/react'
 import { cn } from '@/lib/utils'
 import { usePlaceholderNodeStore } from '@/stores/placeholderNode'
@@ -72,6 +72,33 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
 
   // Get handle configurations based on insertion context
   const handles = useNodeSelectorHandles(insertionContext)
+
+  // Determine filter type based on insertion context
+  const filterType = useMemo(() => {
+    if (!insertionContext) return 'all'
+
+    // Check if connecting TO a target (reverse mode)
+    if (insertionContext.targetNodeId && insertionContext.targetInput) {
+      const targetInput = insertionContext.targetInput.toLowerCase()
+      
+      // Service input filters
+      if (targetInput.includes('model')) return 'model'
+      if (targetInput.includes('memory') || targetInput.includes('memories')) return 'memory'
+      if (targetInput.includes('tool')) return 'tool'
+      
+      // Regular input - show triggers
+      if (targetInput === 'main' || !targetInput.includes('service')) {
+        return 'trigger'
+      }
+    }
+
+    // Forward mode - show regular nodes (not triggers, not services)
+    if (insertionContext.sourceNodeId) {
+      return 'regular'
+    }
+
+    return 'all'
+  }, [insertionContext])
 
   // Remove this selector node and its temporary connection from the workflow
   const removeSelectorNode = useCallback(() => {
@@ -259,7 +286,11 @@ export const NodeSelectorNode = memo(function NodeSelectorNode({
         />
       ))}
 
-      <NodeSelectorContent onSelectNode={handleSelectNode} onClose={handleClose} />
+      <NodeSelectorContent 
+        onSelectNode={handleSelectNode} 
+        onClose={handleClose}
+        filterType={filterType}
+      />
     </div>
   )
 })
