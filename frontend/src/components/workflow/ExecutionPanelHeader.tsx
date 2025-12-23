@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
 import { useSelectedNodes } from '@/hooks/workflow'
-import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
+import { useReactFlowUIStore } from '@/stores'
 import { ExecutionState } from '@/types'
 import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight } from 'lucide-react'
 
@@ -18,8 +18,7 @@ export function ExecutionPanelHeader({
   onToggle
 }: ExecutionPanelHeaderProps) {
   const { validateAndShowResult } = useWorkflowOperations()
-  const { showRightSidebar, toggleRightSidebar } = useReactFlowUIStore()
-  const { openTemplateDialog } = useWorkflowStore()
+  const { showRightSidebar, toggleRightSidebar, openRightSidebar } = useReactFlowUIStore()
   
   // Get selected nodes count
   const { selectedNodesCount, hasSelectedNodes } = useSelectedNodes()
@@ -70,7 +69,7 @@ export function ExecutionPanelHeader({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              onClick={openTemplateDialog}
+              onClick={() => openRightSidebar('template')}
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0"

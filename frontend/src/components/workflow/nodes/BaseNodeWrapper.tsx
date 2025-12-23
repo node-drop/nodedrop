@@ -255,13 +255,13 @@ export function BaseNodeWrapper({
   const selectedNodesForTemplate = getNodes().filter(node => node.selected)
   const canCreateTemplate = selectedNodesForTemplate.length >= 1
 
-  // Get template dialog action from store (opens custom node creation)
-  const openTemplateDialog = useWorkflowStore(state => state.openTemplateDialog)
+  // Get right sidebar action from store (opens custom node creation panel)
+  const openRightSidebar = useReactFlowUIStore(state => state.openRightSidebar)
   
   // Handle create custom node
   const handleCreateTemplate = useCallback(() => {
-    openTemplateDialog()
-  }, [openTemplateDialog])
+    openRightSidebar('template')
+  }, [openRightSidebar])
 
   // Use execution hook for toolbar functionality and visual state
   const {

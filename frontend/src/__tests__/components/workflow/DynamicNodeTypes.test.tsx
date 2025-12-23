@@ -27,10 +27,6 @@ vi.mock('../../../components/workflow/ExecutionPanel', () => ({
   ExecutionPanel: () => <div data-testid="execution-panel" />
 }))
 
-vi.mock('../../../components/workflow/AddNodeCommandDialog', () => ({
-  AddNodeCommandDialog: () => <div data-testid="add-node-dialog" />
-}))
-
 vi.mock('../../../components/workflow/WorkflowErrorBoundary', () => ({
   WorkflowErrorBoundary: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
@@ -83,12 +79,6 @@ vi.mock('../../../hooks/workflow/useEdgeAnimation', () => ({
 }))
 
 vi.mock('../../../stores', () => ({
-  useAddNodeDialogStore: () => ({
-    isOpen: false,
-    openDialog: vi.fn(),
-    closeDialog: vi.fn(),
-    position: null,
-  }),
   useReactFlowUIStore: () => ({
     showExecutionPanel: false,
     toggleExecutionPanel: vi.fn(),
