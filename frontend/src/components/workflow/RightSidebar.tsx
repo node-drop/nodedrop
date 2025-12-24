@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react'
-import { Bot, Code2, Settings, X, Sliders, PackagePlus } from 'lucide-react'
+import { Bot, Code2, Settings, X, Sliders, PackagePlus, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
@@ -9,6 +9,7 @@ import { CopilotPanel } from './sidebar-panels/CopilotPanel'
 import { CodePanel } from './sidebar-panels/CodePanel'
 import { WorkflowSettingsPanel } from './sidebar-panels/WorkflowSettingsPanel'
 import { CreateCustomNodePanel } from './sidebar-panels/CreateCustomNodePanel'
+import { GitPanel } from './sidebar-panels/GitPanel'
 
 interface RightSidebarProps {
   selectedNodes: { id: string }[]
@@ -117,6 +118,13 @@ export const RightSidebar = memo(function RightSidebar({
             >
               <PackagePlus className="h-3.5 w-3.5" />
             </TabsTrigger>
+            <TabsTrigger 
+              value="git" 
+              className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
+              title="Git Version Control"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <Button 
@@ -158,6 +166,12 @@ export const RightSidebar = memo(function RightSidebar({
             connections={selectedConnections}
             onCreateCustomNode={handleCreateCustomNode}
             onClose={closeRightSidebar}
+          />
+        )}
+        {rightSidebarTab === 'git' && (
+          <GitPanel 
+            workflowId={workflow?.id}
+            readOnly={readOnly}
           />
         )}
       </div>

@@ -119,4 +119,8 @@ backend/src/generated/
 # Custom nodes - keep folder only
 backend/custom-nodes/*
 !backend/custom-nodes/.gitkeep
+
+# Git repositories storage
+git-repos/
+
 .kiro

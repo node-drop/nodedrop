@@ -2,6 +2,7 @@
 export * from "./auth";
 export * from "./executions";
 export * from "./flow-execution";
+export * from "./git";
 export * from "./nodes";
 export * from "./triggers";
 export * from "./variables";

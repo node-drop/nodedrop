@@ -20,6 +20,7 @@ import executionRecoveryRoutes from "./routes/execution-recovery";
 import executionResumeRoutes from "./routes/execution-resume";
 import { executionRoutes } from "./routes/executions";
 import flowExecutionRoutes from "./routes/flow-execution";
+import { gitRouter } from "./routes/git";
 import googleRoutes from "./routes/google";
 import { nodeTypeRoutes } from "./routes/node-types";
 import { nodeRoutes } from "./routes/nodes";
@@ -585,6 +586,7 @@ app.use("/api", oauthGenericRoutes);
 app.use("/api/google", googleRoutes);
 app.use("/api/ai-memory", aiMemoryRoutes);
 app.use("/api", webhookLogsRoutes);
+app.use("/api/git", gitRouter);
 
 // Webhook routes (public endpoints without /api prefix for easier external integration)
 // All webhook-based triggers are under /webhook for consistency
@@ -655,6 +657,15 @@ httpServer.listen(PORT, async () => {
 
   // Initialize node systems after server starts
   await initializeNodeSystems();
+
+  // Initialize Git storage directories
+  try {
+    const { initializeGitStorage } = await import('./config/git');
+    await initializeGitStorage();
+    logger.info(`✅ Initialized Git storage directories`);
+  } catch (error) {
+    logger.error(`❌ Failed to initialize Git storage`, { error });
+  }
 
   // Initialize TriggerService singleton to load active triggers
   try {

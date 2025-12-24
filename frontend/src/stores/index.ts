@@ -4,6 +4,7 @@ export { useCopyPasteStore } from "./copyPaste";
 export { usePlaceholderNodeStore } from "./placeholderNode";
 export { useCredentialStore } from "./credential";
 export { useCustomNodeStore } from "./customNode";
+export { useGitStore } from "./git";
 export { useNodeConfigDialogStore } from "./nodeConfigDialog";
 export { useNodeTypesStore, useNodeTypes } from "./nodeTypes";
 export { usePinnedNodesStore } from "./pinnedNodes";
