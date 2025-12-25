@@ -4,7 +4,7 @@ import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
 import { useSelectedNodes } from '@/hooks/workflow'
 import { useReactFlowUIStore } from '@/stores'
 import { ExecutionState } from '@/types'
-import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight, Activity, GitBranch } from 'lucide-react'
 
 interface ExecutionPanelHeaderProps {
   executionState: ExecutionState
@@ -51,6 +51,36 @@ export function ExecutionPanelHeader({
         )}
       </div>
       <div className="flex items-center space-x-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => openRightSidebar('executions')}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <Activity className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View execution history</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => openRightSidebar('git')}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <GitBranch className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Git version control</p>
+          </TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
