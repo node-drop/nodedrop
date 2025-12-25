@@ -1,5 +1,6 @@
 // API routes exports
 export * from "./auth";
+export * from "./backup";
 export * from "./executions";
 export * from "./flow-execution";
 export * from "./git";

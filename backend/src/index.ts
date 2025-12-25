@@ -11,6 +11,7 @@ import { createServer } from "http";
 // Import routes
 import aiMemoryRoutes from "./routes/ai-memory.routes";
 import { authRoutes } from "./routes/auth";
+import { backupRoutes } from "./routes/backup";
 import credentialRoutes from "./routes/credentials";
 import { customNodeRoutes } from "./routes/custom-nodes";
 import environmentRoutes from "./routes/environment";
@@ -583,16 +584,13 @@ app.use("/api/execution-recovery", executionRecoveryRoutes);
 app.use("/api/executions", executionResumeRoutes);
 app.use("/api", oauthGenericRoutes);
 app.use("/api/google", googleRoutes);
-app.use("/api/ai-memory", aiMemoryRoutes);
-app.use("/api", webhookLogsRoutes);
-app.use("/api/git", gitRouter);
-
-// Webhook routes (public endpoints without /api prefix for easier external integration)
-// All webhook-based triggers are under /webhook for consistency
-// IMPORTANT: Register specific routes BEFORE generic webhook route
-app.use("/webhook/forms", publicFormsRoutes);
-app.use("/webhook/chats", publicChatsRoutes);
-app.use("/webhook", webhookRoutes);
+  app.use("/api/ai-memory", aiMemoryRoutes);
+  app.use("/api/backup", backupRoutes);
+  app.use("/api", webhookLogsRoutes);
+  app.use("/api/git", gitRouter);
+  app.use("/webhook/forms", publicFormsRoutes);
+  app.use("/webhook/chats", publicChatsRoutes);
+  app.use("/webhook", webhookRoutes);
 
 // Serve frontend static files (for unified Docker image)
 // This allows the backend to serve the frontend in production

@@ -83,8 +83,14 @@ const data = {
     },
     {
       title: "New Workflow",
-      url: "/workflows/new", 
+      url: "/workflows/new",
       icon: Plus,
+      isActive: false,
+    },
+    {
+      title: "Backup & Restore",
+      url: "/backup",
+      icon: Database,
       isActive: false,
     },
 
