@@ -87,12 +87,7 @@ const data = {
       icon: Plus,
       isActive: false,
     },
-    {
-      title: "Backup & Restore",
-      url: "/backup",
-      icon: Database,
-      isActive: false,
-    },
+ 
 
   ],
   workflowItems: [

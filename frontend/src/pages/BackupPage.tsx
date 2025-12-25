@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { MonitoringLayout } from '@/components/layouts/MonitoringLayout'
 import { backupService, BackupData, BackupSummary, ExportOptions, ImportResult } from '@/services/backup.service'
 import { Download, FileDown, HardDrive, AlertCircle, CheckCircle2, Loader2, Upload, FileJson, Database, Key, Workflow, Variable, ArrowRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -131,21 +132,14 @@ export const BackupPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 bg-background">
-      <div className="max-w-6xl w-full">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-6">
-            <HardDrive className="w-10 h-10 text-primary-foreground" />
-          </div>
-          <h1 className="text-4xl font-bold text-foreground mb-3">Backup & Restore</h1>
-          <p className="text-xl text-muted-foreground">
-            Export and import your workflows, variables, credentials, and environments
-          </p>
-        </div>
-
+    <MonitoringLayout
+      title="Backup & Restore"
+      subtitle="Export and import your workflows, variables, credentials, and environments"
+    >
+      <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <Card>
+          <Card>
               <CardHeader className="space-y-1 pb-4">
                 <div className="flex items-center gap-2">
                   <Download className="w-5 h-5 text-primary" />
@@ -329,7 +323,7 @@ export const BackupPage: React.FC = () => {
         </div>
 
         {importResult && (
-          <Card className="mt-8">
+          <Card className="mt-6">
             <CardHeader className="space-y-1">
               <div className="flex items-center gap-3">
                 {getTotalErrors() === 0 ? (
@@ -436,7 +430,6 @@ export const BackupPage: React.FC = () => {
           </Card>
         )}
       </div>
-    </div>
+    </MonitoringLayout>
   )
 }
-
