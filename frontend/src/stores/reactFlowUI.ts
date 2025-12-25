@@ -56,14 +56,12 @@ interface ReactFlowUIState {
   toggleCodePanel: () => void;
   setShowCodePanel: (show: boolean) => void;
 
-  // Right sidebar state
-  showRightSidebar: boolean;
-  rightSidebarTab: 'settings' | 'copilot' | 'code' | 'workflow' | 'template' | 'git';
+  rightSidebarTab: 'settings' | 'copilot' | 'code' | 'workflow' | 'executions' | 'template' | 'git';
   rightSidebarSize: number;
   toggleRightSidebar: () => void;
-  setRightSidebarTab: (tab: 'settings' | 'copilot' | 'code' | 'workflow' | 'template' | 'git') => void;
+  setRightSidebarTab: (tab: 'settings' | 'copilot' | 'code' | 'workflow' | 'executions' | 'template' | 'git') => void;
   setRightSidebarSize: (size: number) => void;
-  openRightSidebar: (tab?: 'settings' | 'copilot' | 'code' | 'workflow' | 'template' | 'git') => void;
+  openRightSidebar: (tab?: 'settings' | 'copilot' | 'code' | 'workflow' | 'executions' | 'template' | 'git') => void;
   closeRightSidebar: () => void;
 
   // Toggle functions
