@@ -170,6 +170,25 @@ CREATE TABLE IF NOT EXISTS "node_executions" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "workflow_git_configs" (
+	"id" text PRIMARY KEY DEFAULT cuid() NOT NULL,
+	"workflow_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"repository_url" text NOT NULL,
+	"branch" text DEFAULT 'main' NOT NULL,
+	"remote_name" text DEFAULT 'origin' NOT NULL,
+	"credential_id" text,
+	"local_path" text NOT NULL,
+	"last_sync_at" timestamp,
+	"last_commit_hash" text,
+	"unpushed_commits" integer DEFAULT 0,
+	"connected" boolean DEFAULT true,
+	"last_error" text,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "workflow_git_configs_workflow_id_unique" UNIQUE("workflow_id")
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "workspace_invitations" (
 	"id" text PRIMARY KEY DEFAULT cuid() NOT NULL,
 	"workspace_id" text NOT NULL,
@@ -299,7 +318,7 @@ CREATE TABLE IF NOT EXISTS "variables" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "node_types" (
+CREATE TABLE IF NOT EXISTS "nodes" (
 	"id" text PRIMARY KEY DEFAULT cuid() NOT NULL,
 	"identifier" text NOT NULL,
 	"display_name" text NOT NULL,
@@ -325,7 +344,7 @@ CREATE TABLE IF NOT EXISTS "node_types" (
 	"workspace_id" text,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
-	CONSTRAINT "node_types_identifier_unique" UNIQUE("identifier")
+	CONSTRAINT "nodes_identifier_unique" UNIQUE("identifier")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "trigger_jobs" (
@@ -402,6 +421,9 @@ CREATE INDEX IF NOT EXISTS "flow_execution_states_status_idx" ON "flow_execution
 CREATE INDEX IF NOT EXISTS "node_executions_execution_id_idx" ON "node_executions" ("execution_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "node_executions_node_id_idx" ON "node_executions" ("node_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "node_executions_status_idx" ON "node_executions" ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workflow_git_configs_workflow_id_idx" ON "workflow_git_configs" ("workflow_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workflow_git_configs_user_id_idx" ON "workflow_git_configs" ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workflow_git_configs_credential_id_idx" ON "workflow_git_configs" ("credential_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "workspace_invitations_workspace_email_unique" ON "workspace_invitations" ("workspace_id","email");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "workspace_invitations_token_idx" ON "workspace_invitations" ("token");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "workspace_invitations_email_idx" ON "workspace_invitations" ("email");--> statement-breakpoint
@@ -432,9 +454,9 @@ CREATE INDEX IF NOT EXISTS "variables_workspace_id_idx" ON "variables" ("workspa
 CREATE INDEX IF NOT EXISTS "variables_workflow_id_idx" ON "variables" ("workflow_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "variables_user_scope_idx" ON "variables" ("user_id","scope");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "variables_user_key_workflow_unique" ON "variables" ("user_id","key","workflow_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "node_types_identifier_unique" ON "node_types" ("identifier");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "node_types_workspace_id_idx" ON "node_types" ("workspace_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "node_types_is_core_idx" ON "node_types" ("is_core");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "nodes_identifier_unique" ON "nodes" ("identifier");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "nodes_workspace_id_idx" ON "nodes" ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "nodes_is_core_idx" ON "nodes" ("is_core");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_workflow_id_idx" ON "trigger_jobs" ("workflow_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_workspace_id_idx" ON "trigger_jobs" ("workspace_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_active_idx" ON "trigger_jobs" ("active");--> statement-breakpoint
