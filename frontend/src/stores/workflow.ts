@@ -98,7 +98,7 @@ interface WorkflowStore extends WorkflowEditorState {
   } | null;
 
   // Actions
-  setWorkflow: (workflow: Workflow | null) => void;
+  setWorkflow: (workflow: Workflow | null, preserveUIState?: boolean) => void;
   updateWorkflow: (updates: Partial<Workflow>, skipHistory?: boolean) => void;
   addNode: (node: WorkflowNode) => void;
   addNodes: (nodes: WorkflowNode[]) => void;
@@ -355,7 +355,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
       templateVariableDialogData: null,
 
       // Actions
-      setWorkflow: (workflow) => {
+      setWorkflow: (workflow, preserveUIState = false) => {
         let processedWorkflow = workflow;
 
         // Ensure workflow has proper metadata
@@ -389,25 +389,41 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
 
         const title =
           processedWorkflow?.metadata?.title || processedWorkflow?.name || "";
-        set({
-          workflow: processedWorkflow,
-          isDirty: false,
-          workflowTitle: title,
-          isTitleDirty: false,
-          titleValidationError: null,
-          // Reset execution state when loading new workflow
-          persistentNodeResults: new Map(),
-          realTimeResults: new Map(),
-          // Reset node interaction state when loading new workflow
-          selectedNodeId: null,
-          showPropertyPanel: false,
-          propertyPanelNodeId: null,
-          contextMenuVisible: false,
-          contextMenuPosition: null,
-          contextMenuNodeId: null,
-          showChatDialog: false,
-          chatDialogNodeId: null,
-        });
+        
+        // Preserve UI state during autosave to prevent closing dialogs
+        if (preserveUIState) {
+          set({
+            workflow: processedWorkflow,
+            isDirty: false,
+            workflowTitle: title,
+            isTitleDirty: false,
+            titleValidationError: null,
+            // Reset execution state when loading new workflow
+            persistentNodeResults: new Map(),
+            realTimeResults: new Map(),
+            // Keep dialog and interaction state intact
+          });
+        } else {
+          set({
+            workflow: processedWorkflow,
+            isDirty: false,
+            workflowTitle: title,
+            isTitleDirty: false,
+            titleValidationError: null,
+            // Reset execution state when loading new workflow
+            persistentNodeResults: new Map(),
+            realTimeResults: new Map(),
+            // Reset node interaction state when loading new workflow
+            selectedNodeId: null,
+            showPropertyPanel: false,
+            propertyPanelNodeId: null,
+            contextMenuVisible: false,
+            contextMenuPosition: null,
+            contextMenuNodeId: null,
+            showChatDialog: false,
+            chatDialogNodeId: null,
+          });
+        }
         if (processedWorkflow) {
           get().saveToHistory("Load workflow");
         }

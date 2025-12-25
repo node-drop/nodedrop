@@ -19,6 +19,7 @@ export interface UserPreferences {
     enabled?: boolean;
     debounceMs?: number;
     saveOnExecute?: boolean;
+    notifyOnSave?: boolean;
   };
   // Future: language, etc.
 }

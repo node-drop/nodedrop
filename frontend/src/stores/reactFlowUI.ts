@@ -56,6 +56,8 @@ interface ReactFlowUIState {
   toggleCodePanel: () => void;
   setShowCodePanel: (show: boolean) => void;
 
+  // Right sidebar state
+  showRightSidebar: boolean;
   rightSidebarTab: 'settings' | 'copilot' | 'code' | 'workflow' | 'executions' | 'template' | 'git';
   rightSidebarSize: number;
   toggleRightSidebar: () => void;

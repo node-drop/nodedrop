@@ -123,7 +123,7 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
           </div>
           <Switch
             id="auto-save-enabled"
-            checked={preferences.enabled}
+            checked={preferences?.enabled ?? false}
             onCheckedChange={handleEnabledChange}
             disabled={readOnly || isSaving}
             className="flex-shrink-0"
@@ -132,7 +132,7 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
       </div>
 
       {/* Debounce Delay */}
-      {preferences.enabled && (
+      {preferences?.enabled && (
         <div className="space-y-2">
           <Label htmlFor="auto-save-delay" className="flex items-center gap-2 text-xs font-medium">
             <Clock className="w-3.5 h-3.5" />
@@ -147,20 +147,20 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
             min={1000}
             max={60000}
             step={1000}
-            value={preferences.debounceMs}
+            value={preferences?.debounceMs ?? 5000}
             onChange={(e) => handleDebounceChange(e.target.value)}
             onBlur={(e) => handleDebounceChange(e.target.value)}
             disabled={readOnly || isSaving}
             className="text-xs"
           />
           <p className="text-xs text-muted-foreground italic">
-            Current: {(preferences.debounceMs! / 1000).toFixed(1)} seconds
+            Current: {((preferences?.debounceMs ?? 5000) / 1000).toFixed(1)} seconds
           </p>
         </div>
       )}
 
       {/* Notify on Save */}
-      {preferences.enabled && (
+      {preferences?.enabled && (
         <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 flex-1">
@@ -174,7 +174,7 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
             </div>
             <Switch
               id="auto-save-notify"
-              checked={preferences.notifyOnSave}
+              checked={preferences?.notifyOnSave ?? false}
               onCheckedChange={handleNotifyChange}
               disabled={readOnly || isSaving}
               className="flex-shrink-0"
@@ -184,7 +184,7 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
       )}
 
       {/* Save on Execute */}
-      {preferences.enabled && (
+      {preferences?.enabled && (
         <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 flex-1">
@@ -198,7 +198,7 @@ export const AutoSaveSettings = memo(function AutoSaveSettings({
             </div>
             <Switch
               id="auto-save-execute"
-              checked={preferences.saveOnExecute}
+              checked={preferences?.saveOnExecute ?? true}
               onCheckedChange={handleSaveOnExecuteChange}
               disabled={readOnly || isSaving}
               className="flex-shrink-0"

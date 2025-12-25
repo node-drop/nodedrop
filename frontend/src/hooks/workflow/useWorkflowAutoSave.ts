@@ -82,7 +82,8 @@ export function useWorkflowAutoSave(options?: AutoSaveOptions) {
         ? await workflowService.createWorkflow(workflowData)
         : await workflowService.updateWorkflow(workflow.id, workflowData);
 
-      setWorkflow(savedWorkflow);
+      // Preserve UI state (dialogs, selections) during autosave to prevent interrupting user
+      setWorkflow(savedWorkflow, true);
       setDirty(false);
 
       // Update URL for new workflows

@@ -52,12 +52,13 @@ export function NodeConfigDialog({ node, nodeType, isOpen, onClose, readOnly = f
     setHasUnsavedChanges
   } = useNodeConfigDialogStore()
 
-  // Initialize dialog when it opens
+  // Initialize dialog when it opens or when node ID changes
+  // Don't reinitialize on every node object update to prevent closing dropdowns during autosave
   useEffect(() => {
     if (isOpen) {
       openDialog(node, nodeType)
     }
-  }, [isOpen, node.id, openDialog, node, nodeType])
+  }, [isOpen, node.id, nodeType.name, openDialog])
 
   useEffect(() => {
     fetchCredentials()
