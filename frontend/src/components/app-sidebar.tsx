@@ -17,6 +17,7 @@ import {
   ManageMembersDialog as WorkspaceManageMembersDialog,
   InviteMemberModal
 } from "@/components/workspace"
+import { AutoSaveSettingsSidebar } from "@/components/workflow/sidebar-panels/AutoSaveSettingsSidebar"
 import { editionConfig } from "@/config/edition"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
@@ -543,6 +544,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <div className="space-y-2 text-sm">
                           <CanvasViewSettings />
                         </div>
+                      </div>
+
+                      <SidebarSeparator />
+
+                      {/* Auto-Save Settings */}
+                      <div>
+                        <h4 className="text-sm font-medium mb-3">Auto-Save</h4>
+                        <AutoSaveSettingsSidebar />
                       </div>
 
                       <SidebarSeparator />

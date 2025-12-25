@@ -13,7 +13,7 @@ import {
   ResolvedNodeSettings,
   SettingsLevel,
   SettingsOverride,
-} from "../types/settings.types";
+} from "../../types/settings.types";
 
 export class NodeSettingsManager {
   private static instance: NodeSettingsManager;

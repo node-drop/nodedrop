@@ -1,14 +1,11 @@
 // Service layer exports
 export * from './WorkflowService';
-export * from './NodeService';
 export * from './SocketService';
 export { CredentialService } from './CredentialService';
 export * from './TeamService';
-export * from './NodeLoader';
-export * from './NodeTemplateGenerator';
-export * from './NodeMarketplace';
 export * from './ErrorTriggerService';
 export * from './git';
+export * from './nodes';
 
 
 // Re-export execution services from the execution folder

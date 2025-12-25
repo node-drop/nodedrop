@@ -25,7 +25,7 @@ import { NodeInputData, NodeOutputData } from "../../types/node.types";
 import { logger } from "../../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { buildCredentialsMapping, extractCredentialProperties } from "../../utils/credentialHelpers";
-import { NodeService } from "../NodeService";
+import { NodeService } from "../nodes/NodeService";
 
 export class ExecutionEngine extends EventEmitter {
   private nodeService: NodeService;

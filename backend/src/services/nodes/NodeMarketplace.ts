@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { NodePackageInfo } from './NodeLoader';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 
 export interface NodeMarketplaceConfig {
   registryUrl: string;

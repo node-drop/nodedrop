@@ -7,7 +7,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { db } from "../config/database";
-import { NodeService } from "../services/NodeService";
+import { NodeService } from "../services";
 import { NodeDiscovery } from "../utils/NodeDiscovery";
 import { eq } from "drizzle-orm";
 import * as schema from "../db/schema";

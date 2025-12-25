@@ -9,7 +9,7 @@ import { logger } from "../utils/logger";
 import { CredentialService } from "./CredentialService";
 import ExecutionHistoryService from "./execution/ExecutionHistoryService";
 import { IExecutionService } from "./execution/ExecutionService.factory";
-import { NodeService } from "./NodeService";
+import { NodeService } from "./nodes/NodeService";
 import { SocketService } from "./SocketService";
 import { TriggerExecutionRequest, TriggerManager } from "./TriggerManager";
 import { webhookRequestLogService } from "./WebhookRequestLogService.factory";

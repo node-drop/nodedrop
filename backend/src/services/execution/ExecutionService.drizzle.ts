@@ -23,7 +23,7 @@ import {
 } from '../../types/execution.types';
 import { logger } from '../../utils/logger';
 import { RealtimeExecutionEngine } from './RealtimeExecutionEngine';
-import { NodeService } from '../NodeService';
+import { NodeService } from '../nodes/NodeService';
 import { getExecutionQueueService, ExecutionQueueService } from './ExecutionQueueService';
 
 /**

@@ -4,7 +4,7 @@
  * Run this to register all nodes in the nodes directory without manual configuration
  */
 
-import { NodeService } from "../services/NodeService";
+import { NodeService } from "../services";
 import { nodeDiscovery } from "../utils/NodeDiscovery";
 import { logger } from "../utils/logger";
 

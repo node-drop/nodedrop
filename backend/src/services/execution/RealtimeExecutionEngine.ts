@@ -18,7 +18,7 @@ import * as schema from "../../db/schema";
 import { ExecutionStatus, NodeExecutionStatus } from "../../types/database";
 import { buildCredentialsMapping, extractCredentialProperties } from "../../utils/credentialHelpers";
 import { logger } from "../../utils/logger";
-import { NodeService } from "../NodeService";
+import { NodeService } from "../nodes/NodeService";
 import { ExecutionQueueService, getExecutionQueueService } from "./ExecutionQueueService";
 
 interface WorkflowNode {

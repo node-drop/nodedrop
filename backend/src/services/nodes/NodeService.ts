@@ -1,6 +1,6 @@
 import { eq, and, or, inArray, isNull } from 'drizzle-orm';
-import { db } from '../db/client';
-import { nodeTypes } from '../db/schema/nodes';
+import { db } from '../../db/client';
+import { nodeTypes } from '../../db/schema/nodes';
 import {
   NodeDefinition,
   NodeExecutionContext,
@@ -14,9 +14,9 @@ import {
   NodeValidationError,
   NodeValidationResult,
   StandardizedNodeOutput,
-} from '../types/node.types';
-import { NodeSettingsConfig } from '../types/settings.types';
-import { logger } from '../utils/logger';
+} from '../../types/node.types';
+import { NodeSettingsConfig } from '../../types/settings.types';
+import { logger } from '../../utils/logger';
 import {
   extractJsonData,
   normalizeInputItems,
@@ -27,7 +27,7 @@ import {
 import {
   SecureExecutionOptions,
   SecureExecutionService,
-} from './execution/SecureExecutionService';
+} from '../execution/SecureExecutionService';
 
 /**
  * Options for workspace-scoped queries
@@ -977,7 +977,7 @@ export class NodeService {
    * Register all built-in nodes using auto-discovery
    */
   private async registerBuiltInNodes(): Promise<void> {
-    const { nodeDiscovery } = await import('../utils/NodeDiscovery');
+    const { nodeDiscovery } = await import('../../utils/NodeDiscovery');
 
     try {
       const builtInNodeInfos = await nodeDiscovery.loadAllNodes();
@@ -1352,7 +1352,7 @@ export class NodeService {
    */
   async refreshCustomNodes(): Promise<{ success: boolean; message: string; registered: number }> {
     try {
-      const { nodeDiscovery } = await import('../utils/NodeDiscovery');
+      const { nodeDiscovery } = await import('../../utils/NodeDiscovery');
       const customNodeInfos = await nodeDiscovery.loadCustomNodes();
       
       let registered = 0;
@@ -1410,7 +1410,7 @@ export class NodeService {
    */
   async reloadAllNodes(): Promise<{ success: boolean; message: string; loaded: number }> {
     try {
-      const { nodeDiscovery } = await import('../utils/NodeDiscovery');
+      const { nodeDiscovery } = await import('../../utils/NodeDiscovery');
       
       // Clear the current registry
       this.nodeRegistry.clear();

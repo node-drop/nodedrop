@@ -12,7 +12,7 @@
 import 'dotenv/config';
 import { checkDatabaseConnection, disconnectDatabase } from './db/client';
 import { getExecutionWorker } from './services/execution/ExecutionWorker';
-import { NodeService } from './services/NodeService';
+import { NodeService } from './services';
 import { logger } from './utils/logger';
 
 async function startWorker() {

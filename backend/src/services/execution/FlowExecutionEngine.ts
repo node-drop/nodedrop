@@ -10,7 +10,7 @@ import { logger } from "../../utils/logger";
 import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { DependencyResolver } from "../DependencyResolver";
 import ExecutionHistoryService from "./ExecutionHistoryService";
-import { NodeService } from "../NodeService";
+import { NodeService } from "../nodes/NodeService";
 
 export interface FlowExecutionContext {
   executionId: string;

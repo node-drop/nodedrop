@@ -7,6 +7,7 @@ import { WorkflowToolbar } from '@/components/workflow/WorkflowToolbar'
 import {
     useWorkflowOperations
 } from '@/hooks/workflow'
+import { useWorkflowAutoSave } from '@/hooks/workflow/useWorkflowAutoSave'
 import { workflowService } from '@/services'
 import type { ExecutionDetails } from '@/services/execution'
 import { executionService } from '@/services/execution'
@@ -44,6 +45,9 @@ export function WorkflowEditorPage() {
   const {
     saveWorkflow,
   } = useWorkflowOperations()
+
+  // Auto-save hook - only active when not in execution mode
+  const autoSaveState = useWorkflowAutoSave()
 
   // Toolbar handlers
   const handleSave = async () => {
@@ -429,8 +433,13 @@ export function WorkflowEditorPage() {
         ) : (
           <WorkflowToolbar
             onSave={handleSave}
+            autoSaveStatus={autoSaveState.status.status}
+            autoSaveError={autoSaveState.status.error}
+            autoSaveEnabled={autoSaveState.preferences?.enabled ?? false}
           />
         )}
+
+        {/* Auto-save indicator removed - errors now shown in save button */}
 
         <div className="flex flex-1 flex-col h-full overflow-hidden">
           <WorkflowEditorWrapper

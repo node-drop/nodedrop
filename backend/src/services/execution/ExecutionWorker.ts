@@ -36,7 +36,7 @@ import {
   ExecutionJobData,
   getExecutionQueueService,
 } from "./ExecutionQueueService";
-import { NodeService } from "../NodeService";
+import { NodeService } from "../nodes/NodeService";
 import {
   buildCredentialsMapping,
   extractCredentialProperties,

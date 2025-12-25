@@ -1,9 +1,9 @@
 import { FSWatcher, watch } from "chokidar";
 import { promises as fs } from "fs";
 import * as path from "path";
-import { NodeDefinition } from "../types/node.types";
-import { logger } from "../utils/logger";
-import { CredentialService } from "./CredentialService";
+import { NodeDefinition } from "../../types/node.types";
+import { logger } from "../../utils/logger";
+import { CredentialService } from "../CredentialService";
 import { NodeService } from "./NodeService";
 
 export interface NodePackageInfo {
