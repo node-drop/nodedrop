@@ -1,6 +1,6 @@
 "use client"
 import { CredentialsList } from "@/components/credential/CredentialsList"
-import { ExecutionsList, ScheduledExecutionsList } from "@/components/execution"
+import { ScheduledExecutionsList } from "@/components/execution"
 import { NavUser } from "@/components/nav-user"
 import { NodeTypesList } from "@/components/node/NodeTypesList"
 import { AddMemberModal } from "@/components/team/AddMemberModal"
@@ -39,7 +39,6 @@ import { WorkflowsList } from "@/components/workflow/WorkflowsList"
 import { useSidebarContext, useTeam, useTheme, useWorkspace } from "@/contexts"
 import { useAuthStore, useReactFlowUIStore, useSystemStore, useWorkflowStore } from "@/stores"
 import {
-  Activity,
   ArrowLeft,
   Building2,
   CalendarClock,
@@ -96,12 +95,6 @@ const data = {
       url: "#",
       icon: Database,
       isActive: true,
-    },
-    {
-      title: "Executions",
-      url: "#",
-      icon: Activity,
-      isActive: false,
     },
     {
       title: "Variables",
@@ -445,14 +438,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   )}
                   
                   {activeWorkflowItem?.title === "Nodes" && (
-                    <NodeTypesList />
-                  )}
-                  
-                  {activeWorkflowItem?.title === "Executions" && (
-                    <ExecutionsList />
-                  )}
-                  
-                  {activeWorkflowItem?.title === "Workspaces" && (
+                     <NodeTypesList />
+                   )}
+
+                   {activeWorkflowItem?.title === "Workspaces" && (
                     <WorkspacesList 
                       onWorkspaceSelect={() => {
                         // Navigate to workspace page when selected
