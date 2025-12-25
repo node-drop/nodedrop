@@ -680,6 +680,22 @@ export class ExecutionServiceDrizzle {
       // Prepare input data
       const nodeInputData = inputData || { main: [[]] };
 
+      // Extract nodeOutputs from inputData if provided (for $node expression support)
+      const nodeOutputs = new Map();
+      const nodeIdToName = new Map();
+      
+      if (inputData?.nodeOutputs && typeof inputData.nodeOutputs === 'object') {
+        for (const [nodeIdOrName, nodeData] of Object.entries(inputData.nodeOutputs)) {
+          nodeOutputs.set(nodeIdOrName, nodeData);
+          nodeIdToName.set(nodeIdOrName, nodeIdOrName);
+        }
+        
+        logger.info(`[SingleNode] Loaded node context for ${nodeId}`, {
+          nodeOutputsSize: nodeOutputs.size,
+          nodeIds: Array.from(nodeOutputs.keys()),
+        });
+      }
+
       // Execute the node directly
       const result = await this.nodeService.executeNode(
         node.type,
@@ -691,8 +707,8 @@ export class ExecutionServiceDrizzle {
         { timeout: 30000, nodeId },
         workflowId,
         node.settings,
-        new Map(), // nodeOutputs - empty for single node
-        new Map()  // nodeIdToName - empty for single node
+        nodeOutputs, // Use nodeOutputs from inputData
+        nodeIdToName  // Use nodeIdToName mapping
       );
 
       if (!result.success) {
