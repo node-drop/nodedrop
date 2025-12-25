@@ -1,0 +1,3 @@
+-- Empty migration (placeholder for missing migration file)
+-- This migration was generated but the SQL file was not committed
+-- No changes needed as the schema appears to be in sync

@@ -1,8 +1,8 @@
--- Add isCore column to node_types table
-ALTER TABLE "node_types" ADD COLUMN IF NOT EXISTS "isCore" BOOLEAN NOT NULL DEFAULT false;
+-- Add isCore column to nodes table
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "isCore" BOOLEAN NOT NULL DEFAULT false;
 
 -- Update existing core nodes to set isCore = true
-UPDATE "node_types" SET "isCore" = true WHERE "identifier" IN (
+UPDATE "nodes" SET "isCore" = true WHERE "identifier" IN (
   'manual-trigger',
   'schedule-trigger',
   'webhook-trigger',
@@ -27,4 +27,4 @@ UPDATE "node_types" SET "isCore" = true WHERE "identifier" IN (
 );
 
 -- Verify the changes
-SELECT identifier, "displayName", "isCore" FROM "node_types" WHERE "isCore" = true ORDER BY identifier;
+SELECT identifier, "displayName", "isCore" FROM "nodes" WHERE "isCore" = true ORDER BY identifier;

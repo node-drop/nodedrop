@@ -34,7 +34,7 @@
 - ✅ `credentials` - Stored credentials for integrations
 - ✅ `credential_shares` - Credential sharing permissions
 - ✅ `variables` - Workflow variables
-- ✅ `node_types` - Custom and built-in node definitions
+- ✅ `nodes` - Custom and built-in node definitions
 - ✅ `categories` - Node categories
 
 #### Triggers & Webhooks (2 tables)
@@ -85,7 +85,7 @@
 - ✅ teams (workspace_id, slug) UNIQUE
 - ✅ workflow_environments (workflow_id, environment) UNIQUE
 - ✅ variables (user_id, key, workflow_id) UNIQUE
-- ✅ node_types.identifier (UNIQUE)
+- ✅ nodes.identifier (UNIQUE)
 - ✅ trigger_jobs.job_key (UNIQUE)
 - ✅ trigger_jobs (workflow_id, trigger_id) UNIQUE
 - ✅ credentials (user_id, name) UNIQUE
@@ -115,7 +115,7 @@
 - ✅ workflow_environments.workflow_id
 - ✅ workflows (user_id, workspace_id, team_id)
 - ✅ variables (user_id, workspace_id, workflow_id)
-- ✅ node_types.workspace_id
+- ✅ nodes.workspace_id
 - ✅ trigger_jobs (workflow_id, workspace_id)
 - ✅ webhook_request_logs (webhook_id, workflow_id, user_id, workspace_id)
 
@@ -133,7 +133,7 @@
 - ✅ webhook_request_logs.timestamp
 - ✅ execution_history.start_time
 - ✅ workflow_environment_deployments.deployed_at
-- ✅ node_types.is_core
+- ✅ nodes.is_core
 
 ### Data Types Verification: ✅
 
