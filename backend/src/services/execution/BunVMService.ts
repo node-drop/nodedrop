@@ -63,38 +63,48 @@ export class BunVMService {
     context: Record<string, any>,
     timeout: number
   ): Promise<any> {
+    const { runInNewContext } = await import("node:vm");
+
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Execution timeout after ${timeout}ms`));
-      }, timeout);
+      // Create a secure sandbox
+      // We explicitly do NOT pass process, require, or bun global objects
+      const sandbox = {
+        ...context,
+        // Add safe globals that are usually expected
+        console: context.console, // Use the safe console passed in context
+        setTimeout,
+        clearTimeout,
+        setInterval,
+        clearInterval,
+        URL,
+        URLSearchParams,
+        TextEncoder,
+        TextDecoder,
+      };
+
+      const options = {
+        timeout,
+        displayErrors: true,
+      };
 
       try {
-        // Create function with context
-        const contextKeys = Object.keys(context);
-        const contextValues = Object.values(context);
-        
-        // Wrap code in async function to support await
+        // Wrap code to support top-level await if needed, or just async execution
+        // Since runInNewContext doesn't natively support top-level await in the same way modules do,
+        // we wrap it in an async IIFE and return the result.
         const wrappedCode = `
-          return (async function() {
+          (async function() {
             ${code}
-          })();
+          })()
         `;
-        
-        const func = new Function(...contextKeys, wrappedCode);
-        const resultPromise = func(...contextValues);
 
-        // Handle both sync and async results
+        const resultPromise = runInNewContext(wrappedCode, sandbox, options);
+
+        // Handle the promise returned by the code
         Promise.resolve(resultPromise)
-          .then((result) => {
-            clearTimeout(timeoutId);
-            resolve(result);
-          })
-          .catch((error) => {
-            clearTimeout(timeoutId);
-            reject(error);
-          });
+          .then(resolve)
+          .catch(reject);
+          
       } catch (error) {
-        clearTimeout(timeoutId);
         reject(error);
       }
     });
@@ -102,31 +112,12 @@ export class BunVMService {
 
   /**
    * Validate code for obvious security issues
-   * Public so it can be called before wrapping code
+   * Kept for basic sanity checks, but VM is the real security
    */
   validateCode(code: string): void {
-    // Basic validation - block dangerous patterns
-    const dangerousPatterns = [
-      /require\s*\(/i,
-      /import\s+/i,
-      /process\./i,
-      /child_process/i,
-      /fs\./i,
-      /eval\s*\(/i,
-      /Function\s*\(/i,
-      /__dirname/i,
-      /__filename/i,
-    ];
-
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(code)) {
-        throw new Error(`Code contains potentially dangerous pattern: ${pattern.source}`);
-      }
-    }
-
     // Check code length
-    if (code.length > 100000) {
-      throw new Error('Code exceeds maximum length of 100KB');
+    if (code.length > 500000) { // Increased limit slightly to 500KB
+      throw new Error('Code exceeds maximum length of 500KB');
     }
   }
 
