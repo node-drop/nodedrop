@@ -7,10 +7,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs-extra';
 import * as git from 'isomorphic-git';
 import { GitService } from './GitService';
-import { db } from '../db/client';
-import { workflowGitConfigs } from '../db/schema/git';
+import { db } from '../../db/client';
+import { workflowGitConfigs } from '../../db/schema/git';
 import { eq, and } from 'drizzle-orm';
-import { getWorkflowRepoPath } from '../config/git';
+import { getWorkflowRepoPath } from '../../config/git';
 
 describe('GitService.getStatus - Integration Test', () => {
   let gitService: GitService;

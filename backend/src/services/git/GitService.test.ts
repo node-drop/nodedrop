@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { GitService, GitConnectionConfig, GitRepositoryInfo, GitStatus } from './GitService';
-import { db } from '../db/client';
-import { workflowGitConfigs } from '../db/schema/git';
+import { db } from '../../db/client';
+import { workflowGitConfigs } from '../../db/schema/git';
 import { eq, and } from 'drizzle-orm';
-import { gitConfig, getWorkflowRepoPath } from '../config/git';
+import { gitConfig, getWorkflowRepoPath } from '../../config/git';
 import * as git from 'isomorphic-git';
 
 // Mock dependencies
@@ -34,16 +34,7 @@ vi.mock('isomorphic-git', () => ({
   push: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-vi.mock('./GitCredentialManager', () => ({
-  GitCredentialManager: vi.fn().mockImplementation(() => ({
-    storeCredentials: vi.fn().mockResolvedValue(undefined),
-    getCredentials: vi.fn().mockResolvedValue(null),
-    deleteCredentials: vi.fn().mockResolvedValue(undefined),
-    hasCredentials: vi.fn().mockResolvedValue(false),
-  })),
-}));
-
-vi.mock('./WorkflowSerializer', () => ({
+vi.mock('../WorkflowSerializer', () => ({
   WorkflowSerializer: vi.fn().mockImplementation(() => ({
     serializeWorkflow: vi.fn().mockResolvedValue({}),
     deserializeWorkflow: vi.fn().mockResolvedValue({}),

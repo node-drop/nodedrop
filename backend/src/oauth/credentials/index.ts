@@ -19,6 +19,12 @@ export { OAuth2Credentials } from "./OAuth2.credentials";
 export { ApiKeyCredentials } from "./ApiKey.credentials";
 export { BearerTokenCredentials } from "./BearerToken.credentials";
 export { PostgresDbCredentials } from "./PostgresDb.credentials";
+export { GitHubOAuth2Credentials } from "./GitHubOAuth2.credentials";
+export { GitLabOAuth2Credentials } from "./GitLabOAuth2.credentials";
+export { BitbucketOAuth2Credentials } from "./BitbucketOAuth2.credentials";
+export { GitHubPATCredentials } from "./GitHubPAT.credentials";
+export { GitLabPATCredentials } from "./GitLabPAT.credentials";
+export { BitbucketPATCredentials } from "./BitbucketPAT.credentials";
 
 // Export OAuth utilities and providers
 export * from "..";
@@ -31,6 +37,12 @@ import { OAuth2Credentials } from "./OAuth2.credentials";
 import { ApiKeyCredentials } from "./ApiKey.credentials";
 import { BearerTokenCredentials } from "./BearerToken.credentials";
 import { PostgresDbCredentials } from "./PostgresDb.credentials";
+import { GitHubOAuth2Credentials } from "./GitHubOAuth2.credentials";
+import { GitLabOAuth2Credentials } from "./GitLabOAuth2.credentials";
+import { BitbucketOAuth2Credentials } from "./BitbucketOAuth2.credentials";
+import { GitHubPATCredentials } from "./GitHubPAT.credentials";
+import { GitLabPATCredentials } from "./GitLabPAT.credentials";
+import { BitbucketPATCredentials } from "./BitbucketPAT.credentials";
 
 // Note: Slack OAuth2 is now provided by the Slack custom node package
 export const CoreCredentials = [
@@ -41,4 +53,10 @@ export const CoreCredentials = [
   ApiKeyCredentials,
   BearerTokenCredentials,
   PostgresDbCredentials,
+  GitHubOAuth2Credentials,
+  GitLabOAuth2Credentials,
+  BitbucketOAuth2Credentials,
+  GitHubPATCredentials,
+  GitLabPATCredentials,
+  BitbucketPATCredentials,
 ];

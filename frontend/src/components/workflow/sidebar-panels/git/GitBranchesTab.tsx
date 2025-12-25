@@ -9,7 +9,6 @@
  */
 
 import { memo, useEffect, useState, useCallback } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -246,7 +245,7 @@ export const GitBranchesTab = memo(function GitBranchesTab({
   const remoteBranches = branches.filter(b => b.remote)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="absolute inset-0 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 p-3 border-b">
         <div className="flex items-center justify-between">
@@ -284,7 +283,7 @@ export const GitBranchesTab = memo(function GitBranchesTab({
       )}
 
       {/* Branch list */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-auto">
         <div className="p-3 space-y-4">
           {/* Loading state */}
           {isLoadingBranches && branches.length === 0 && (
@@ -456,7 +455,7 @@ export const GitBranchesTab = memo(function GitBranchesTab({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Create branch dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

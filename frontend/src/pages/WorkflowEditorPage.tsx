@@ -356,6 +356,13 @@ export function WorkflowEditorPage() {
         setError(null)
         const workflowData = await workflowService.getWorkflow(id)
         setWorkflow(workflowData)
+        
+        // Clear environment selection if switching to a different workflow
+        const { useEnvironmentStore } = await import('@/stores/environment')
+        const { currentWorkflowId, setWorkflow: setEnvWorkflow } = useEnvironmentStore.getState()
+        if (currentWorkflowId !== id) {
+          setEnvWorkflow(id)
+        }
       } catch (err) {
         console.error('Failed to load workflow:', err)
         setError('Failed to load workflow. Please try again.')

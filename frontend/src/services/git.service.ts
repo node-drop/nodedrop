@@ -14,7 +14,21 @@ import { apiClient } from './api';
  * Git Type Definitions
  */
 
-// Git credential types
+// Git credential from the unified credentials table
+export interface GitCredential {
+  id: string;
+  name: string;
+  type: 'githubOAuth2' | 'gitlabOAuth2' | 'bitbucketOAuth2' | 'githubPAT' | 'gitlabPAT' | 'bitbucketPAT';
+  userId: string;
+  workspaceId?: string;
+  expiresAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  isOwner?: boolean;
+  permission?: string;
+}
+
+// Git credential types (legacy - for backward compatibility)
 export type GitCredentialType = 'personal_access_token' | 'oauth';
 export type GitProvider = 'github' | 'gitlab' | 'bitbucket';
 
@@ -30,7 +44,7 @@ export interface GitCredentials {
 export interface GitConnectionConfig {
   repositoryUrl: string;
   branch?: string;
-  credentials: GitCredentials;
+  credentialId: string; // Now uses credentialId instead of raw credentials
 }
 
 // Git repository information
@@ -96,6 +110,7 @@ export interface PullOptions {
   remote?: string;
   branch?: string;
   strategy?: 'merge' | 'rebase';
+  environment?: 'development' | 'staging' | 'production';
 }
 
 export interface PullResult {
@@ -146,7 +161,7 @@ interface ConnectRepositoryRequest {
   workflowId: string;
   repositoryUrl: string;
   branch?: string;
-  credentials: GitCredentials;
+  credentialId: string; // Now uses credentialId
 }
 
 interface DisconnectRepositoryRequest {
@@ -157,6 +172,7 @@ interface CommitRequest {
   workflowId: string;
   message: string;
   workflow: WorkflowData;
+  environment?: 'development' | 'staging' | 'production';
 }
 
 interface PushRequest {
@@ -171,6 +187,7 @@ interface PullRequest {
   remote?: string;
   branch?: string;
   strategy?: 'merge' | 'rebase';
+  environment?: 'development' | 'staging' | 'production';
 }
 
 interface CreateBranchRequest {
@@ -199,6 +216,28 @@ interface CreateBranchFromCommitRequest {
  */
 export class GitService {
   /**
+   * Get available Git credentials for the authenticated user
+   * 
+   * Requirements: 5.1
+   * 
+   * @returns List of Git credentials
+   */
+  async getGitCredentials(): Promise<GitCredential[]> {
+    const response = await apiClient.get<GitCredential[]>('/git/credentials');
+    
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch Git credentials');
+    }
+    
+    return response.data.map(cred => ({
+      ...cred,
+      createdAt: new Date(cred.createdAt),
+      updatedAt: new Date(cred.updatedAt),
+      expiresAt: cred.expiresAt ? new Date(cred.expiresAt) : undefined,
+    }));
+  }
+
+  /**
    * Initialize a new Git repository for a workflow
    * 
    * Requirements: 1.1
@@ -224,7 +263,7 @@ export class GitService {
    * Requirements: 1.2, 1.3, 5.1, 5.4
    * 
    * @param workflowId - The workflow ID
-   * @param config - Connection configuration with repository URL and credentials
+   * @param config - Connection configuration with repository URL and credentialId
    * @returns Repository information
    */
   async connectRepository(
@@ -235,7 +274,7 @@ export class GitService {
       workflowId,
       repositoryUrl: config.repositoryUrl,
       branch: config.branch,
-      credentials: config.credentials,
+      credentialId: config.credentialId,
     };
     
     const response = await apiClient.post<GitRepositoryInfo>('/git/connect', request);
@@ -288,13 +327,73 @@ export class GitService {
    * Requirements: 2.1, 4.1, 4.2, 4.3
    * 
    * @param workflowId - The workflow ID
+   * @param workflow - Optional current workflow data for change detection
+   * @param environment - Optional environment for environment-specific status
    * @returns Git status with changes and sync information
    */
-  async getStatus(workflowId: string): Promise<GitStatus> {
-    const response = await apiClient.get<GitStatus>(`/git/status/${workflowId}`);
+  async getStatus(workflowId: string, workflow?: any, environment?: 'development' | 'staging' | 'production'): Promise<GitStatus> {
+    const response = await apiClient.post<GitStatus>('/git/status', {
+      workflowId,
+      workflow,
+      environment,
+    });
     
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch Git status');
+    }
+    
+    return response.data;
+  }
+
+  /**
+   * Get workflow data from Git repository
+   * 
+   * Requirements: 7.1
+   * 
+   * @param workflowId - The workflow ID
+   * @param environment - Optional environment to load specific workflow from
+   * @returns Workflow data from Git
+   */
+  async getWorkflowFromGit(workflowId: string, environment?: 'development' | 'staging' | 'production'): Promise<any> {
+    const params = environment ? { environment } : {};
+    const response = await apiClient.get<any>(`/git/workflow/${workflowId}`, { params });
+    
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to load workflow from Git');
+    }
+    
+    return response.data;
+  }
+
+  /**
+   * Get diff for a specific file
+   * 
+   * Requirements: 2.1
+   * 
+   * @param workflowId - The workflow ID
+   * @param filePath - Path to the file to diff
+   * @param workflow - Optional current workflow data for comparison
+   * @param environment - Optional environment for environment-specific diffs
+   * @returns Old and new content for comparison
+   */
+  async getDiff(
+    workflowId: string,
+    filePath: string,
+    workflow?: any,
+    environment?: 'development' | 'staging' | 'production'
+  ): Promise<{ oldContent: string | null; newContent: string | null }> {
+    const response = await apiClient.post<{ oldContent: string | null; newContent: string | null }>(
+      '/git/diff',
+      {
+        workflowId,
+        filePath,
+        workflow,
+        environment,
+      }
+    );
+    
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to get diff');
     }
     
     return response.data;
@@ -308,17 +407,20 @@ export class GitService {
    * @param workflowId - The workflow ID
    * @param message - Commit message
    * @param workflow - Workflow data to commit
+   * @param environment - Optional environment for environment-specific commits
    * @returns Created commit information
    */
   async commit(
     workflowId: string,
     message: string,
-    workflow: WorkflowData
+    workflow: WorkflowData,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<GitCommit> {
     const request: CommitRequest = {
       workflowId,
       message,
       workflow,
+      environment,
     };
     
     const response = await apiClient.post<GitCommit>('/git/commit', request);

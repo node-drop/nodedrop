@@ -4,12 +4,12 @@ import {
   boolean,
   timestamp,
   integer,
-  uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import { workflows } from './workflows';
 import { users } from './auth';
+import { credentials } from './credentials';
 
 /**
  * WorkflowGitConfigs table - stores Git repository configurations for workflows
@@ -26,6 +26,10 @@ export const workflowGitConfigs = pgTable(
     repositoryUrl: text('repository_url').notNull(),
     branch: text('branch').default('main').notNull(),
     remoteName: text('remote_name').default('origin').notNull(),
+
+    // Credential reference (uses unified credentials table)
+    // Optional initially, required when connecting to remote
+    credentialId: text('credential_id'),
 
     // Local repository path (relative to storage)
     localPath: text('local_path').notNull(),
@@ -47,38 +51,14 @@ export const workflowGitConfigs = pgTable(
       table.workflowId
     ),
     userIdIdx: index('workflow_git_configs_user_id_idx').on(table.userId),
+    credentialIdIdx: index('workflow_git_configs_credential_id_idx').on(
+      table.credentialId
+    ),
   })
 );
 
-/**
- * WorkflowGitCredentials table - stores encrypted Git credentials
- * Credentials are encrypted using AES-256 before storage
- */
-export const workflowGitCredentials = pgTable(
-  'workflow_git_credentials',
-  {
-    id: text('id').primaryKey().default(sql`cuid()`),
-    userId: text('user_id').notNull(),
-    workflowId: text('workflow_id').notNull(),
-
-    // Encrypted credentials
-    encryptedToken: text('encrypted_token').notNull(),
-    tokenType: text('token_type').default('personal_access_token').notNull(), // personal_access_token, oauth
-    provider: text('provider').notNull(), // github, gitlab, bitbucket
-
-    // OAuth specific
-    refreshToken: text('refresh_token'),
-    expiresAt: timestamp('expires_at'),
-
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  (table) => ({
-    userWorkflowIdx: uniqueIndex(
-      'workflow_git_credentials_user_workflow_idx'
-    ).on(table.userId, table.workflowId),
-  })
-);
+// REMOVED: workflowGitCredentials table
+// Now using unified credentials table with credentialId reference in workflowGitConfigs
 
 /**
  * Relations for workflowGitConfigs table
@@ -94,22 +74,9 @@ export const workflowGitConfigsRelations = relations(
       fields: [workflowGitConfigs.userId],
       references: [users.id],
     }),
-  })
-);
-
-/**
- * Relations for workflowGitCredentials table
- */
-export const workflowGitCredentialsRelations = relations(
-  workflowGitCredentials,
-  ({ one }) => ({
-    workflow: one(workflows, {
-      fields: [workflowGitCredentials.workflowId],
-      references: [workflows.id],
-    }),
-    user: one(users, {
-      fields: [workflowGitCredentials.userId],
-      references: [users.id],
+    credential: one(credentials, {
+      fields: [workflowGitConfigs.credentialId],
+      references: [credentials.id],
     }),
   })
 );

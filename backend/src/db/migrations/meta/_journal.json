@@ -15,6 +15,13 @@
       "when": 1766526091001,
       "tag": "0001_greedy_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1766598146149,
+      "tag": "0002_brown_speed_demon",
+      "breakpoints": true
     }
   ]
 }

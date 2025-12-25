@@ -3,13 +3,13 @@ import * as git from 'isomorphic-git';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { eq, and } from 'drizzle-orm';
-import { db } from '../db/client';
-import { workflowGitConfigs } from '../db/schema/git';
-import { AppError } from '../utils/errors';
-import { logger } from '../utils/logger';
-import { getWorkflowRepoPath } from '../config/git';
-import { GitCredentialManager, GitCredentials } from './GitCredentialManager';
-import { WorkflowSerializer, WorkflowData, WorkflowFiles } from './WorkflowSerializer';
+import { db } from '../../db/client';
+import { workflowGitConfigs } from '../../db/schema/git';
+import { AppError } from '../../utils/errors';
+import { getCredentialService } from '../CredentialService.factory';
+import { logger } from '../../utils/logger';
+import { getWorkflowRepoPath } from '../../config/git';
+import { WorkflowSerializer, WorkflowData, WorkflowFiles } from '../WorkflowSerializer';
 
 /**
  * Git connection configuration
@@ -17,7 +17,18 @@ import { WorkflowSerializer, WorkflowData, WorkflowFiles } from './WorkflowSeria
 export interface GitConnectionConfig {
   repositoryUrl: string;
   branch?: string;
-  credentials: GitCredentials;
+  credentialId: string; // Reference to unified credentials table
+}
+
+/**
+ * Git credentials for authentication
+ */
+interface GitCredentials {
+  type: 'personal_access_token' | 'oauth';
+  token: string;
+  provider: 'github' | 'gitlab' | 'bitbucket';
+  refreshToken?: string;
+  expiresAt?: Date;
 }
 
 /**
@@ -132,15 +143,65 @@ export interface HistoryOptions {
  * - Branch management
  * - Commit history
  * 
+ * Uses unified credentials table for authentication.
+ * 
  * Requirements: 1.1, 1.2, 1.3
  */
 export class GitService {
-  private credentialManager: GitCredentialManager;
   private workflowSerializer: WorkflowSerializer;
 
   constructor() {
-    this.credentialManager = new GitCredentialManager();
     this.workflowSerializer = new WorkflowSerializer();
+  }
+
+  /**
+   * Get credentials for a workflow from the unified credentials table
+   * @private
+   */
+  private async getWorkflowCredentials(workflowId: string, userId: string) {
+    // Get config with credential reference
+    const config = await db.query.workflowGitConfigs.findFirst({
+      where: eq(workflowGitConfigs.workflowId, workflowId),
+    });
+
+    if (!config || !config.credentialId) {
+      throw new AppError('No credentials configured for this workflow', 401);
+    }
+
+    // Get credential from unified credentials table
+    const credentialService = getCredentialService();
+    const credential = await credentialService.getCredential(
+      config.credentialId,
+      userId
+    );
+
+    if (!credential) {
+      throw new AppError('Git credentials not found. Please reconnect to the repository.', 401);
+    }
+
+    // Determine credential type and extract token
+    const isPAT = credential.type.endsWith('PAT');
+    const token = isPAT ? credential.data.token : credential.data.accessToken;
+    
+    // Map credential type to provider
+    const providerMap: Record<string, string> = {
+      'githubOAuth2': 'github',
+      'githubPAT': 'github',
+      'gitlabOAuth2': 'gitlab',
+      'gitlabPAT': 'gitlab',
+      'bitbucketOAuth2': 'bitbucket',
+      'bitbucketPAT': 'bitbucket',
+    };
+
+    const provider = providerMap[credential.type] || 'github';
+
+    return {
+      type: isPAT ? ('personal_access_token' as const) : ('oauth' as const),
+      token,
+      provider: provider as 'github' | 'gitlab' | 'bitbucket',
+      refreshToken: isPAT ? undefined : credential.data.refreshToken,
+      expiresAt: credential.expiresAt || undefined,
+    };
   }
 
   /**
@@ -289,25 +350,55 @@ export class GitService {
         }
       }
 
-      // Store credentials securely
-      await this.credentialManager.storeCredentials(
-        userId,
-        workflowId,
-        config.credentials
+      logger.info(`Git configuration stored for workflow ${workflowId}`);
+
+      // Get credential directly from CredentialService for testing
+      const credentialService = getCredentialService();
+      const credential = await credentialService.getCredential(
+        config.credentialId,
+        userId
       );
 
-      logger.info(`Git credentials stored for workflow ${workflowId}`);
+      if (!credential) {
+        throw new AppError('Git credentials not found', 404);
+      }
+
+      // Determine credential type and extract token
+      const isPAT = credential.type.endsWith('PAT');
+      const token = isPAT ? credential.data.token : credential.data.accessToken;
+      
+      // Map credential type to provider
+      const providerMap: Record<string, string> = {
+        'githubOAuth2': 'github',
+        'githubPAT': 'github',
+        'gitlabOAuth2': 'gitlab',
+        'gitlabPAT': 'gitlab',
+        'bitbucketOAuth2': 'bitbucket',
+        'bitbucketPAT': 'bitbucket',
+      };
+
+      const provider = providerMap[credential.type] || 'github';
+
+      const credentials = {
+        type: isPAT ? ('personal_access_token' as const) : ('oauth' as const),
+        token,
+        provider: provider as 'github' | 'gitlab' | 'bitbucket',
+        refreshToken: isPAT ? undefined : credential.data.refreshToken,
+        expiresAt: credential.expiresAt || undefined,
+      };
 
       // Test connection by attempting to list remote refs
       try {
         await this.testConnection(
           repoPath,
           config.repositoryUrl,
-          config.credentials
+          credentials
         );
       } catch (error) {
-        // Clean up credentials on connection failure
-        await this.credentialManager.deleteCredentials(userId, workflowId);
+        // Clean up config on connection failure
+        await db
+          .delete(workflowGitConfigs)
+          .where(eq(workflowGitConfigs.workflowId, workflowId));
         
         logger.error('Git connection test failed:', {
           workflowId,
@@ -339,6 +430,7 @@ export class GitService {
         .set({
           repositoryUrl: config.repositoryUrl,
           branch,
+          credentialId: config.credentialId, // Store credential reference
           connected: true,
           lastError: null,
           updatedAt: new Date(),
@@ -348,6 +440,85 @@ export class GitService {
 
       if (!updateResult[0]) {
         throw new Error('Failed to update Git configuration');
+      }
+
+      // Try to fetch and merge remote content if repository is not empty
+      // This handles the case where remote has existing files (like README.md)
+      try {
+        logger.info(`Fetching remote content for workflow ${workflowId}`);
+        
+        // Fetch remote refs
+        await git.fetch({
+          fs,
+          http: require('isomorphic-git/http/node'),
+          dir: repoPath,
+          remote: remoteName,
+          ref: branch,
+          onAuth: this.getAuthCallback(credentials),
+          singleBranch: true,
+        });
+
+        // Check if remote branch exists and has commits
+        try {
+          const remoteRef = await git.resolveRef({
+            fs,
+            dir: repoPath,
+            ref: `${remoteName}/${branch}`,
+          });
+
+          // Check if local branch has commits
+          let localHasCommits = false;
+          try {
+            await git.resolveRef({
+              fs,
+              dir: repoPath,
+              ref: branch,
+            });
+            localHasCommits = true;
+          } catch {
+            localHasCommits = false;
+          }
+
+          if (!localHasCommits) {
+            // Local branch has no commits, just set it to track remote
+            logger.info(`Setting local branch to track ${remoteName}/${branch}`);
+            await git.branch({
+              fs,
+              dir: repoPath,
+              ref: branch,
+              checkout: true,
+              object: remoteRef,
+            });
+          } else {
+            // Both have commits, need to merge
+            logger.info(`Merging remote branch ${remoteName}/${branch}`);
+            
+            try {
+              await git.merge({
+                fs,
+                dir: repoPath,
+                ours: branch,
+                theirs: `${remoteName}/${branch}`,
+                author: {
+                  name: 'NodeDrop',
+                  email: 'git@nodedrop.com',
+                },
+                fastForward: false,
+              });
+              logger.info(`Successfully merged remote content`);
+            } catch (mergeError: any) {
+              // Merge conflict or unrelated histories
+              logger.warn(`Merge failed, will handle on first push: ${mergeError.message}`);
+              // Don't fail the connection - user can resolve this later
+            }
+          }
+        } catch (refError) {
+          // Remote branch doesn't exist - this is fine
+          logger.info(`Remote branch doesn't exist yet, will be created on first push`);
+        }
+      } catch (fetchError) {
+        // Fetch failed - likely because remote is empty
+        logger.info(`No remote content to fetch: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
       }
 
       logger.info(`Git repository connected successfully for workflow ${workflowId}`);
@@ -424,10 +595,8 @@ export class GitService {
         });
       }
 
-      // Delete credentials
-      await this.credentialManager.deleteCredentials(userId, workflowId);
-
       // Update configuration to mark as disconnected
+      // Note: Credential remains in credentials table for reuse
       await db
         .update(workflowGitConfigs)
         .set({
@@ -497,12 +666,108 @@ export class GitService {
   }
 
   /**
+   * Get workflow data from Git repository
+   * Reads the workflow files from Git repository and deserializes them
+   * 
+   * @param workflowId - The workflow ID
+   * @param userId - The user ID
+   * @param environment - Optional environment to load specific workflow file from
+   * @returns Promise<Partial<WorkflowData>>
+   * 
+   * Requirement 7.1: Load workflow from Git after pull
+   */
+  async getWorkflowFromGit(
+    workflowId: string,
+    userId: string,
+    environment?: 'development' | 'staging' | 'production'
+  ): Promise<Partial<WorkflowData>> {
+    try {
+      logger.info(`Loading workflow from Git for workflow ${workflowId}${environment ? ` (environment: ${environment}, file: workflow-${environment}.json)` : ''}`);
+
+      // Get Git configuration
+      const gitConfigRecord = await db.query.workflowGitConfigs.findFirst({
+        where: and(
+          eq(workflowGitConfigs.workflowId, workflowId),
+          eq(workflowGitConfigs.userId, userId)
+        ),
+      });
+
+      if (!gitConfigRecord) {
+        throw new AppError('Git repository not configured for this workflow', 404);
+      }
+
+      if (!gitConfigRecord.connected) {
+        throw new AppError('Git repository is not connected', 400);
+      }
+
+      const repoPath = getWorkflowRepoPath(workflowId);
+
+      // Check if repository directory exists
+      const repoExists = await fs.pathExists(repoPath);
+      if (!repoExists) {
+        throw new AppError('Git repository directory not found', 404);
+      }
+
+      // Determine which workflow file to read based on environment
+      const workflowFileName = environment ? `workflow-${environment}.json` : 'workflow.json';
+      const workflowFilePath = path.join(repoPath, workflowFileName);
+      const workflowFileExists = await fs.pathExists(workflowFilePath);
+      
+      if (!workflowFileExists) {
+        // If environment file doesn't exist, try fallback to base workflow.json
+        if (environment) {
+          const baseWorkflowPath = path.join(repoPath, 'workflow.json');
+          const baseExists = await fs.pathExists(baseWorkflowPath);
+          
+          if (baseExists) {
+            logger.info(`Environment file ${workflowFileName} not found, using base workflow.json`);
+            const workflowFileContent = await fs.readFile(baseWorkflowPath, 'utf-8');
+            const workflowFiles: WorkflowFiles = {
+              'workflow.json': workflowFileContent,
+            };
+            const workflow = await this.workflowSerializer.filesToWorkflow(workflowFiles);
+            logger.info(`Workflow loaded from Git successfully for workflow ${workflowId}`);
+            return workflow;
+          }
+        }
+        throw new AppError(`Workflow file ${workflowFileName} not found in Git repository`, 404);
+      }
+
+      const workflowFileContent = await fs.readFile(workflowFilePath, 'utf-8');
+
+      // Deserialize workflow
+      const workflowFiles: WorkflowFiles = {
+        [workflowFileName]: workflowFileContent,
+      };
+
+      const workflow = await this.workflowSerializer.filesToWorkflow(workflowFiles);
+
+      logger.info(`Workflow loaded from Git successfully for workflow ${workflowId}`);
+
+      return workflow;
+    } catch (error) {
+      logger.error('Failed to load workflow from Git:', {
+        workflowId,
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError('Failed to load workflow from Git', 500);
+    }
+  }
+
+  /**
    * Get Git status for a workflow
    * Detects changes, calculates staged/unstaged changes, and determines ahead/behind counts
    * 
    * @param workflowId - The workflow ID
    * @param userId - The user ID
    * @param currentWorkflow - Current workflow data (optional, will fetch if not provided)
+   * @param environment - Optional environment to get status for
    * @returns Promise<GitStatus>
    * 
    * Requirements: 2.1, 4.1, 4.2, 4.3
@@ -510,7 +775,8 @@ export class GitService {
   async getStatus(
     workflowId: string,
     userId: string,
-    currentWorkflow?: WorkflowData
+    currentWorkflow?: WorkflowData,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<GitStatus> {
     try {
       logger.debug(`Getting Git status for workflow ${workflowId}`);
@@ -543,7 +809,7 @@ export class GitService {
       const branch = gitConfigRecord.branch;
 
       // Detect changes by comparing working directory with HEAD
-      const changes = await this.detectChanges(repoPath, workflowId, currentWorkflow);
+      const changes = await this.detectChanges(repoPath, workflowId, currentWorkflow, environment);
 
       // Calculate if there are any modifications
       const modified = changes.length > 0;
@@ -594,20 +860,50 @@ export class GitService {
 
   /**
    * Detect changes in the working directory
-   * Compares current workflow state with the last commit
+   * Compares current workflow state with last commit
    * 
    * @param repoPath - Local repository path
    * @param workflowId - The workflow ID
    * @param currentWorkflow - Current workflow data (optional)
+   * @param environment - Optional environment to detect changes for
    * @returns Promise<GitChange[]>
    */
   private async detectChanges(
     repoPath: string,
     workflowId: string,
-    currentWorkflow?: WorkflowData
+    currentWorkflow?: WorkflowData,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<GitChange[]> {
     try {
       const changes: GitChange[] = [];
+
+      // If current workflow is provided, write it to disk first to detect changes
+      if (currentWorkflow) {
+        try {
+          logger.debug('Writing current workflow to disk for change detection', {
+            workflowId,
+            hasNodes: !!currentWorkflow.nodes,
+            nodeCount: currentWorkflow.nodes?.length || 0,
+            environment,
+          });
+          
+          const workflowFiles = await this.workflowSerializer.workflowToFiles(currentWorkflow, environment);
+          
+          logger.debug(`Generated workflow files: ${Object.keys(workflowFiles).join(', ')}`);
+          
+          for (const [filename, content] of Object.entries(workflowFiles)) {
+            const filePath = path.join(repoPath, filename);
+            await fs.writeFile(filePath, content, 'utf-8');
+            logger.debug(`Wrote ${filename} for change detection`);
+          }
+        } catch (serializeError) {
+          logger.error('Failed to serialize current workflow for change detection:', {
+            error: serializeError instanceof Error ? serializeError.message : 'Unknown error',
+            workflowId,
+          });
+          // Continue with file-based detection even if serialization fails
+        }
+      }
 
       // Get the status matrix from isomorphic-git
       // This shows us what files have changed
@@ -622,6 +918,19 @@ export class GitService {
         // Skip .git directory and README.md (auto-generated)
         if (filepath.startsWith('.git') || filepath === 'README.md') {
           continue;
+        }
+
+        // Skip other environment files when a specific environment is active
+        // For example, if development is active, skip workflow-staging.json and workflow-production.json
+        if (environment) {
+          const envFilePattern = /^workflow-(development|staging|production)\.json$/;
+          const isEnvFile = envFilePattern.test(filepath);
+          const isCurrentEnvFile = filepath === `workflow-${environment}.json`;
+          
+          // Skip other environment files
+          if (isEnvFile && !isCurrentEnvFile) {
+            continue;
+          }
         }
 
         let changeType: 'added' | 'modified' | 'deleted' | null = null;
@@ -652,6 +961,7 @@ export class GitService {
             type: changeType,
             staged: isStaged,
           });
+          logger.debug(`Detected change: ${filepath} (${changeType})`);
         }
       }
 
@@ -663,6 +973,82 @@ export class GitService {
       });
       // Return empty changes array on error rather than failing
       return [];
+    }
+  }
+
+  /**
+   * Get the diff for a specific file
+   * Returns the old and new content for comparison
+   * 
+   * @param workflowId - Workflow ID
+   * @param userId - User ID
+   * @param filePath - Path to the file to diff
+   * @param currentWorkflow - Optional current workflow data to compare against
+   * @returns Promise<{ oldContent: string | null, newContent: string | null }>
+   */
+  async getDiff(
+    workflowId: string,
+    userId: string,
+    filePath: string,
+    currentWorkflow?: WorkflowData
+  ): Promise<{ oldContent: string | null; newContent: string | null }> {
+    try {
+      const repoPath = getWorkflowRepoPath(workflowId);
+
+      // Check if repository exists
+      if (!(await fs.pathExists(repoPath))) {
+        throw new AppError('Git repository not found', 404);
+      }
+
+      // Get the old content from HEAD
+      let oldContent: string | null = null;
+      try {
+        const headContent = await git.readBlob({
+          fs,
+          dir: repoPath,
+          oid: 'HEAD',
+          filepath: filePath,
+        });
+        oldContent = new TextDecoder().decode(headContent.blob);
+      } catch (error) {
+        // File might not exist in HEAD (new file)
+        logger.debug(`File ${filePath} not found in HEAD, treating as new file`);
+      }
+
+      // Get the new content from working directory
+      let newContent: string | null = null;
+      const workingFilePath = path.join(repoPath, filePath);
+
+      // If current workflow is provided, serialize it first
+      if (currentWorkflow) {
+        try {
+          const workflowFiles = await this.workflowSerializer.workflowToFiles(currentWorkflow);
+          if (filePath in workflowFiles) {
+            const content = workflowFiles[filePath as keyof WorkflowFiles];
+            if (content !== undefined) {
+              newContent = content;
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to serialize workflow for diff:', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // If not from current workflow, read from disk
+      if (newContent === null && (await fs.pathExists(workingFilePath))) {
+        newContent = await fs.readFile(workingFilePath, 'utf-8');
+      }
+
+      return { oldContent, newContent };
+    } catch (error) {
+      logger.error('Failed to get diff:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        workflowId,
+        filePath,
+      });
+      throw error;
     }
   }
 
@@ -874,6 +1260,7 @@ export class GitService {
    * @param userId - The user ID
    * @param message - Commit message
    * @param workflow - Current workflow data to commit
+   * @param environment - Optional environment (development, staging, production) for environment-specific commits
    * @returns Promise<GitCommit>
    * 
    * Requirements: 2.2, 2.3, 2.4
@@ -882,10 +1269,11 @@ export class GitService {
     workflowId: string,
     userId: string,
     message: string,
-    workflow: WorkflowData
+    workflow: WorkflowData,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<GitCommit> {
     try {
-      logger.info(`Creating commit for workflow ${workflowId}`);
+      logger.info(`Creating commit for workflow ${workflowId}${environment ? ` (environment: ${environment})` : ''}`);
 
       // Validate commit message (Requirement 2.3)
       if (!message || message.trim().length === 0) {
@@ -917,13 +1305,16 @@ export class GitService {
       }
 
       // Serialize workflow to files (Requirement 2.2)
-      const workflowFiles = await this.workflowSerializer.workflowToFiles(workflow);
+      // If environment is specified, write to environment-specific file
+      const workflowFiles = await this.workflowSerializer.workflowToFiles(workflow, environment);
+
+      logger.debug(`Workflow files to commit: ${JSON.stringify(Object.keys(workflowFiles))}, environment: ${environment || 'none'}`);
 
       // Write workflow files to repository
       for (const [filename, content] of Object.entries(workflowFiles)) {
         const filePath = path.join(repoPath, filename);
         await fs.writeFile(filePath, content, 'utf-8');
-        logger.debug(`Wrote file: ${filename}`);
+        logger.debug(`Wrote file: ${filename}${environment ? ` (for environment: ${environment})` : ''}`);
       }
 
       // Stage all workflow changes automatically (Requirement 2.2)
@@ -1126,10 +1517,7 @@ export class GitService {
       }
 
       // Get credentials (Requirement 3.1: Handle authentication)
-      const credentials = await this.credentialManager.getCredentials(userId, workflowId);
-      if (!credentials) {
-        throw new AppError('Git credentials not found. Please reconnect to the repository.', 401);
-      }
+      const credentials = await this.getWorkflowCredentials(workflowId, userId);
 
       // Determine remote and branch
       const remoteName = options?.remote || gitConfigRecord.remoteName || 'origin';
@@ -1287,11 +1675,12 @@ export class GitService {
 
   /**
    * Pull changes from remote repository
-   * Fetches and merges changes from the remote repository
+   * Fetches and merges changes from remote repository
    * 
    * @param workflowId - The workflow ID
    * @param userId - The user ID
    * @param options - Pull options (optional)
+   * @param environment - Optional environment to pull for
    * @returns Promise<PullResult>
    * 
    * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5
@@ -1299,7 +1688,8 @@ export class GitService {
   async pull(
     workflowId: string,
     userId: string,
-    options?: PullOptions
+    options?: PullOptions,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<PullResult> {
     try {
       logger.info(`Pulling changes for workflow ${workflowId}`);
@@ -1333,17 +1723,14 @@ export class GitService {
       }
 
       // Get credentials
-      const credentials = await this.credentialManager.getCredentials(userId, workflowId);
-      if (!credentials) {
-        throw new AppError('Git credentials not found. Please reconnect to the repository.', 401);
-      }
+      const credentials = await this.getWorkflowCredentials(workflowId, userId);
 
       // Determine remote and branch
       const remoteName = options?.remote || gitConfigRecord.remoteName || 'origin';
       const branch = options?.branch || gitConfigRecord.branch;
 
       // Check for uncommitted changes (Requirement 7.4)
-      const status = await this.getStatus(workflowId, userId);
+      const status = await this.getStatus(workflowId, userId, undefined, environment);
       if (status.modified) {
         throw new AppError(
           'Cannot pull with uncommitted changes. Please commit or discard your changes first.',
@@ -1488,9 +1875,10 @@ export class GitService {
           } as any);
         }
 
-        // Read the updated workflow files (single file approach)
+        // Read updated workflow files (single file approach)
+        const workflowFileName = environment ? `workflow-${environment}.json` : 'workflow.json';
         const workflowFiles: WorkflowFiles = {
-          'workflow.json': await fs.readFile(path.join(repoPath, 'workflow.json'), 'utf-8'),
+          [workflowFileName]: await fs.readFile(path.join(repoPath, workflowFileName), 'utf-8'),
         };
         
         // Read README if it exists
@@ -2103,11 +2491,12 @@ export class GitService {
 
   /**
    * Revert workflow to a specific commit
-   * Restores the workflow configuration from the specified commit
+   * Restores workflow configuration from specified commit
    * 
    * @param workflowId - The workflow ID
    * @param userId - The user ID
-   * @param commitHash - Hash of the commit to revert to
+   * @param commitHash - Hash of commit to revert to
+   * @param environment - Optional environment to revert for
    * @returns Promise<void>
    * 
    * Requirements: 8.3
@@ -2115,10 +2504,11 @@ export class GitService {
   async revertToCommit(
     workflowId: string,
     userId: string,
-    commitHash: string
+    commitHash: string,
+    environment?: 'development' | 'staging' | 'production'
   ): Promise<void> {
     try {
-      logger.info(`Reverting workflow ${workflowId} to commit ${commitHash}`);
+      logger.info(`Reverting workflow ${workflowId} to commit ${commitHash}${environment ? ` (environment: ${environment}, file: workflow-${environment}.json)` : ''}`);
 
       // Get Git configuration
       const gitConfigRecord = await db.query.workflowGitConfigs.findFirst({
@@ -2145,7 +2535,7 @@ export class GitService {
       }
 
       // Check for uncommitted changes
-      const status = await this.getStatus(workflowId, userId);
+      const status = await this.getStatus(workflowId, userId, undefined, environment);
       if (status.modified) {
         throw new AppError(
           'Cannot revert with uncommitted changes. Please commit or discard your changes first.',
@@ -2169,13 +2559,15 @@ export class GitService {
         fs,
         dir: repoPath,
         ref: commitHash,
+        force: true, // Force checkout to overwrite local changes
       });
 
       logger.info(`Checked out commit ${commitHash}`);
 
-      // Read the workflow files from this commit (single file approach)
+      // Read workflow files from this commit (single file approach)
+      const workflowFileName = environment ? `workflow-${environment}.json` : 'workflow.json';
       const workflowFiles: WorkflowFiles = {
-        'workflow.json': await fs.readFile(path.join(repoPath, 'workflow.json'), 'utf-8'),
+        [workflowFileName]: await fs.readFile(path.join(repoPath, workflowFileName), 'utf-8'),
       };
       
       // Read README if it exists
@@ -2192,6 +2584,7 @@ export class GitService {
         fs,
         dir: repoPath,
         ref: gitConfigRecord.branch,
+        force: true, // Force checkout to overwrite local changes
       });
 
       // Now write the reverted files back to the working directory

@@ -8,58 +8,31 @@
  * Requirements: 2.1
  */
 
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
-  FilePlus, 
-  FileEdit, 
-  FileX, 
-  Plus, 
-  Minus, 
-  X,
+import {
   CheckCircle2,
-  Circle
+  FileCode,
+  Loader2,
 } from 'lucide-react'
-import { GitChange } from '@/services/git.service'
+import { GitChange, gitService } from '@/services/git.service'
 import { cn } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { useWorkflowStore } from '@/stores/workflow'
+import { useGitStore } from '@/stores/git'
+import { Badge } from '@/components/ui/badge'
+import { getEnvironmentLabel, getEnvironmentColor } from '@/types/environment'
 
 interface GitChangesListProps {
   workflowId: string
   changes: GitChange[]
-  readOnly?: boolean
-}
-
-/**
- * Get icon for change type
- */
-const getChangeIcon = (type: GitChange['type']) => {
-  switch (type) {
-    case 'added':
-      return FilePlus
-    case 'modified':
-      return FileEdit
-    case 'deleted':
-      return FileX
-    default:
-      return FileEdit
-  }
-}
-
-/**
- * Get color class for change type
- */
-const getChangeColor = (type: GitChange['type']) => {
-  switch (type) {
-    case 'added':
-      return 'text-green-600 dark:text-green-400'
-    case 'modified':
-      return 'text-blue-600 dark:text-blue-400'
-    case 'deleted':
-      return 'text-red-600 dark:text-red-400'
-    default:
-      return 'text-muted-foreground'
-  }
 }
 
 /**
@@ -79,50 +52,52 @@ const getChangeLabel = (type: GitChange['type']) => {
 }
 
 export const GitChangesList = memo(function GitChangesList({
-  workflowId: _workflowId,
-  changes,
-  readOnly = false
+  workflowId,
+  changes
 }: GitChangesListProps) {
-  // TODO: Implement actual stage/unstage/discard operations in future tasks
-  // For now, these are placeholder handlers
-  
-  const handleStageChange = useCallback((path: string) => {
-    console.log('Stage change:', path)
-    // TODO: Call git service to stage change
-    // await gitService.stageChange(workflowId, path)
+  const [viewingChange, setViewingChange] = useState<GitChange | null>(null)
+  const [diffData, setDiffData] = useState<{ oldContent: string | null; newContent: string | null } | null>(null)
+  const [loadingDiff, setLoadingDiff] = useState(false)
+  const workflow = useWorkflowStore((state) => state.workflow)
+  const { activeEnvironment } = useGitStore()
+
+  const handleViewChange = useCallback(async (change: GitChange) => {
+    setViewingChange(change)
+    setLoadingDiff(true)
+    setDiffData(null)
+
+    // Convert environment to string format
+    const envStr = activeEnvironment === 'DEVELOPMENT' ? 'development' :
+                     activeEnvironment === 'STAGING' ? 'staging' :
+                     activeEnvironment === 'PRODUCTION' ? 'production' : undefined;
+
+    try {
+      const diff = await gitService.getDiff(workflowId, change.path, workflow, envStr)
+      setDiffData(diff)
+    } catch (error) {
+      console.error('Failed to load diff:', error)
+    } finally {
+      setLoadingDiff(false)
+    }
+  }, [workflowId, workflow, activeEnvironment])
+
+  const handleCloseDialog = useCallback(() => {
+    setViewingChange(null)
+    setDiffData(null)
   }, [])
 
-  const handleUnstageChange = useCallback((path: string) => {
-    console.log('Unstage change:', path)
-    // TODO: Call git service to unstage change
-    // await gitService.unstageChange(workflowId, path)
-  }, [])
-
-  const handleDiscardChange = useCallback((path: string) => {
-    console.log('Discard change:', path)
-    // TODO: Implement discard with confirmation dialog
-    // Show confirmation dialog
-    // await gitService.discardChange(workflowId, path)
-  }, [])
-
-  const handleStageAll = useCallback(() => {
-    console.log('Stage all changes')
-    // TODO: Call git service to stage all changes
-    // await gitService.stageAllChanges(workflowId)
-  }, [])
-
-  const handleUnstageAll = useCallback(() => {
-    console.log('Unstage all changes')
-    // TODO: Call git service to unstage all changes
-    // await gitService.unstageAllChanges(workflowId)
-  }, [])
+  // Parse JSON safely
+  const parseJSON = (content: string | null) => {
+    if (!content) return null
+    try {
+      return JSON.parse(content)
+    } catch {
+      return null
+    }
+  }
 
   // Calculate counts
-  const stagedCount = changes.filter(c => c.staged).length
-  const unstagedCount = changes.filter(c => !c.staged).length
   const hasChanges = changes.length > 0
-  const hasStagedChanges = stagedCount > 0
-  const hasUnstagedChanges = unstagedCount > 0
 
   // Empty state
   if (!hasChanges) {
@@ -139,122 +114,200 @@ export const GitChangesList = memo(function GitChangesList({
 
   return (
     <div className="space-y-3">
-      {/* Bulk actions */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleStageAll}
-          disabled={!hasUnstagedChanges || readOnly}
-          className="h-7 text-xs flex-1"
-          title="Stage all changes"
-        >
-          <Plus className="mr-1.5 h-3 w-3" />
-          Stage All
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleUnstageAll}
-          disabled={!hasStagedChanges || readOnly}
-          className="h-7 text-xs flex-1"
-          title="Unstage all changes"
-        >
-          <Minus className="mr-1.5 h-3 w-3" />
-          Unstage All
-        </Button>
+      {/* Info message */}
+      <div className="text-xs text-muted-foreground">
+        You have unsaved changes
       </div>
 
-      {/* Changes list */}
-      <ScrollArea className="max-h-[400px]">
-        <div className="space-y-1">
-          {changes.map((change) => {
-            const ChangeIcon = getChangeIcon(change.type)
-            const colorClass = getChangeColor(change.type)
-            const changeLabel = getChangeLabel(change.type)
+      {/* View changes button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleViewChange(changes[0])}
+        className="w-full"
+      >
+        <FileCode className="mr-2 h-4 w-4" />
+        View changes
+      </Button>
 
-            return (
-              <div
-                key={change.path}
-                className={cn(
-                  'group flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors',
-                  change.staged && 'bg-muted/30'
+      {/* Change viewer dialog */}
+      <Dialog open={!!viewingChange} onOpenChange={(open) => !open && handleCloseDialog()}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode className="w-5 h-5" />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="font-medium">{viewingChange?.path}</span>
+                {viewingChange?.path?.startsWith('workflow-') && viewingChange?.path !== 'README.md' && viewingChange?.path !== 'metadata.json' && activeEnvironment && (
+                  <Badge
+                    variant="outline"
+                    className={`border-${getEnvironmentColor(activeEnvironment)}-500 bg-${getEnvironmentColor(activeEnvironment)}-50 text-${getEnvironmentColor(activeEnvironment)}-700 text-xs`}
+                  >
+                    {getEnvironmentLabel(activeEnvironment)}
+                  </Badge>
                 )}
-              >
-                {/* Staged indicator */}
-                <div className="flex-shrink-0">
-                  {change.staged ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <Circle className="w-3.5 h-3.5 text-muted-foreground/50" />
-                  )}
-                </div>
-
-                {/* Change icon and info */}
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <ChangeIcon className={cn('w-3.5 h-3.5 flex-shrink-0', colorClass)} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate" title={change.path}>
-                      {change.path}
-                    </p>
-                    <p className={cn('text-xs truncate', colorClass)}>
-                      {changeLabel}
-                    </p>
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              {viewingChange?.type === 'added' && 'This file was added to your workflow'}
+              {viewingChange?.type === 'modified' && 'This file was modified'}
+              {viewingChange?.type === 'deleted' && 'This file was deleted from your workflow'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="space-y-4 pr-4">
+                <div className="bg-muted/30 p-4 rounded-md">
+                  <h4 className="text-sm font-medium mb-2">File Information</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Path:</span>
+                      <span className="font-mono">{viewingChange?.path}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className={cn(
+                        'font-medium',
+                        viewingChange?.type === 'added' && 'text-green-600 dark:text-green-400',
+                        viewingChange?.type === 'modified' && 'text-blue-600 dark:text-blue-400',
+                        viewingChange?.type === 'deleted' && 'text-red-600 dark:text-red-400'
+                      )}>
+                        {getChangeLabel(viewingChange?.type || 'modified')}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Action buttons */}
-                {!readOnly && (
-                  <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {change.staged ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleUnstageChange(change.path)}
-                        className="h-6 w-6 p-0"
-                        title="Unstage change"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleStageChange(change.path)}
-                        className="h-6 w-6 p-0"
-                        title="Stage change"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                {loadingDiff && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading diff...</span>
+                  </div>
+                )}
+
+                {!loadingDiff && diffData && (
+                  <div className="space-y-4">
+                    {/* Old Content */}
+                    {diffData.oldContent && (
+                      <div className="border rounded-md overflow-hidden">
+                        <div className="bg-red-500/10 border-b border-red-500/20 px-3 py-2">
+                          <h4 className="text-xs font-medium text-red-600 dark:text-red-400">
+                            − Previous Version
+                          </h4>
+                        </div>
+                        <ScrollArea className="max-h-[300px]">
+                          <pre className="p-3 text-xs font-mono bg-muted/30 overflow-x-auto">
+                            {JSON.stringify(parseJSON(diffData.oldContent), null, 2)}
+                          </pre>
+                        </ScrollArea>
+                      </div>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDiscardChange(change.path)}
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                      title="Discard change"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+
+                    {/* New Content */}
+                    {diffData.newContent && (
+                      <div className="border rounded-md overflow-hidden">
+                        <div className="bg-green-500/10 border-b border-green-500/20 px-3 py-2">
+                          <h4 className="text-xs font-medium text-green-600 dark:text-green-400">
+                            + Current Version
+                          </h4>
+                        </div>
+                        <ScrollArea className="max-h-[300px]">
+                          <pre className="p-3 text-xs font-mono bg-muted/30 overflow-x-auto">
+                            {JSON.stringify(parseJSON(diffData.newContent), null, 2)}
+                          </pre>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!loadingDiff && !diffData && (
+                  <div className="bg-muted/30 p-4 rounded-md">
+                    <h4 className="text-sm font-medium mb-2">About This File</h4>
+                    <div className="text-xs text-muted-foreground space-y-2">
+                       {viewingChange?.path === 'workflow.json' && (
+                         <>
+                           <p>
+                             This file contains your complete workflow configuration including:
+                           </p>
+                           <ul className="list-disc list-inside space-y-1 ml-2">
+                             <li>All nodes and their configurations</li>
+                             <li>Connections between nodes</li>
+                             <li>Node positions on the canvas</li>
+                             <li>Workflow settings and metadata</li>
+                           </ul>
+                           {!activeEnvironment && (
+                             <p className="text-xs text-muted-foreground mt-2">
+                               Note: When an environment (development/staging/production) is active, changes will be committed to the corresponding environment-specific file instead.
+                             </p>
+                           )}
+                         </>
+                       )}
+                       {viewingChange?.path === 'workflow-development.json' && (
+                         <>
+                           <p>
+                             This file contains the development environment workflow configuration.
+                           </p>
+                           <ul className="list-disc list-inside space-y-1 ml-2">
+                             <li>All nodes and their configurations</li>
+                             <li>Connections between nodes</li>
+                             <li>Node positions on the canvas</li>
+                             <li>Workflow settings and metadata</li>
+                           </ul>
+                         </>
+                       )}
+                       {viewingChange?.path === 'workflow-staging.json' && (
+                         <>
+                           <p>
+                             This file contains the staging environment workflow configuration.
+                           </p>
+                           <ul className="list-disc list-inside space-y-1 ml-2">
+                             <li>All nodes and their configurations</li>
+                             <li>Connections between nodes</li>
+                             <li>Node positions on the canvas</li>
+                             <li>Workflow settings and metadata</li>
+                           </ul>
+                         </>
+                       )}
+                       {viewingChange?.path === 'workflow-production.json' && (
+                         <>
+                           <p>
+                             This file contains the production environment workflow configuration.
+                           </p>
+                           <ul className="list-disc list-inside space-y-1 ml-2">
+                             <li>All nodes and their configurations</li>
+                             <li>Connections between nodes</li>
+                             <li>Node positions on the canvas</li>
+                             <li>Workflow settings and metadata</li>
+                           </ul>
+                         </>
+                       )}
+                       {viewingChange?.path === 'metadata.json' && (
+                         <>
+                           <p>
+                             This file contains workflow metadata including:
+                           </p>
+                           <ul className="list-disc list-inside space-y-1 ml-2">
+                             <li>Workflow title and description</li>
+                             <li>Creation and update timestamps</li>
+                             <li>Version information</li>
+                           </ul>
+                         </>
+                       )}
+                    </div>
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
-      </ScrollArea>
+            </ScrollArea>
+          </div>
 
-      {/* Summary */}
-      <div className="pt-2 border-t text-xs text-muted-foreground">
-        <div className="flex items-center justify-between">
-          <span>
-            {stagedCount} staged, {unstagedCount} unstaged
-          </span>
-          <span className="text-muted-foreground/70">
-            {changes.length} total
-          </span>
-        </div>
-      </div>
+          <div className="flex justify-end pt-4 border-t">
+            <Button onClick={handleCloseDialog} variant="outline">
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 })

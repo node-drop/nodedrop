@@ -8,26 +8,36 @@
  */
 
 import { memo, useEffect, useState } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  GitCommit, 
-  Upload, 
-  Download, 
-  RefreshCw, 
+import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  GitCommit,
+  Upload,
+  Download,
+  RefreshCw,
   ArrowUpDown,
   Loader2,
   AlertCircle,
   CheckCircle2,
-  FileText
+  MoreHorizontal,
+  Layers,
 } from 'lucide-react'
 import { useGitStore } from '@/stores/git'
-import { useGlobalToast } from '@/hooks/useToast'
+import { useWorkflowStore } from '@/stores/workflow'
+import { useEnvironmentStore } from '@/stores/environment'
+import { toast } from 'sonner'
+import { gitService } from '@/services/git.service'
 import { GitChangesList } from './GitChangesList'
 import { GitCommitInput } from './GitCommitInput'
 import { GitConflictResolutionDialog } from './GitConflictResolutionDialog'
+import { getEnvironmentLabel, getEnvironmentColor } from '@/types/environment'
 
 interface GitSourceControlTabProps {
   workflowId: string
@@ -58,70 +68,109 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
     resolveConflicts,
     clearConflicts,
     clearErrors,
+    activeEnvironment,
+    setActiveEnvironment,
   } = useGitStore()
 
-  const { showSuccess, showError, showWarning } = useGlobalToast()
+  // Get current workflow data for change detection
+  const { workflow, setWorkflow } = useWorkflowStore()
+
+  // Get environment state
+  const { selectedEnvironment } = useEnvironmentStore()
 
   // State for conflict resolution dialog
   const [showConflictDialog, setShowConflictDialog] = useState(false)
 
-  // Load status on mount and when workflowId changes
+  // Load status on mount and when workflowId or workflow changes
   useEffect(() => {
     if (workflowId) {
-      refreshStatus(workflowId).catch((error) => {
+      refreshStatus(workflowId, workflow, selectedEnvironment || undefined).catch((error) => {
         console.error('Failed to load Git status:', error)
       })
+      
+      // Set active environment in git store if not already set
+      if (selectedEnvironment && activeEnvironment !== selectedEnvironment) {
+        setActiveEnvironment(selectedEnvironment)
+      }
     }
-  }, [workflowId, refreshStatus])
+  }, [workflowId, workflow, refreshStatus, selectedEnvironment, activeEnvironment, setActiveEnvironment])
 
   // Show notifications for operation results
   useEffect(() => {
     if (lastPushResult) {
       if (lastPushResult.success) {
-        showSuccess('Push Successful', {
-          message: `Pushed ${lastPushResult.pushed} commit${lastPushResult.pushed !== 1 ? 's' : ''} to remote`,
+        toast.success(`Pushed ${lastPushResult.pushed} commit${lastPushResult.pushed !== 1 ? 's' : ''} to remote`, {
+          position: 'top-center',
         })
       } else if (lastPushResult.error) {
-        showError('Push Failed', {
-          message: lastPushResult.error,
+        toast.error(lastPushResult.error, {
+          position: 'top-center',
         })
       }
     }
-  }, [lastPushResult, showSuccess, showError])
+  }, [lastPushResult])
 
   useEffect(() => {
     if (lastPullResult) {
       if (lastPullResult.success) {
         if (lastPullResult.conflicts) {
-          showWarning('Pull Completed with Conflicts', {
-            message: `${lastPullResult.conflictFiles?.length || 0} file(s) have conflicts that need resolution`,
+          toast.error(`${lastPullResult.conflictFiles?.length || 0} file(s) have conflicts that need resolution`, {
+            position: 'top-center',
           })
           // Open conflict resolution dialog
           setShowConflictDialog(true)
         } else {
-          showSuccess('Pull Successful', {
-            message: `Pulled ${lastPullResult.commits.length} commit${lastPullResult.commits.length !== 1 ? 's' : ''} from remote`,
-          })
+          const commitCount = lastPullResult.commits.length
+          if (commitCount > 0) {
+            // Reload workflow from Git
+            gitService.getWorkflowFromGit(workflowId)
+              .then((gitWorkflow) => {
+                // Merge Git data with existing workflow metadata to preserve database fields
+                const mergedWorkflow = {
+                  ...workflow, // Keep existing metadata (userId, workspaceId, etc.)
+                  ...gitWorkflow, // Override with Git data (nodes, connections, etc.)
+                  metadata: {
+                    ...workflow?.metadata, // Keep existing metadata
+                    ...gitWorkflow.metadata, // Merge Git metadata
+                  },
+                }
+                setWorkflow(mergedWorkflow as any)
+                toast.success(`Pulled ${commitCount} commit${commitCount !== 1 ? 's' : ''} and reloaded workflow`, {
+                  position: 'top-center',
+                })
+              })
+              .catch((error) => {
+                toast.error(`Pulled ${commitCount} commit${commitCount !== 1 ? 's' : ''}. Please reload the workflow manually to see changes.`, {
+                  position: 'top-center',
+                  duration: 8000,
+                })
+                console.error('Failed to reload workflow from Git:', error)
+              })
+          } else {
+            toast.success('Already up to date', {
+              position: 'top-center',
+            })
+          }
         }
       } else if (lastPullResult.error) {
-        showError('Pull Failed', {
-          message: lastPullResult.error,
+        toast.error(lastPullResult.error, {
+          position: 'top-center',
         })
       }
     }
-  }, [lastPullResult, showSuccess, showError, showWarning])
+  }, [lastPullResult, workflowId, setWorkflow])
 
   // Handle refresh
   const handleRefresh = async () => {
     try {
       clearErrors()
-      await refreshStatus(workflowId)
-      showSuccess('Status Refreshed', {
-        message: 'Git status updated successfully',
+      await refreshStatus(workflowId, workflow, activeEnvironment || undefined)
+      toast.success('Git status updated successfully', {
+        position: 'top-center',
       })
     } catch (error) {
-      showError('Refresh Failed', {
-        message: error instanceof Error ? error.message : 'Failed to refresh status',
+      toast.error(error instanceof Error ? error.message : 'Failed to refresh status', {
+        position: 'top-center',
       })
     }
   }
@@ -141,7 +190,10 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
   const handlePull = async () => {
     try {
       clearErrors()
-      await pull(workflowId)
+      const envStr = activeEnvironment === 'DEVELOPMENT' ? 'development' :
+                       activeEnvironment === 'STAGING' ? 'staging' :
+                       activeEnvironment === 'PRODUCTION' ? 'production' : undefined;
+      await pull(workflowId, envStr ? { environment: envStr } : undefined)
     } catch (error) {
       // Error notification handled by useEffect
       console.error('Pull failed:', error)
@@ -153,8 +205,8 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
     try {
       clearErrors()
       await sync(workflowId)
-      showSuccess('Sync Successful', {
-        message: 'Successfully synchronized with remote repository',
+      toast.success('Successfully synchronized with remote repository', {
+        position: 'top-center',
       })
     } catch (error) {
       // Individual operation errors handled by useEffect
@@ -167,12 +219,12 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
     try {
       await resolveConflicts(workflowId, resolutions)
       setShowConflictDialog(false)
-      showSuccess('Conflicts Resolved', {
-        message: 'All conflicts have been resolved successfully',
+      toast.success('All conflicts have been resolved successfully', {
+        position: 'top-center',
       })
     } catch (error) {
-      showError('Resolution Failed', {
-        message: error instanceof Error ? error.message : 'Failed to resolve conflicts',
+      toast.error(error instanceof Error ? error.message : 'Failed to resolve conflicts', {
+        position: 'top-center',
       })
       throw error
     }
@@ -198,28 +250,25 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
   const canRefresh = !isLoadingStatus && !isOperating
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="absolute inset-0 flex flex-col overflow-hidden">
       {/* Status header */}
       <div className="flex-shrink-0 p-3 border-b space-y-3">
-        {/* Changes summary */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium">
-              {hasChanges ? (
-                <>
-                  {changesCount} change{changesCount !== 1 ? 's' : ''}
-                  {stagedCount > 0 && (
-                    <span className="text-muted-foreground ml-1">
-                      ({stagedCount} staged)
-                    </span>
-                  )}
-                </>
-              ) : (
-                'No changes'
-              )}
-            </span>
+        {/* Environment indicator */}
+        {activeEnvironment && (
+          <div className="flex items-center gap-2 text-xs">
+            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Active Environment:</span>
+            <Badge
+              variant="outline"
+              className={`border-${getEnvironmentColor(activeEnvironment)}-500 bg-${getEnvironmentColor(activeEnvironment)}-50 text-${getEnvironmentColor(activeEnvironment)}-700`}
+            >
+              {getEnvironmentLabel(activeEnvironment)}
+            </Badge>
           </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
             size="sm"
@@ -230,113 +279,151 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
           >
             <RefreshCw className={`h-3 w-3 ${isLoadingStatus ? 'animate-spin' : ''}`} />
           </Button>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={isOperating}
+                  title="More actions"
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  onClick={handlePush}
+                  disabled={!canPush}
+                  className="text-xs"
+                >
+                  {isPushing ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Pushing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-3 w-3" />
+                      Push
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handlePull}
+                  disabled={!canPull}
+                  className="text-xs"
+                >
+                  {isPulling ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Pulling...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-3 w-3" />
+                      Pull
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleSync}
+                  disabled={!canSync}
+                  className="text-xs"
+                >
+                  {isPulling || isPushing ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpDown className="mr-2 h-3 w-3" />
+                      Sync
+                    </>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Sync status */}
         {status && (
-          <div className="flex items-center gap-2 text-xs">
-            {hasUnpushedCommits ? (
-              <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                <AlertCircle className="w-3 h-3" />
-                <span>{status.unpushedCommits} unpushed commit{status.unpushedCommits !== 1 ? 's' : ''}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>Up to date</span>
-              </div>
-            )}
-            {status.ahead > 0 && (
-              <span className="text-muted-foreground">
-                ↑{status.ahead}
-              </span>
-            )}
-            {status.behind > 0 && (
-              <span className="text-muted-foreground">
-                ↓{status.behind}
-              </span>
+          <div className="space-y-2">
+            {hasUnpushedCommits && (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{status.unpushedCommits} unpushed commit{status.unpushedCommits !== 1 ? 's' : ''}</span>
+                  </div>
+                  {status.ahead > 0 && (
+                    <span className="text-muted-foreground">
+                      ↑{status.ahead}
+                    </span>
+                  )}
+                  {status.behind > 0 && (
+                    <span className="text-muted-foreground">
+                      ↓{status.behind}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Full width push button when there are unpushed commits */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handlePush}
+                  disabled={!canPush}
+                  className="w-full h-8 text-xs"
+                  title="Push commits to remote"
+                >
+                  {isPushing ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                      Pushing...
+                    </>
+                  ) : (
+                  <>
+                    <Upload className="mr-1.5 h-3 w-3" />
+                    Push {status.unpushedCommits} commit{status.unpushedCommits !== 1 ? 's' : ''}
+                  </>
+                )}
+              </Button>
+              </>
             )}
           </div>
         )}
 
-        {/* Conflicts alert */}
-        {hasConflicts && (
-          <Alert variant="destructive" className="py-2">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs flex items-center justify-between">
-              <span>{conflicts.length} file{conflicts.length !== 1 ? 's' : ''} with conflicts</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setShowConflictDialog(true)}
-              >
-                Resolve
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
+      {/* Conflicts alert */}
+      {hasConflicts && (
+        <Alert variant="destructive" className="py-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs flex items-center justify-between">
+            <span>{conflicts.length} file{conflicts.length !== 1 ? 's' : ''} with conflicts</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setShowConflictDialog(true)}
+            >
+              Resolve
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
-        {/* Action buttons */}
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePush}
-            disabled={!canPush}
-            className="h-8 text-xs"
-          >
-            {isPushing ? (
-              <>
-                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                Pushing...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-1.5 h-3 w-3" />
-                Push
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePull}
-            disabled={!canPull}
-            className="h-8 text-xs"
-          >
-            {isPulling ? (
-              <>
-                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                Pulling...
-              </>
-            ) : (
-              <>
-                <Download className="mr-1.5 h-3 w-3" />
-                Pull
-              </>
-            )}
-          </Button>
-        </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={handleSync}
-          disabled={!canSync}
-          className="w-full h-8 text-xs"
-        >
-          {isPulling || isPushing ? (
-            <>
-              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-              Syncing...
-            </>
-          ) : (
-            <>
-              <ArrowUpDown className="mr-1.5 h-3 w-3" />
-              Sync
-            </>
-          )}
-        </Button>
+      {/* Environment info alert */}
+      {activeEnvironment && (
+        <Alert className="py-2 bg-muted border-muted">
+          <Layers className="h-4 w-4 text-muted-foreground" />
+          <AlertDescription className="text-xs">
+            Committing changes to <strong>workflow-{activeEnvironment.toLowerCase()}.json</strong>
+          </AlertDescription>
+        </Alert>
+      )}
       </div>
 
       {/* Error display */}
@@ -352,7 +439,7 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
       )}
 
       {/* Scrollable content area */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-auto">
         <div className="p-3 space-y-4">
           {/* Loading state */}
           {isLoadingStatus && !status && (
@@ -363,36 +450,28 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
           )}
 
           {/* Changes list */}
-          {status && (
-            <>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <GitCommit className="w-4 h-4 text-muted-foreground" />
-                  <h4 className="text-xs font-semibold">Changes</h4>
-                </div>
-                <GitChangesList
-                  workflowId={workflowId}
-                  changes={status.changes}
-                  readOnly={readOnly}
-                />
+          {status && hasChanges && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <GitCommit className="w-4 h-4 text-muted-foreground" />
+                <h4 className="text-xs font-semibold">Changes</h4>
               </div>
+              <GitChangesList
+                workflowId={workflowId}
+                changes={status.changes}
+              />
+            </div>
+          )}
 
-              <Separator />
-
-              {/* Commit input */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <GitCommit className="w-4 h-4 text-muted-foreground" />
-                  <h4 className="text-xs font-semibold">Commit</h4>
-                </div>
-                <GitCommitInput
-                  workflowId={workflowId}
-                  stagedChangesCount={stagedCount}
-                  hasChanges={hasChanges}
-                  readOnly={readOnly}
-                />
-              </div>
-            </>
+          {/* Up to date state */}
+          {status && !hasChanges && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400 mb-2" />
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">Up to date</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Your workflow is up to date
+              </p>
+            </div>
           )}
 
           {/* Empty state */}
@@ -414,7 +493,19 @@ export const GitSourceControlTab = memo(function GitSourceControlTab({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
+
+      {/* Commit footer */}
+      {status && hasChanges && (
+        <div className="flex-shrink-0 border-t p-3">
+          <GitCommitInput
+            workflowId={workflowId}
+            stagedChangesCount={stagedCount}
+            hasChanges={hasChanges}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
 
       {/* Conflict Resolution Dialog */}
       {hasConflicts && (

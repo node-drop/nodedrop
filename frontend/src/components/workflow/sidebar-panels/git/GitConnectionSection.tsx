@@ -7,8 +7,9 @@
  * Requirements: 1.1, 1.2, 1.3, 1.5, 5.1, 5.4
  */
 
-import { memo, useState } from 'react'
-import { GitBranch, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ExternalLink, Edit } from 'lucide-react'
+import { memo, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router'
+import { GitBranch, Loader2, CheckCircle2, AlertCircle, ExternalLink, Edit, RefreshCw, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useGitStore } from '@/stores/git'
-import { GitRepositoryInfo, GitCredentialType, GitProvider } from '@/services/git.service'
+import { GitRepositoryInfo, GitCredential, GitService } from '@/services/git.service'
 
 interface GitConnectionSectionProps {
   workflowId: string
@@ -37,20 +38,51 @@ export const GitConnectionSection = memo(function GitConnectionSection({
   readOnly = false
 }: GitConnectionSectionProps) {
   const { connectRepository, disconnectRepository, isConnecting, connectionError } = useGitStore()
+  const navigate = useNavigate()
+
+  // Git service instance
+  const gitService = new GitService()
 
   // Form state
   const [repositoryUrl, setRepositoryUrl] = useState('')
-  const [credentialType, setCredentialType] = useState<GitCredentialType>('personal_access_token')
-  const [provider, setProvider] = useState<GitProvider>('github')
-  const [token, setToken] = useState('')
-  const [showToken, setShowToken] = useState(false)
   const [branch, setBranch] = useState('main')
+  const [selectedCredentialId, setSelectedCredentialId] = useState('')
+
+  // Credentials state
+  const [credentials, setCredentials] = useState<GitCredential[]>([])
+  const [isLoadingCredentials, setIsLoadingCredentials] = useState(false)
+  const [credentialsError, setCredentialsError] = useState<string | null>(null)
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false)
 
   // Local error state for validation
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  // Fetch credentials on mount
+  useEffect(() => {
+    fetchCredentials()
+  }, [])
+
+  // Fetch available Git credentials
+  const fetchCredentials = async () => {
+    setIsLoadingCredentials(true)
+    setCredentialsError(null)
+    try {
+      const creds = await gitService.getGitCredentials()
+      setCredentials(creds)
+      
+      // Auto-select first credential if available
+      if (creds.length > 0 && !selectedCredentialId) {
+        setSelectedCredentialId(creds[0].id)
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch credentials:', error)
+      setCredentialsError(error.message || 'Failed to load Git credentials')
+    } finally {
+      setIsLoadingCredentials(false)
+    }
+  }
 
   // Handle form submission
   const handleConnect = async () => {
@@ -63,8 +95,8 @@ export const GitConnectionSection = memo(function GitConnectionSection({
       return
     }
 
-    if (!token.trim()) {
-      setValidationError('Access token is required')
+    if (!selectedCredentialId) {
+      setValidationError('Please select a Git credential')
       return
     }
 
@@ -80,16 +112,10 @@ export const GitConnectionSection = memo(function GitConnectionSection({
       await connectRepository(workflowId, {
         repositoryUrl: repositoryUrl.trim(),
         branch: branch.trim() || 'main',
-        credentials: {
-          type: credentialType,
-          token: token.trim(),
-          provider,
-        },
+        credentialId: selectedCredentialId,
       })
 
-      // Clear form on success
-      setToken('')
-      setShowToken(false)
+      // Success - form will be hidden as component switches to connected view
     } catch (error) {
       // Error is handled by the store
       console.error('Connection failed:', error)
@@ -107,20 +133,12 @@ export const GitConnectionSection = memo(function GitConnectionSection({
     }
   }
 
-  // Handle OAuth flow (placeholder for future implementation)
-  const handleOAuthConnect = () => {
-    // TODO: Implement OAuth flow in task 11
-    alert('OAuth authentication will be implemented in a future update')
-  }
-
   // Handle edit credentials
   const handleEditCredentials = () => {
     // Pre-fill form with current connection info
     if (repositoryInfo) {
       setRepositoryUrl(repositoryInfo.repositoryUrl)
       setBranch(repositoryInfo.branch)
-      // Provider would need to be stored in repositoryInfo to pre-fill
-      // For now, user will need to re-select
     }
     setIsEditMode(true)
   }
@@ -128,8 +146,7 @@ export const GitConnectionSection = memo(function GitConnectionSection({
   // Handle cancel edit
   const handleCancelEdit = () => {
     setIsEditMode(false)
-    setToken('')
-    setShowToken(false)
+    setSelectedCredentialId('')
     setValidationError(null)
   }
 
@@ -138,9 +155,9 @@ export const GitConnectionSection = memo(function GitConnectionSection({
     // Clear previous errors
     setValidationError(null)
 
-    // Validate token input
-    if (!token.trim()) {
-      setValidationError('Access token is required to update credentials')
+    // Validate credential selection
+    if (!selectedCredentialId) {
+      setValidationError('Please select a Git credential')
       return
     }
 
@@ -149,21 +166,39 @@ export const GitConnectionSection = memo(function GitConnectionSection({
       await connectRepository(workflowId, {
         repositoryUrl: repositoryUrl.trim(),
         branch: branch.trim() || 'main',
-        credentials: {
-          type: credentialType,
-          token: token.trim(),
-          provider,
-        },
+        credentialId: selectedCredentialId,
       })
 
       // Clear form and exit edit mode on success
-      setToken('')
-      setShowToken(false)
+      setSelectedCredentialId('')
       setIsEditMode(false)
     } catch (error) {
       // Error is handled by the store
       console.error('Credential update failed:', error)
     }
+  }
+
+  // Get credential display info
+  const getCredentialIcon = (type: string) => {
+    if (type.includes('github')) return '🐙'
+    if (type.includes('gitlab')) return '🦊'
+    if (type.includes('bitbucket')) return '🪣'
+    return '🔐'
+  }
+
+  const getCredentialLabel = (type: string) => {
+    if (type === 'githubOAuth2') return 'GitHub OAuth2'
+    if (type === 'githubPAT') return 'GitHub PAT'
+    if (type === 'gitlabOAuth2') return 'GitLab OAuth2'
+    if (type === 'gitlabPAT') return 'GitLab PAT'
+    if (type === 'bitbucketOAuth2') return 'Bitbucket OAuth2'
+    if (type === 'bitbucketPAT') return 'Bitbucket App Password'
+    return type
+  }
+
+  const isCredentialExpired = (credential: GitCredential) => {
+    if (!credential.expiresAt) return false
+    return new Date(credential.expiresAt) < new Date()
   }
 
   // If connected, show repository info and disconnect option
@@ -204,67 +239,100 @@ export const GitConnectionSection = memo(function GitConnectionSection({
             </div>
           </div>
 
-          {/* Provider selector */}
+          {/* Credential selector */}
           <div className="space-y-2">
-            <Label htmlFor="edit-provider" className="text-xs">
-              Git Provider <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={provider}
-              onValueChange={(value) => setProvider(value as GitProvider)}
-              disabled={isConnecting}
-            >
-              <SelectTrigger id="edit-provider" className="text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="github" className="text-xs">GitHub</SelectItem>
-                <SelectItem value="gitlab" className="text-xs">GitLab</SelectItem>
-                <SelectItem value="bitbucket" className="text-xs">Bitbucket</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* New token input */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-token" className="text-xs">
-              New Personal Access Token <span className="text-destructive">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="edit-token"
-                type={showToken ? 'text' : 'password'}
-                placeholder="Enter your new access token"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                disabled={isConnecting}
-                className="text-xs font-mono pr-10"
-              />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="edit-credential" className="text-xs">
+                Git Credential <span className="text-destructive">*</span>
+              </Label>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowToken(!showToken)}
-                disabled={isConnecting}
+                onClick={fetchCredentials}
+                disabled={isLoadingCredentials || isConnecting}
+                className="h-6 px-2"
               >
-                {showToken ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
+                <RefreshCw className={`h-3 w-3 ${isLoadingCredentials ? 'animate-spin' : ''}`} />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Required for pushing changes to the repository
-            </p>
+
+            {isLoadingCredentials ? (
+              <div className="flex items-center justify-center p-4 border rounded-lg">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-xs text-muted-foreground">Loading credentials...</span>
+              </div>
+            ) : credentials.length === 0 ? (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                <p className="text-xs text-muted-foreground">No Git credentials found.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/credentials?type=git')}
+                  className="w-full"
+                >
+                  <Plus className="mr-2 h-3 w-3" />
+                  Create Git Credential
+                </Button>
+              </div>
+            ) : (
+              <Select
+                value={selectedCredentialId}
+                onValueChange={setSelectedCredentialId}
+                disabled={isConnecting}
+              >
+                <SelectTrigger id="edit-credential" className="text-xs">
+                  <SelectValue placeholder="Select a credential..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {credentials.map((cred) => (
+                    <SelectItem
+                      key={cred.id}
+                      value={cred.id}
+                      disabled={isCredentialExpired(cred)}
+                      className="text-xs"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>{getCredentialIcon(cred.type)}</span>
+                        <span>{cred.name}</span>
+                        <span className="text-muted-foreground">({getCredentialLabel(cred.type)})</span>
+                        {isCredentialExpired(cred) && (
+                          <span className="text-destructive">- EXPIRED</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {selectedCredentialId && credentials.length > 0 && (
+              <div className="p-2 border rounded-lg bg-muted/30 text-xs">
+                {(() => {
+                  const selected = credentials.find(c => c.id === selectedCredentialId)
+                  if (!selected) return null
+                  return (
+                    <div className="space-y-1">
+                      <p><strong>Type:</strong> {getCredentialLabel(selected.type)}</p>
+                      {selected.expiresAt && (
+                        <p><strong>Expires:</strong> {new Date(selected.expiresAt).toLocaleDateString()}</p>
+                      )}
+                      {!selected.isOwner && (
+                        <p className="text-blue-600">🔗 Shared with you ({selected.permission})</p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
           <div className="flex gap-2">
             <Button
               onClick={handleUpdateCredentials}
-              disabled={isConnecting || !token.trim()}
+              disabled={isConnecting || !selectedCredentialId}
               className="flex-1"
               size="sm"
             >
@@ -451,107 +519,120 @@ export const GitConnectionSection = memo(function GitConnectionSection({
           </p>
         </div>
 
-        {/* Provider selector */}
+        {/* Credential selector */}
         <div className="space-y-2">
-          <Label htmlFor="provider" className="text-xs">
-            Git Provider <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={provider}
-            onValueChange={(value) => setProvider(value as GitProvider)}
-            disabled={isConnecting || readOnly}
-          >
-            <SelectTrigger id="provider" className="text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="github" className="text-xs">GitHub</SelectItem>
-              <SelectItem value="gitlab" className="text-xs">GitLab</SelectItem>
-              <SelectItem value="bitbucket" className="text-xs">Bitbucket</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Credential type selector */}
-        <div className="space-y-2">
-          <Label htmlFor="credential-type" className="text-xs">
-            Authentication Method <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={credentialType}
-            onValueChange={(value) => setCredentialType(value as GitCredentialType)}
-            disabled={isConnecting || readOnly}
-          >
-            <SelectTrigger id="credential-type" className="text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="personal_access_token" className="text-xs">
-                Personal Access Token
-              </SelectItem>
-              <SelectItem value="oauth" className="text-xs">
-                OAuth (Coming Soon)
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Token input or OAuth button */}
-        {credentialType === 'personal_access_token' ? (
-          <div className="space-y-2">
-            <Label htmlFor="token" className="text-xs">
-              Personal Access Token <span className="text-destructive">*</span>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="credential" className="text-xs">
+              Git Credential <span className="text-destructive">*</span>
             </Label>
-            <div className="relative">
-              <Input
-                id="token"
-                type={showToken ? 'text' : 'password'}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                disabled={isConnecting || readOnly}
-                className="text-xs font-mono pr-10"
-              />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={fetchCredentials}
+              disabled={isLoadingCredentials || isConnecting || readOnly}
+              className="h-6 px-2"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoadingCredentials ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+
+          {credentialsError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">{credentialsError}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoadingCredentials ? (
+            <div className="flex items-center justify-center p-4 border rounded-lg">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-xs text-muted-foreground">Loading credentials...</span>
+            </div>
+          ) : credentials.length === 0 ? (
+            <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+              <p className="text-xs text-muted-foreground">No Git credentials found.</p>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowToken(!showToken)}
-                disabled={isConnecting || readOnly}
+                onClick={() => navigate('/credentials?type=git')}
+                className="w-full"
               >
-                {showToken ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
+                <Plus className="mr-2 h-3 w-3" />
+                Create Git Credential
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Required for pushing changes. Private repos also need it for read access.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOAuthConnect}
-              disabled={isConnecting || readOnly}
-              className="w-full"
-            >
-              Connect with OAuth
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              OAuth authentication will be available in a future update
-            </p>
-          </div>
-        )}
+          ) : (
+            <>
+              <Select
+                value={selectedCredentialId}
+                onValueChange={setSelectedCredentialId}
+                disabled={isConnecting || readOnly}
+              >
+                <SelectTrigger id="credential" className="text-xs">
+                  <SelectValue placeholder="Select a credential..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {credentials.map((cred) => (
+                    <SelectItem
+                      key={cred.id}
+                      value={cred.id}
+                      disabled={isCredentialExpired(cred)}
+                      className="text-xs"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>{getCredentialIcon(cred.type)}</span>
+                        <span>{cred.name}</span>
+                        <span className="text-muted-foreground">({getCredentialLabel(cred.type)})</span>
+                        {isCredentialExpired(cred) && (
+                          <span className="text-destructive">- EXPIRED</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/credentials?type=git')}
+                className="w-full"
+              >
+                <Plus className="mr-2 h-3 w-3" />
+                Create New Credential
+              </Button>
+            </>
+          )}
+
+          {selectedCredentialId && credentials.length > 0 && (
+            <div className="p-3 border rounded-lg bg-muted/30 text-xs space-y-1">
+              {(() => {
+                const selected = credentials.find(c => c.id === selectedCredentialId)
+                if (!selected) return null
+                return (
+                  <>
+                    <p><strong>Credential:</strong> {selected.name}</p>
+                    <p><strong>Type:</strong> {getCredentialLabel(selected.type)}</p>
+                    {selected.expiresAt && (
+                      <p><strong>Expires:</strong> {new Date(selected.expiresAt).toLocaleDateString()}</p>
+                    )}
+                    {!selected.isOwner && (
+                      <p className="text-blue-600">🔗 Shared with you ({selected.permission})</p>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+        </div>
 
         {/* Connect button */}
         <Button
           onClick={handleConnect}
-          disabled={isConnecting || readOnly || credentialType === 'oauth'}
+          disabled={isConnecting || readOnly || !selectedCredentialId || credentials.length === 0}
           className="w-full"
           size="sm"
         >
@@ -570,27 +651,18 @@ export const GitConnectionSection = memo(function GitConnectionSection({
 
         {/* Help text */}
         <div className="p-3 border rounded-lg bg-muted/30 space-y-2">
-          <p className="text-xs font-semibold">Why is a token required?</p>
+          <p className="text-xs font-semibold">About Git Credentials</p>
           <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-            <li><strong>Push access:</strong> Required to push your workflow changes</li>
-            <li><strong>Private repos:</strong> Required for all operations (read and write)</li>
-            <li><strong>Public repos:</strong> Only validated when you push changes</li>
+            <li>Select from your saved Git credentials (OAuth2 or Personal Access Token)</li>
+            <li>Credentials are securely encrypted and stored</li>
+            <li>You can reuse the same credential across multiple workflows</li>
+            <li>Credentials can be shared with team members</li>
           </ul>
           
-          <p className="text-xs font-semibold mt-3">How to get a token:</p>
-          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-            <li>
-              <strong>GitHub:</strong> Settings → Developer settings → Personal access tokens → Generate new token
-            </li>
-            <li>
-              <strong>GitLab:</strong> User Settings → Access Tokens → Add new token
-            </li>
-            <li>
-              <strong>Bitbucket:</strong> Personal settings → App passwords → Create app password
-            </li>
-          </ul>
-          <p className="text-xs text-muted-foreground mt-2">
-            Ensure your token has repository read/write permissions.
+          <p className="text-xs font-semibold mt-3">Need to create a credential?</p>
+          <p className="text-xs text-muted-foreground">
+            Click "Create New Credential" above to set up GitHub, GitLab, or Bitbucket authentication.
+            You can use OAuth2 for easy setup or Personal Access Tokens for more control.
           </p>
         </div>
       </div>

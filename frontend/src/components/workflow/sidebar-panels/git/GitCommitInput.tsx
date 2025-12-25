@@ -13,10 +13,11 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { GitCommit, Loader2, AlertCircle } from 'lucide-react'
+import { GitCommit, Loader2, AlertCircle, Save } from 'lucide-react'
 import { useGitStore } from '@/stores/git'
 import { useWorkflowStore } from '@/stores/workflow'
-import { useGlobalToast } from '@/hooks/useToast'
+import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
+import { toast } from 'sonner'
 import type { WorkflowData } from '@/services/git.service'
 
 interface GitCommitInputProps {
@@ -44,10 +45,11 @@ export const GitCommitInput = memo(function GitCommitInput({
 }: GitCommitInputProps) {
   const [commitMessage, setCommitMessage] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   
-  const { commit, isCommitting } = useGitStore()
+  const { commit, isCommitting, activeEnvironment } = useGitStore()
   const { workflow, isDirty } = useWorkflowStore()
-  const { showSuccess, showError } = useGlobalToast()
+  const { saveWorkflow } = useWorkflowOperations()
 
   /**
    * Validate commit message
@@ -85,33 +87,48 @@ export const GitCommitInput = memo(function GitCommitInput({
    * Requirements: 2.2, 2.3
    */
   const handleCommit = async () => {
-    // Validate message
+    // Validate message first
     const error = validateMessage(commitMessage)
     if (error) {
       setValidationError(error)
-      showError('Invalid Commit Message', {
-        message: error,
-      })
       return
     }
 
     // Validate workflow exists
     if (!workflow) {
-      showError('Commit Failed', {
-        message: 'No workflow loaded',
+      toast.error('No workflow loaded', {
+        position: 'top-center',
       })
       return
     }
 
     // Validate workflow has required data
     if (!workflow.nodes || !workflow.connections) {
-      showError('Commit Failed', {
-        message: 'Workflow data is incomplete',
+      toast.error('Workflow data is incomplete', {
+        position: 'top-center',
       })
       return
     }
 
     try {
+      // If workflow has unsaved changes, save it first
+      if (isDirty) {
+        setIsSaving(true)
+        try {
+          await saveWorkflow()
+          toast.success('Workflow saved', {
+            position: 'top-center',
+          })
+        } catch (saveError) {
+          toast.error('Failed to save workflow', {
+            position: 'top-center',
+          })
+          return
+        } finally {
+          setIsSaving(false)
+        }
+      }
+
       // Transform workflow to WorkflowData format for Git service
       const workflowData: WorkflowData = {
         id: workflow.id,
@@ -126,20 +143,20 @@ export const GitCommitInput = memo(function GitCommitInput({
       }
 
       // Create commit
-      await commit(workflowId, commitMessage.trim(), workflowData)
+      await commit(workflowId, commitMessage.trim(), workflowData, activeEnvironment || undefined)
       
       // Clear message on success
       setCommitMessage('')
       setValidationError(null)
       
-      showSuccess('Commit Created', {
-        message: 'Changes committed successfully',
+      toast.success('Changes committed successfully', {
+        position: 'top-center',
       })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create commit'
       setValidationError(errorMessage)
-      showError('Commit Failed', {
-        message: errorMessage,
+      toast.error(errorMessage, {
+        position: 'top-center',
       })
     }
   }
@@ -160,19 +177,17 @@ export const GitCommitInput = memo(function GitCommitInput({
   const isMessageValid = trimmedLength >= MIN_MESSAGE_LENGTH && messageLength <= MAX_MESSAGE_LENGTH
   const isNearLimit = messageLength > MAX_MESSAGE_LENGTH * 0.9
   
-  // Check if workflow has unsaved changes (similar to save button logic)
-  const hasUnsavedChanges = isDirty || hasChanges
-  
   // Determine if commit button should be enabled
+  const isProcessing = isCommitting || isSaving
   const canCommit = 
-    hasUnsavedChanges && 
+    hasChanges && // Must have Git changes
     isMessageValid && 
-    !isCommitting && 
+    !isProcessing && 
     !readOnly &&
     workflow !== null
 
   return (
-    <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+    <div className="space-y-3">
       <div className="space-y-2">
         <Label htmlFor="commit-message" className="text-xs font-medium">
           Commit Message
@@ -183,7 +198,7 @@ export const GitCommitInput = memo(function GitCommitInput({
           value={commitMessage}
           onChange={handleMessageChange}
           onKeyDown={handleKeyDown}
-          disabled={isCommitting || readOnly || !hasUnsavedChanges}
+          disabled={isCommitting || readOnly || !hasChanges}
           className="text-xs min-h-[80px] resize-none"
           maxLength={MAX_MESSAGE_LENGTH}
           aria-invalid={!!validationError}
@@ -220,17 +235,29 @@ export const GitCommitInput = memo(function GitCommitInput({
         size="sm"
         className="w-full h-8 text-xs"
         title={
-          !hasUnsavedChanges 
+          !hasChanges 
             ? 'No changes to commit' 
             : !isMessageValid 
             ? 'Enter a valid commit message' 
+            : isDirty
+            ? 'Save and commit changes (Ctrl/Cmd + Enter)'
             : 'Commit changes (Ctrl/Cmd + Enter)'
         }
       >
-        {isCommitting ? (
+        {isSaving ? (
+          <>
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            Saving...
+          </>
+        ) : isCommitting ? (
           <>
             <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
             Committing...
+          </>
+        ) : isDirty ? (
+          <>
+            <Save className="mr-1.5 h-3 w-3" />
+            Save & Commit
           </>
         ) : (
           <>
@@ -241,7 +268,7 @@ export const GitCommitInput = memo(function GitCommitInput({
       </Button>
 
       {/* Helper text */}
-      {!hasUnsavedChanges && (
+      {!hasChanges && (
         <p className="text-xs text-muted-foreground text-center">
           Make changes to your workflow to enable commits
         </p>

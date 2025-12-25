@@ -24,6 +24,7 @@ import {
   WorkflowData,
   ConflictFile,
 } from '@/services/git.service';
+import { EnvironmentType } from '@nodedrop/types';
 
 /**
  * Git Store State Interface
@@ -34,6 +35,9 @@ interface GitStore {
   isConnected: boolean;
   isConnecting: boolean;
   connectionError: string | null;
+
+  // Environment state
+  activeEnvironment: EnvironmentType | null;
 
   // Git status state
   status: GitStatus | null;
@@ -79,8 +83,11 @@ interface GitStore {
   getRepositoryInfo: (workflowId: string) => Promise<void>;
 
   // Actions - Status Management
-  refreshStatus: (workflowId: string) => Promise<void>;
+  refreshStatus: (workflowId: string, workflow?: any, environment?: EnvironmentType) => Promise<void>;
   clearStatus: () => void;
+
+  // Actions - Environment
+  setActiveEnvironment: (environment: EnvironmentType | null) => void;
 
   // Actions - Branch Management
   loadBranches: (workflowId: string) => Promise<void>;
@@ -89,7 +96,7 @@ interface GitStore {
   setCurrentBranch: (branchName: string) => void;
 
   // Actions - Commit Operations
-  commit: (workflowId: string, message: string, workflow: WorkflowData) => Promise<void>;
+  commit: (workflowId: string, message: string, workflow: WorkflowData, environment?: EnvironmentType) => Promise<void>;
   loadCommitHistory: (workflowId: string, limit?: number, offset?: number) => Promise<void>;
   selectCommit: (commit: GitCommit | null) => void;
   revertToCommit: (workflowId: string, commitHash: string) => Promise<void>;
@@ -122,6 +129,9 @@ const initialState = {
   isConnected: false,
   isConnecting: false,
   connectionError: null,
+
+  // Environment state
+  activeEnvironment: null,
 
   // Git status state
   status: null,
@@ -173,7 +183,7 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
 
       /**
        * Initialize a new Git repository for a workflow
-       * Requirements: 1.1
+       * Requirements:1.1
        */
       initRepository: async (workflowId: string) => {
         set({ isConnecting: true, connectionError: null });
@@ -295,11 +305,14 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
        * Refresh Git status for a workflow
        * Requirements: 2.1, 4.1, 4.2, 4.3
        */
-      refreshStatus: async (workflowId: string) => {
+      refreshStatus: async (workflowId: string, workflow?: any, environment?: EnvironmentType) => {
         set({ isLoadingStatus: true, statusError: null });
 
         try {
-          const status = await gitService.getStatus(workflowId);
+          const envStr = environment === 'DEVELOPMENT' ? 'development' :
+                       environment === 'STAGING' ? 'staging' :
+                       environment === 'PRODUCTION' ? 'production' : undefined;
+          const status = await gitService.getStatus(workflowId, workflow, envStr);
 
           set({
             status,
@@ -439,11 +452,14 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
        * Create a commit with workflow changes
        * Requirements: 2.2, 2.3, 2.4
        */
-      commit: async (workflowId: string, message: string, workflow: WorkflowData) => {
-        set({ isCommitting: true, operationError: null });
+      commit: async (workflowId: string, message: string, workflow: WorkflowData, environment?: EnvironmentType) => {
+        set({ isCommitting: true, operationError: null, activeEnvironment: environment || null });
 
         try {
-          const commit = await gitService.commit(workflowId, message, workflow);
+          const envStr = environment === 'DEVELOPMENT' ? 'development' :
+                       environment === 'STAGING' ? 'staging' :
+                       environment === 'PRODUCTION' ? 'production' : undefined;
+          const commit = await gitService.commit(workflowId, message, workflow, envStr);
 
           // Add commit to history
           set({
@@ -461,6 +477,13 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
           });
           throw error;
         }
+      },
+
+      /**
+       * Set active environment for Git operations
+       */
+      setActiveEnvironment: (environment: EnvironmentType | null) => {
+        set({ activeEnvironment: environment });
       },
 
       /**
@@ -596,7 +619,15 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
         set({ isPulling: true, operationError: null, lastPullResult: null });
 
         try {
-          const result = await gitService.pull(workflowId, options);
+          // Add environment to pull options
+          const activeEnv = get().activeEnvironment;
+          const envStr = activeEnv === 'DEVELOPMENT' ? 'development' :
+                       activeEnv === 'STAGING' ? 'staging' :
+                       activeEnv === 'PRODUCTION' ? 'production' : undefined;
+          
+          const pullOptions: PullOptions | undefined = envStr ? { ...options, environment: envStr } : options;
+          
+          const result = await gitService.pull(workflowId, pullOptions);
 
           set({
             lastPullResult: result,
@@ -610,7 +641,7 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
 
           // Refresh data after pull
           await Promise.all([
-            get().refreshStatus(workflowId),
+            get().refreshStatus(workflowId, undefined, get().activeEnvironment || undefined),
             get().loadCommitHistory(workflowId),
           ]);
 
@@ -756,6 +787,7 @@ export const useGitStore = createWithEqualityFn<GitStore>()(
         repositoryInfo: state.repositoryInfo,
         isConnected: state.isConnected,
         currentBranch: state.currentBranch,
+        activeEnvironment: state.activeEnvironment,
       }),
     }
   ),

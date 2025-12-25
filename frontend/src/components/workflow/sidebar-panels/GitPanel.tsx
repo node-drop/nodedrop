@@ -10,8 +10,9 @@
 import { memo, useEffect, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { GitBranch, GitCommit, GitPullRequest, ChevronDown } from 'lucide-react'
+import { GitBranch, GitCommit, GitPullRequest, ChevronDown, ArrowLeft, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,7 @@ import {
   GitHistoryTab,
   GitBranchesTab,
 } from './git'
+import { getEnvironmentLabel, getEnvironmentColor } from '@/types/environment'
 
 interface GitPanelProps {
   workflowId?: string
@@ -43,6 +45,7 @@ export const GitPanel = memo(function GitPanel({
     getRepositoryInfo,
     switchBranch,
     isSwitchingBranch,
+    activeEnvironment,
   } = useGitStore()
 
   // Local state for active sub-tab
@@ -98,14 +101,42 @@ export const GitPanel = memo(function GitPanel({
 
   // Connected state - show Git sub-tabs with branch selector
   return (
-    <div className="flex flex-col h-full">
-      {/* Branch selector header */}
+    <div className="flex flex-col h-full relative">
+       {/* Branch selector header */}
       <div className="flex-shrink-0 border-b p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <GitBranch className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <span className="text-xs font-medium text-muted-foreground">Branch</span>
           </div>
+          
+          {/* Environment indicator */}
+          {activeEnvironment && (
+            <Badge
+              variant="outline"
+              className={`border-${getEnvironmentColor(activeEnvironment)}-500 bg-${getEnvironmentColor(activeEnvironment)}-50 text-${getEnvironmentColor(activeEnvironment)}-700 text-xs`}
+            >
+              <Layers className="w-3 h-3 mr-1" />
+              {getEnvironmentLabel(activeEnvironment)}
+            </Badge>
+          )}
+        </div>
+
+        {/* Repository info with environment */}
+        <div className="space-y-2">
+          {repositoryInfo && (
+            <div className="text-xs text-muted-foreground truncate">
+              {repositoryInfo.repositoryUrl}
+            </div>
+          )}
+          {activeEnvironment && (
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Target file:</span> workflow-{getEnvironmentLabel(activeEnvironment).toLowerCase()}.json
+            </div>
+          )}
+        </div>
+
+          {/* Branch dropdown and connection settings */}
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -174,43 +205,22 @@ export const GitPanel = memo(function GitPanel({
           </div>
         </div>
 
-        {/* Repository info */}
-        {repositoryInfo && (
-          <div className="text-xs text-muted-foreground truncate">
-            {repositoryInfo.repositoryUrl}
-          </div>
-        )}
-      </div>
-
-      {/* Connection Settings Dialog */}
+      {/* Connection Settings Slide-in Panel */}
       {showConnectionSettings && (
-        <div className="absolute inset-0 bg-background z-10">
-          <ScrollArea className="h-full">
+        <div className="absolute inset-0 bg-background z-10 flex flex-col">
+          <div className="flex-shrink-0 border-b p-3 flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowConnectionSettings(false)}
+              className="h-7 w-7 p-0 flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h3 className="text-sm font-semibold">Connection Settings</h3>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
             <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold">Connection Settings</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowConnectionSettings(false)}
-                  className="h-7 w-7 p-0"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </Button>
-              </div>
               <GitConnectionSection
                 workflowId={workflowId}
                 connected={true}
@@ -218,7 +228,7 @@ export const GitPanel = memo(function GitPanel({
                 readOnly={readOnly}
               />
             </div>
-          </ScrollArea>
+          </div>
         </div>
       )}
 
@@ -252,21 +262,21 @@ export const GitPanel = memo(function GitPanel({
 
         {/* Tab content - must be flex-1 with min-h-0 for proper scrolling */}
         <div className="flex-1 min-h-0">
-          <TabsContent value="source-control" className="h-full m-0">
+          <TabsContent value="source-control" className="flex-1 min-h-0 mt-0 relative h-full">
             <GitSourceControlTab
               workflowId={workflowId}
               readOnly={readOnly}
             />
           </TabsContent>
 
-          <TabsContent value="history" className="h-full m-0">
+          <TabsContent value="history" className="flex-1 min-h-0 mt-0 relative h-full">
             <GitHistoryTab
               workflowId={workflowId}
               readOnly={readOnly}
             />
           </TabsContent>
 
-          <TabsContent value="branches" className="h-full m-0">
+          <TabsContent value="branches" className="flex-1 min-h-0 mt-0 relative h-full">
             <GitBranchesTab
               workflowId={workflowId}
               readOnly={readOnly}

@@ -8,7 +8,6 @@
  */
 
 import { memo, useEffect, useState, useCallback } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -34,8 +33,9 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { useGitStore } from '@/stores/git'
+import { useWorkflowStore } from '@/stores/workflow'
 import { useGlobalToast } from '@/hooks/useToast'
-import { GitCommit } from '@/services/git.service'
+import { GitCommit, gitService } from '@/services/git.service'
 import { cn } from '@/lib/utils'
 
 interface GitHistoryTabProps {
@@ -62,6 +62,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
     clearErrors,
   } = useGitStore()
 
+  const { workflow, setWorkflow } = useWorkflowStore()
   const { showSuccess, showError } = useGlobalToast()
 
   // Pagination state
@@ -140,9 +141,30 @@ export const GitHistoryTab = memo(function GitHistoryTab({
 
     try {
       await revertToCommit(workflowId, selectedCommit.hash)
-      showSuccess('Revert Successful', {
-        message: `Workflow reverted to commit ${selectedCommit.hash.substring(0, 7)}`,
-      })
+      
+      // Reload workflow from Git after reverting
+      try {
+        const gitWorkflow = await gitService.getWorkflowFromGit(workflowId)
+        // Merge Git data with existing workflow metadata to preserve database fields
+        const mergedWorkflow = {
+          ...workflow, // Keep existing metadata (userId, workspaceId, etc.)
+          ...gitWorkflow, // Override with Git data (nodes, connections, etc.)
+          metadata: {
+            ...workflow?.metadata, // Keep existing metadata
+            ...gitWorkflow.metadata, // Merge Git metadata
+          },
+        }
+        setWorkflow(mergedWorkflow as any)
+        showSuccess('Revert Successful', {
+          message: `Workflow reverted to commit ${selectedCommit.hash.substring(0, 7)} and reloaded`,
+        })
+      } catch (error) {
+        console.error('Failed to reload workflow from Git:', error)
+        showSuccess('Revert Successful', {
+          message: `Workflow reverted to commit ${selectedCommit.hash.substring(0, 7)}. Please reload the workflow manually to see changes.`,
+        })
+      }
+      
       setRevertDialogOpen(false)
       selectCommit(null)
     } catch (error) {
@@ -152,7 +174,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
     } finally {
       setIsReverting(false)
     }
-  }, [selectedCommit, workflowId, revertToCommit, selectCommit, clearErrors, showSuccess, showError])
+  }, [selectedCommit, workflowId, workflow, revertToCommit, setWorkflow, selectCommit, clearErrors, showSuccess, showError])
 
   // Handle create branch from commit
   const handleCreateBranchClick = useCallback(() => {
@@ -214,7 +236,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="absolute inset-0 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 p-3 border-b">
         <div className="flex items-center justify-between">
@@ -240,7 +262,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
       )}
 
       {/* Commit list */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-auto">
         <div className="p-3">
           {/* Loading state */}
           {isLoadingCommits && commits.length === 0 && (
@@ -257,14 +279,14 @@ export const GitHistoryTab = memo(function GitHistoryTab({
                 <div key={commit.hash} className="relative">
                   {/* Timeline line */}
                   {index < commits.length - 1 && (
-                    <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-border" />
+                    <div className="absolute left-[9px] top-[27px] bottom-0 w-[2px] bg-border" />
                   )}
 
                   {/* Commit item */}
                   <div
                     className={cn(
-                      'relative pl-8 pb-4 cursor-pointer transition-colors',
-                      'hover:bg-accent/50 rounded-md -ml-2 pl-10 pr-2 py-2',
+                      'relative cursor-pointer transition-colors',
+                      'hover:bg-accent/50 rounded-md pl-8 pr-2 py-2',
                       selectedCommit?.hash === commit.hash && 'bg-accent'
                     )}
                     onClick={() => handleSelectCommit(commit)}
@@ -272,7 +294,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
                     {/* Timeline dot */}
                     <div
                       className={cn(
-                        'absolute left-2 top-2 w-[18px] h-[18px] rounded-full border-2 bg-background',
+                        'absolute left-0 top-2.5 w-[18px] h-[18px] rounded-full border-2 bg-background',
                         selectedCommit?.hash === commit.hash
                           ? 'border-primary bg-primary'
                           : 'border-border'
@@ -297,18 +319,20 @@ export const GitHistoryTab = memo(function GitHistoryTab({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="space-y-0.5 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          <span>{commit.author}</span>
+                          <User className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{commit.author}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Hash className="w-3 h-3" />
-                          <span className="font-mono">{commit.hash.substring(0, 7)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatDate(commit.timestamp)}</span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <Hash className="w-3 h-3 flex-shrink-0" />
+                            <span className="font-mono">{commit.hash.substring(0, 7)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 flex-shrink-0" />
+                            <span className="whitespace-nowrap">{formatDate(commit.timestamp)}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -412,7 +436,7 @@ export const GitHistoryTab = memo(function GitHistoryTab({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Revert confirmation dialog */}
       <Dialog open={revertDialogOpen} onOpenChange={setRevertDialogOpen}>

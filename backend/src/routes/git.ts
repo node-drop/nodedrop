@@ -12,12 +12,16 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation';
 import { requireWorkspace, WorkspaceRequest } from '../middleware/workspace';
-import { GitService } from '../services/GitService';
+import { GitService } from '../services/git/GitService';
 import { ApiResponse } from '../types/api';
+import { AppError } from '../utils/errors';
 import { z } from 'zod';
 
 const router = Router();
 const gitService = new GitService();
+
+// Import CredentialService for listing Git credentials
+import { getCredentialService } from '../services/CredentialService.factory';
 
 /**
  * Validation Schemas
@@ -33,13 +37,7 @@ const ConnectRepositorySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   repositoryUrl: z.string().url('Invalid repository URL'),
   branch: z.string().optional(),
-  credentials: z.object({
-    type: z.enum(['personal_access_token', 'oauth']),
-    token: z.string().min(1, 'Token is required'),
-    provider: z.enum(['github', 'gitlab', 'bitbucket']),
-    refreshToken: z.string().optional(),
-    expiresAt: z.string().datetime().optional(),
-  }),
+  credentialId: z.string().min(1, 'Credential ID is required'),
 });
 
 // Schema for disconnect
@@ -67,6 +65,7 @@ const CommitSchema = z.object({
     triggers: z.array(z.any()),
     settings: z.any(),
   }),
+  environment: z.enum(['development', 'staging', 'production']).optional(),
 });
 
 // Schema for push operation
@@ -83,6 +82,7 @@ const PullSchema = z.object({
   remote: z.string().optional(),
   branch: z.string().optional(),
   strategy: z.enum(['merge', 'rebase']).optional(),
+  environment: z.enum(['development', 'staging', 'production']).optional(),
 });
 
 // Schema for create branch
@@ -115,6 +115,46 @@ const CreateBranchFromCommitSchema = z.object({
   commitHash: z.string().min(1, 'Commit hash is required'),
   branchName: z.string().min(1, 'Branch name is required'),
 });
+
+/**
+ * GET /api/git/credentials
+ * List available Git credentials for the authenticated user
+ * Returns credentials of types: githubOAuth2, gitlabOAuth2, bitbucketOAuth2
+ * 
+ * Requirements: 5.1
+ */
+router.get(
+  '/credentials',
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const userId = req.user!.id;
+    const credentialService = getCredentialService();
+
+    // Get all credentials for the user
+    const allCredentials = await credentialService.getCredentials(userId);
+
+    // Filter for Git-related credentials (OAuth2 and PAT types)
+    const gitCredentialTypes = [
+      'githubOAuth2', 
+      'gitlabOAuth2', 
+      'bitbucketOAuth2',
+      'githubPAT',
+      'gitlabPAT',
+      'bitbucketPAT'
+    ];
+    const gitCredentials = allCredentials.filter((cred: any) => 
+      gitCredentialTypes.includes(cred.type)
+    );
+
+    const response: ApiResponse = {
+      success: true,
+      data: gitCredentials,
+    };
+
+    res.json(response);
+  })
+);
 
 /**
  * POST /api/git/init
@@ -154,17 +194,35 @@ router.post(
   requireWorkspace,
   validateBody(ConnectRepositorySchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
-    const { workflowId, repositoryUrl, branch, credentials } = req.body;
+    const { workflowId, repositoryUrl, branch, credentialId } = req.body;
     const userId = req.user!.id;
 
-    // Convert expiresAt string to Date if provided
+    // Validate that the credential exists and is a Git credential type
+    const credentialService = getCredentialService();
+    const credential = await credentialService.getCredential(credentialId, userId);
+
+    if (!credential) {
+      throw new AppError('Credential not found', 404);
+    }
+
+    // Validate that it's a Git credential type
+    const gitCredentialTypes = [
+      'githubOAuth2', 
+      'gitlabOAuth2', 
+      'bitbucketOAuth2',
+      'githubPAT',
+      'gitlabPAT',
+      'bitbucketPAT'
+    ];
+    if (!gitCredentialTypes.includes(credential.type)) {
+      throw new AppError('Invalid credential type. Must be a Git OAuth2 or PAT credential.', 400);
+    }
+
+    // Pass credentialId to GitService - it will fetch credentials internally
     const config = {
       repositoryUrl,
       branch,
-      credentials: {
-        ...credentials,
-        expiresAt: credentials.expiresAt ? new Date(credentials.expiresAt) : undefined,
-      },
+      credentialId,
     };
 
     const repositoryInfo = await gitService.connectRepository(
@@ -235,8 +293,39 @@ router.get(
 );
 
 /**
- * GET /api/git/status/:workflowId
+ * POST /api/git/status
  * Get Git status for a workflow
+ * Accepts current workflow data to detect changes
+ * 
+ * Requirements: 2.1, 4.1, 4.2, 4.3
+ */
+router.post(
+  '/status',
+  requireAuth,
+  requireWorkspace,
+  validateBody(z.object({
+    workflowId: z.string().min(1, 'Workflow ID is required'),
+    workflow: z.any().optional(), // Current workflow data for change detection
+    environment: z.enum(['development', 'staging', 'production']).optional(), // Environment for environment-specific status
+  })),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { workflowId, workflow, environment } = req.body;
+    const userId = req.user!.id;
+
+    const status = await gitService.getStatus(workflowId, userId, workflow, environment);
+
+    const response: ApiResponse = {
+      success: true,
+      data: status,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * GET /api/git/status/:workflowId
+ * Get Git status for a workflow (legacy endpoint, no change detection)
  * 
  * Requirements: 2.1, 4.1, 4.2, 4.3
  */
@@ -261,6 +350,68 @@ router.get(
 );
 
 /**
+ * GET /api/git/workflow/:workflowId
+ * Get workflow data from Git repository
+ * Reads the workflow from Git files and returns it
+ * 
+ * Requirements: 7.1 (Pull workflow changes)
+ */
+router.get(
+  '/workflow/:workflowId',
+  requireAuth,
+  requireWorkspace,
+  validateParams(WorkflowIdParamSchema),
+  validateQuery(z.object({
+    environment: z.enum(['development', 'staging', 'production']).optional(),
+  })),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { workflowId } = req.params;
+    const { environment } = req.query as any;
+    const userId = req.user!.id;
+
+    const workflow = await gitService.getWorkflowFromGit(workflowId, userId, environment);
+
+    const response: ApiResponse = {
+      success: true,
+      data: workflow,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
+ * POST /api/git/diff
+ * Get diff for a specific file
+ * Returns old and new content for comparison
+ * 
+ * Requirements: 2.1 (View changes)
+ */
+router.post(
+  '/diff',
+  requireAuth,
+  requireWorkspace,
+  validateBody(z.object({
+    workflowId: z.string().min(1, 'Workflow ID is required'),
+    filePath: z.string().min(1, 'File path is required'),
+    workflow: z.any().optional(), // Current workflow data for comparison
+  })),
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { workflowId, filePath, workflow } = req.body;
+    const userId = req.user!.id;
+
+    const diff = await gitService.getDiff(workflowId, userId, filePath, workflow);
+
+    const response: ApiResponse = {
+      success: true,
+      data: diff,
+    };
+
+    res.json(response);
+  })
+);
+
+/**
  * POST /api/git/commit
  * Create a commit with workflow changes
  * 
@@ -272,10 +423,10 @@ router.post(
   requireWorkspace,
   validateBody(CommitSchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
-    const { workflowId, message, workflow } = req.body;
+    const { workflowId, message, workflow, environment } = req.body;
     const userId = req.user!.id;
 
-    const commit = await gitService.commit(workflowId, userId, message, workflow);
+    const commit = await gitService.commit(workflowId, userId, message, workflow, environment);
 
     const response: ApiResponse = {
       success: true,
@@ -326,11 +477,11 @@ router.post(
   requireWorkspace,
   validateBody(PullSchema),
   asyncHandler(async (req: WorkspaceRequest, res: Response) => {
-    const { workflowId, remote, branch, strategy } = req.body;
+    const { workflowId, remote, branch, strategy, environment } = req.body;
     const userId = req.user!.id;
 
     const options = { remote, branch, strategy };
-    const result = await gitService.pull(workflowId, userId, options);
+    const result = await gitService.pull(workflowId, userId, options, environment);
 
     const response: ApiResponse = {
       success: result.success,
