@@ -9,8 +9,8 @@ import helmet from "helmet";
 import { createServer } from "http";
 
 // Import routes
-import { aiRoutes } from "./routes/ai";
-import aiMemoryRoutes from "./routes/ai-memory.routes";
+import aiMemoryRoutes from "./modules/ai/routes/aiMemoryRoutes";
+import { aiRoutes } from "./modules/ai/routes/aiRoutes";
 import { authRoutes } from "./routes/auth";
 import { backupRoutes } from "./routes/backup";
 import credentialRoutes from "./routes/credentials";

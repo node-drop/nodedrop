@@ -16,9 +16,9 @@
  * @module utils/ai/MemoryManager
  */
 
-import { getRedisClient, RedisClient } from "../../config/redis";
-import { AIMessage, ConversationMemory } from "../../types/ai.types";
-import { logger } from "../logger";
+import { getRedisClient, RedisClient } from "@/config/redis";
+import { AIMessage, ConversationMemory } from "@/types/ai.types";
+import { logger } from "@/utils/logger";
 
 /**
  * Singleton class for managing AI conversation memory

@@ -1,7 +1,7 @@
+import { AIChatService } from '@/modules/ai/services/AIChatService';
+import { AIService } from '@/modules/ai/services/AIService';
+import { logger } from '@/utils/logger';
 import { Request, Response } from 'express';
-import { AIChatService } from '../services/ai/AIChatService';
-import { AIService } from '../services/ai/AIService';
-import { logger } from '../utils/logger';
 
 export class AIController {
   

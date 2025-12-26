@@ -6,10 +6,13 @@
       "@/*": ["*"],
       "@/types/*": ["types/*"],
       "@/services/*": ["services/*"],
+      "@/modules/*": ["modules/*"],
       "@/models/*": ["models/*"],
       "@/utils/*": ["utils/*"],
       "@/middleware/*": ["middleware/*"],
-      "@/routes/*": ["routes/*"]
+      "@/routes/*": ["routes/*"],
+      "@/config/*": ["config/*"],
+      "@/nodes/*": ["nodes/*"]
     }
   },
   "include": ["src/**/*"],

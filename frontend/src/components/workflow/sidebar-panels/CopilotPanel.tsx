@@ -1,20 +1,25 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { useExecutionControls } from '@/hooks/workflow';
 import { apiClient } from "@/services/api";
+import { useNodeTypesStore } from "@/stores/nodeTypes";
 import { useWorkflowStore } from "@/stores/workflow";
+import { validateWorkflowDetailed } from '@/utils/workflowValidation';
 import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertCircle, History, Loader2, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Play, Plus, Sparkles, StopCircle, Trash2, XCircle } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-
 interface Message {
   role: 'user' | 'assistant'
   content: string
   workflow?: any
   missingNodes?: string[]
   metadata?: any
+  executionResult?: any // Store full execution result for strict visual rendering
+  executionLogs?: any[] // Snapshot of logs for this execution
 }
 
 interface ChatSession {
@@ -22,7 +27,6 @@ interface ChatSession {
   title: string;
   updatedAt: string;
 }
-
 export const CopilotPanel = memo(function CopilotPanel() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -36,6 +40,11 @@ export const CopilotPanel = memo(function CopilotPanel() {
   
   const workflow = useWorkflowStore(state => state.workflow)
   const updateWorkflow = useWorkflowStore(state => state.updateWorkflow)
+  const nodeTypes = useNodeTypesStore(state => state.nodeTypes); // Access node types correctly
+
+  const { executeWorkflow, stopExecution, isExecuting, lastExecutionResult, executionLogs } = useExecutionControls();
+  const [handledExecutionId, setHandledExecutionId] = useState<string | null>(null);
+  const shouldMonitorExecution = useRef(false);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -53,6 +62,44 @@ export const CopilotPanel = memo(function CopilotPanel() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Monitor execution results for errors
+  useEffect(() => {
+    if (!lastExecutionResult) return;
+    if (lastExecutionResult.executionId === handledExecutionId) return;
+    
+    // Only monitor if specifically requested (by Copilot action)
+    if (!shouldMonitorExecution.current) return;
+
+    if (lastExecutionResult.status === 'error') {
+        setHandledExecutionId(lastExecutionResult.executionId);
+        shouldMonitorExecution.current = false; // Reset flag
+        
+        // Find the specific error
+        const failedNodes = lastExecutionResult.nodeResults.filter(n => n.status === 'error');
+        const errorDetails = failedNodes.map(n => `Node '${n.nodeName}' failed: ${n.error}`).join('\n');
+        const generalError = lastExecutionResult.error ? `Workflow Error: ${lastExecutionResult.error}` : '';
+        
+        const errorMessage = `Execution failed:\n${errorDetails}\n${generalError}\n\nPlease analyze this error and suggest a fix.`;
+        
+        // Auto-send message to AI
+        // We use a slight delay to allow the UI to settle
+        setTimeout(() => {
+            handleSendMessageInternal(errorMessage, true);
+        }, 500);
+    } else if (lastExecutionResult.status === 'success') {
+         setHandledExecutionId(lastExecutionResult.executionId);
+         shouldMonitorExecution.current = false; // Reset flag
+         
+         // Add message with execution result for visual rendering
+         setMessages(prev => [...prev, { 
+             role: 'assistant', 
+             content: "Workflow executed successfully!",
+             executionResult: lastExecutionResult,
+             executionLogs: [...executionLogs] // Snapshot logs
+         }]);
+    }
+  }, [lastExecutionResult, handledExecutionId, executionLogs]);
 
   const loadSessions = async (workflowId: string) => {
       try {
@@ -131,9 +178,17 @@ export const CopilotPanel = memo(function CopilotPanel() {
       }
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return
-    const userMessage = input.trim()
+  const handleSendMessage = () => {
+      if (input.trim() === '/run') {
+          handleRunCurrentWorkflow();
+          setInput('');
+      } else {
+          handleSendMessageInternal(input);
+      }
+  };
+
+  const handleSendMessageInternal = async (content: string, isSystemTriggered = false) => {
+    if (!content.trim() || isLoading) return
     
     // Ensure active session
     let currentSessionId = activeSessionId;
@@ -142,7 +197,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
              // Create session lazily if sending first message
              const res = await apiClient.post<ChatSession>('/ai/sessions', {
                 workflowId: workflow.id,
-                title: userMessage.substring(0, 30) // Use prompt as title
+                title: content.substring(0, 30) // Use prompt as title
             });
             const newSession = res as unknown as ChatSession;
             setSessions(prev => [newSession, ...prev]);
@@ -150,13 +205,16 @@ export const CopilotPanel = memo(function CopilotPanel() {
             setActiveSessionId(newSession.id);
         } catch (err) {
             console.error("Failed to create lazy session", err);
-            // Continue without session (ephemeral)
         }
     }
 
-    setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }])
-    setIsLoading(true)
+    if (!isSystemTriggered) {
+        setInput('');
+    }
+    
+    // Add user message to UI (or system observation)
+    setMessages(prev => [...prev, { role: 'user', content: content }]);
+    setIsLoading(true);
 
     try {
       // Get current workflow for context
@@ -166,7 +224,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
       } : undefined;
 
       const response = await apiClient.post<{ workflow: any; message: string; missingNodeTypes: string[] }>("/ai/generate-workflow", {
-        prompt: userMessage,
+        prompt: content,
         sessionId: currentSessionId, // Pass session ID to persist
         workflowId: workflow?.id,
         currentWorkflow: currentWorkflow
@@ -223,6 +281,80 @@ export const CopilotPanel = memo(function CopilotPanel() {
         toast.error("Failed to apply workflow changes.");
     }
   }
+
+  // Common logic to execute a given set of nodes (after finding trigger)
+  const executeWorkflowLogic = async (nodes: any[]) => {
+    // 0. Pre-validate workflow
+    // We need to pass the full workflow object to validation
+    const fullWorkflow = {
+        ...workflow,
+        nodes: nodes, // Use the nodes relevant to this execution
+        connections: workflow?.connections || []
+    } as any;
+
+    const validation = validateWorkflowDetailed(fullWorkflow, nodeTypes);
+    
+    if (!validation.isValid) {
+        // Format validation errors
+        let errorMsg = "I found some issues with the workflow configuration that need to be fixed before running:\n";
+        
+        validation.nodeErrors.forEach((errors, nodeId) => {
+            const node = nodes.find((n: any) => n.id === nodeId);
+            const nodeName = node?.parameters?.displayName || node?.name || node?.type || 'Unknown Node';
+            errorMsg += `\n**${nodeName}**:\n${errors.map(e => `- ${e}`).join('\n')}`;
+        });
+
+        errorMsg += "\n\nPlease open these nodes and enter the missing values.";
+        
+        // Show validation error directly in chat without AI generation
+        setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
+        toast.warning("Validation failed. Please check the chat for details.");
+        return;
+    }
+
+    // Find a suitable trigger node
+    const triggerNode = nodes.find((n: any) => 
+        n.type === 'manual-trigger' || 
+        n.type === 'chat-trigger' || 
+        n.type === 'webhook' ||
+        n.type === 'schedule'
+    );
+
+    if (!triggerNode) {
+        toast.warning("No trigger node found. Starting from first node.");
+    }
+    
+    const startNodeId = triggerNode?.id || nodes[0]?.id;
+    
+    if (startNodeId) {
+        toast.info("Starting workflow...");
+        // Enable monitoring for this run
+        shouldMonitorExecution.current = true;
+        await executeWorkflow(startNodeId);
+    } else {
+        toast.error("Cannot run execution: No nodes found.");
+    }
+  };
+
+  // Run the CURRENT workflow in the store (Triggered by /run)
+  const handleRunCurrentWorkflow = async () => {
+      if (!workflow || workflow.nodes.length === 0) {
+          toast.error("No workflow to run.");
+          return;
+      }
+      // Add a system message to chat to indicate run started
+      setMessages(prev => [...prev, { role: 'user', content: '/run' }]);
+      await executeWorkflowLogic(workflow.nodes);
+  };
+
+  // Run the SNAPSHOT workflow from the message (Triggered by "Run" button)
+  const handleRunWorkflow = async (workflowData: any) => {
+    // 1. Apply the workflow first to ensure state is synced
+    handleApplyWorkflow(workflowData);
+    
+    // 2. Execute
+    await executeWorkflowLogic(workflowData.nodes);
+  };
 
   const handleInstallNodes = async (nodes: string[]) => {
       toast.info(`Please install: npm install ${nodes.map(n => `@nodedrop/${n}`).join(' ')}`);
@@ -324,14 +456,45 @@ export const CopilotPanel = memo(function CopilotPanel() {
                             </Alert>
                         )}
 
-                        <Button 
-                            size="sm" 
-                            className="w-full gap-2" 
-                            onClick={() => handleApplyWorkflow(msg.workflow)}
-                        >
-                            <Play className="h-3 w-3" />
-                            Apply to Editor
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button 
+                                size="sm" 
+                                className="flex-1 gap-2"
+                                variant="outline"
+                                onClick={() => handleApplyWorkflow(msg.workflow)}
+                            >
+                                <Plus className="h-3 w-3" />
+                                Apply
+                            </Button>
+                            
+                            {isExecuting ? (
+                                <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    className="flex-1 gap-2" 
+                                    onClick={() => stopExecution()}
+                                >
+                                    <StopCircle className="h-3 w-3" />
+                                    Stop
+                                </Button>
+                            ) : (
+                                <Button 
+                                    size="sm" 
+                                    className="flex-1 gap-2" 
+                                    onClick={() => handleRunWorkflow(msg.workflow)}
+                                >
+                                    <Play className="h-3 w-3" />
+                                    Run
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                )}
+                
+                {/* Execution Report Widget */}
+                {msg.executionResult && (
+                    <div className="mt-2 w-full">
+                        <ExecutionReport result={msg.executionResult} logs={msg.executionLogs} />
                     </div>
                 )}
                 </div>
@@ -376,4 +539,102 @@ export const CopilotPanel = memo(function CopilotPanel() {
     </div>
   )
 })
+
+// --- Sub-components ---
+
+function ExecutionReport({ result, logs = [] }: { result: any, logs?: any[] }) {
+    const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+    const workflow = useWorkflowStore(state => state.workflow);
+    const nodeTypes = useNodeTypesStore(state => state.nodeTypes);
+
+    // Get nodes in order of execution if possible, or just list them
+    // Assuming result.nodeResults is sorted by execution time usually
+    const nodes = result.nodeResults || [];
+
+    return (
+        <div className="border rounded-md bg-card overflow-hidden text-sm">
+            <div className="p-2 border-b bg-muted/50 flex items-center justify-between">
+                <span className="font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    Execution Report
+                </span>
+                <span className="text-xs text-muted-foreground">
+                    {result.duration}ms
+                </span>
+            </div>
+            
+            <ScrollArea className="max-h-[300px]">
+                <div className="divide-y">
+                    {nodes.map((node: any) => {
+                        const isExpanded = expandedNodeId === node.nodeId;
+                        const statusColor = node.status === 'success' ? 'text-green-500' : 
+                                          node.status === 'error' ? 'text-destructive' : 'text-muted-foreground';
+                        const StatusIcon = node.status === 'success' ? CheckCircle2 : 
+                                         node.status === 'error' ? XCircle : AlertCircle;
+
+                        // Resolve display name:
+                        // 1. Custom name in parameters (user renamed)
+                        // 2. Generic type name (e.g. "HTTP Request")
+                        // 3. Fallback to ID/System Name
+                        const workflowNode = workflow?.nodes.find(n => n.id === node.nodeId);
+                        const nodeType = workflowNode ? nodeTypes.find(nt => nt.identifier === workflowNode.type) : undefined;
+                        const displayName = workflowNode?.parameters?.displayName || nodeType?.displayName || node.nodeName || node.nodeId;
+
+                        return (
+                            <div key={node.nodeId} className="bg-background">
+                                <button
+                                    onClick={() => setExpandedNodeId(isExpanded ? null : node.nodeId)}
+                                    className="w-full flex items-center justify-between p-2 hover:bg-muted/50 transition-colors text-left"
+                                >
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <StatusIcon className={`h-4 w-4 flex-shrink-0 ${statusColor}`} />
+                                        <span className="truncate font-medium">{displayName}</span>
+                                    </div>
+                                    {isExpanded ? <ChevronDown className="h-3 w-3 opacity-50" /> : <ChevronRight className="h-3 w-3 opacity-50" />}
+                                </button>
+                                
+                                {isExpanded && (
+                                    <div className="p-2 bg-muted/20 border-t overflow-hidden space-y-2">
+                                        {/* Output */}
+                                        {node.data && (
+                                            <div>
+                                                <div className="text-[10px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Output</div>
+                                                <div className="text-xs font-mono bg-muted p-2 rounded max-h-[150px] overflow-auto whitespace-pre-wrap">
+                                                    {typeof node.data === 'object' ? JSON.stringify(node.data, null, 2) : String(node.data)}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Logs */}
+                                        {logs && logs.filter(l => l.nodeId === node.nodeId).length > 0 && (
+                                            <div>
+                                                <div className="text-[10px] font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Logs</div>
+                                                 <div className="space-y-1">
+                                                    {logs.filter(l => l.nodeId === node.nodeId).map((log, idx) => (
+                                                        <div key={idx} className="text-xs p-1.5 bg-background border rounded flex gap-2 items-start">
+                                                            <span className={`shrink-0 font-mono text-[10px] uppercase px-1 rounded ${
+                                                                log.level === 'error' ? 'bg-red-100 text-red-700' :
+                                                                log.level === 'warn' ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {log.level}
+                                                            </span>
+                                                            <span className="break-all">{log.message}</span>
+                                                        </div>
+                                                    ))}
+                                                 </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </ScrollArea>
+        </div>
+    );
+}
+
+
 

@@ -1,6 +1,7 @@
+
+import { db } from '@/db/client';
+import { aiChatMessages, aiChatSessions } from '@/db/schema';
 import { and, desc, eq } from "drizzle-orm";
-import { db } from "../../db/client";
-import { aiChatMessages, aiChatSessions } from "../../db/schema";
 
 export class AIChatService {
   async getSessions(userId: string, workflowId: string) {

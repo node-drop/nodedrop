@@ -28,13 +28,15 @@ export class NodeValidator {
     }
 
     // Validate each property (only if it's visible based on displayOptions)
+    const parameters = node.parameters || {};
+
     properties.forEach((property) => {
       // Check if property should be visible
-      if (!this.isPropertyVisible(property, node.parameters)) {
+      if (!this.isPropertyVisible(property, parameters)) {
         return; // Skip validation for hidden properties
       }
 
-      const value = node.parameters[property.name];
+      const value = parameters[property.name];
       const fieldErrors = this.validateProperty(property, value);
       errors.push(...fieldErrors);
     });

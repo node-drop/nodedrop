@@ -7,9 +7,9 @@
  * @module routes/ai-memory
  */
 
+import { requireAuth } from "@/middleware/auth";
+import { MemoryManager } from "@/modules/ai/utils/MemoryManager";
 import { Router } from "express";
-import { MemoryManager } from "../utils/ai/MemoryManager";
-import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 

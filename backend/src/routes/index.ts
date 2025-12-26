@@ -1,5 +1,5 @@
 // API routes exports
-export * from "./ai";
+export * from "../modules/ai/routes/aiRoutes";
 export * from "./auth";
 export * from "./backup";
 export * from "./executions";

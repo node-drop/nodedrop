@@ -1,7 +1,7 @@
 
+import { requireAuth } from '@/middleware/auth';
+import { AIController } from '@/modules/ai/controllers/AIController';
 import { Router } from 'express';
-import { AIController } from '../controllers/AIController';
-import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
