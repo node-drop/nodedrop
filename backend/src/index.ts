@@ -9,6 +9,7 @@ import helmet from "helmet";
 import { createServer } from "http";
 
 // Import routes
+import { aiRoutes } from "./routes/ai";
 import aiMemoryRoutes from "./routes/ai-memory.routes";
 import { authRoutes } from "./routes/auth";
 import { backupRoutes } from "./routes/backup";
@@ -41,6 +42,7 @@ import workspaceRoutes from "./routes/workspaces";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 // Import services
+import { NodeLoader, NodeService } from "./services";
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
 import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
@@ -50,7 +52,6 @@ import { ExecutionQueueService, getExecutionQueueService } from "./services/exec
 import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
 import { ExecutionWorker, getExecutionWorker } from "./services/execution/ExecutionWorker";
 import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
-import { NodeLoader, NodeService } from "./services";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
 
@@ -584,7 +585,8 @@ app.use("/api/execution-recovery", executionRecoveryRoutes);
 app.use("/api/executions", executionResumeRoutes);
 app.use("/api", oauthGenericRoutes);
 app.use("/api/google", googleRoutes);
-  app.use("/api/ai-memory", aiMemoryRoutes);
+app.use("/api/ai-memory", aiMemoryRoutes);
+app.use("/api/ai", aiRoutes); // Register AI routes
   app.use("/api/backup", backupRoutes);
   app.use("/api", webhookLogsRoutes);
   app.use("/api/git", gitRouter);
