@@ -1,4 +1,3 @@
-
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -279,56 +278,58 @@ export const CopilotPanel = memo(function CopilotPanel() {
       )}
 
       {/* Chat Area */}
-      <div className="flex-1 min-h-0 overflow-auto p-4" onClick={() => showHistory && setShowHistory(false)}>
-        <div className="space-y-4">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`rounded-lg p-3 max-w-[90%] text-sm ${
-                msg.role === 'user' 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted text-foreground'
-              }`}>
-                {msg.content}
-              </div>
-              
-              {msg.workflow && (
-                <div className="mt-2 p-3 border rounded-md bg-card w-full text-xs">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold">Generated Workflow</span>
-                        <span className="text-muted-foreground">{msg.workflow.nodes?.length || 0} nodes</span>
-                    </div>
-                    
-                    {msg.missingNodes && msg.missingNodes.length > 0 && (
-                        <Alert variant="destructive" className="mb-2 py-2">
-                             <AlertCircle className="h-4 w-4" />
-                             <AlertTitle>Missing Nodes</AlertTitle>
-                             <AlertDescription>
-                                {msg.missingNodes.join(', ')}
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="w-full mt-2 h-6 text-xs"
-                                    onClick={() => handleInstallNodes(msg.missingNodes!)}
-                                >
-                                    Install Missing
-                                </Button>
-                             </AlertDescription>
-                        </Alert>
-                    )}
-
-                    <Button 
-                        size="sm" 
-                        className="w-full gap-2" 
-                        onClick={() => handleApplyWorkflow(msg.workflow)}
-                    >
-                        <Play className="h-3 w-3" />
-                        Apply to Editor
-                    </Button>
+      <div className="flex-1 min-h-0 relative" onClick={() => showHistory && setShowHistory(false)}>
+        <div className="absolute inset-0 overflow-auto p-4">
+            <div className="space-y-4">
+            {messages.map((msg, idx) => (
+                <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`rounded-lg p-3 max-w-[90%] text-sm ${
+                    msg.role === 'user' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-muted text-foreground'
+                }`}>
+                    {msg.content}
                 </div>
-              )}
+                
+                {msg.workflow && (
+                    <div className="mt-2 p-3 border rounded-md bg-card w-full text-xs">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold">Generated Workflow</span>
+                            <span className="text-muted-foreground">{msg.workflow.nodes?.length || 0} nodes</span>
+                        </div>
+                        
+                        {msg.missingNodes && msg.missingNodes.length > 0 && (
+                            <Alert variant="destructive" className="mb-2 py-2">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Missing Nodes</AlertTitle>
+                                <AlertDescription>
+                                    {msg.missingNodes.join(', ')}
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="w-full mt-2 h-6 text-xs"
+                                        onClick={() => handleInstallNodes(msg.missingNodes!)}
+                                    >
+                                        Install Missing
+                                    </Button>
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        <Button 
+                            size="sm" 
+                            className="w-full gap-2" 
+                            onClick={() => handleApplyWorkflow(msg.workflow)}
+                        >
+                            <Play className="h-3 w-3" />
+                            Apply to Editor
+                        </Button>
+                    </div>
+                )}
+                </div>
+            ))}
+            <div ref={messagesEndRef} />
             </div>
-          ))}
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
