@@ -25,14 +25,27 @@ export class AIController {
       const chatService = new AIChatService();
       
       // Save User Message if session exists
+      let chatHistory: { role: 'user' | 'assistant' | 'system', content: string }[] = [];
       if (sessionId) {
         await chatService.addMessage(sessionId, 'user', prompt, { workflowId });
+        
+        // Fetch history for context
+        const session = await chatService.getSession(sessionId);
+        if (session && session.messages) {
+            chatHistory = session.messages
+                .slice(-10) // Keeping last 10 messages for context
+                .map(m => ({ 
+                    role: m.role as 'user' | 'assistant' | 'system', 
+                    content: m.content 
+                }));
+        }
       }
 
       const result = await aiService.generateWorkflow({
         prompt,
         currentWorkflow,
-        openAiKey
+        openAiKey,
+        chatHistory
       });
 
       // Save Assistant Message if session exists

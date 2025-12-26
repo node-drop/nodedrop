@@ -8,38 +8,93 @@ export class AIContextBuilder {
     this.nodeService = nodeService;
   }
 
-  async buildNodeContext(): Promise<string> {
+  // Cache static context to avoid rebuilding on every request
+  private static cachedNodeContext: string | null = null;
+  private static cachedLightweightIndex: string | null = null;
+  
+  /**
+   * Clears the cached node schemas. Call this when nodes are added/removed/updated.
+   */
+  static invalidateCache(): void {
+    AIContextBuilder.cachedNodeContext = null;
+    AIContextBuilder.cachedLightweightIndex = null;
+  }
+  
+  async buildLightweightNodeIndex(): Promise<string> {
+    if (AIContextBuilder.cachedLightweightIndex) {
+        return AIContextBuilder.cachedLightweightIndex;
+    }
+
     const nodeTypes = await this.nodeService.getNodeTypes();
-    
-    // Simplify schemas to save tokens
-    const simplifiedSchemas = nodeTypes.map(node => ({
-        id: node.identifier, // Use 'id' instead of 'type' for brevity
+    const index = nodeTypes.map(node => ({
+        id: node.identifier,
         name: node.displayName,
-        // desc: node.description, // Remove description to save tokens
+        desc: node.description,
+        category: (node as any).category || 'general'
+    }));
+
+    AIContextBuilder.cachedLightweightIndex = JSON.stringify(index);
+    return AIContextBuilder.cachedLightweightIndex;
+  }
+
+  async buildScopedNodeContext(nodeIds: string[]): Promise<string> {
+    const nodeTypes = await this.nodeService.getNodeTypes();
+    const filteredNodes = nodeTypes.filter(n => nodeIds.includes(n.identifier));
+    return this.minifyNodes(filteredNodes);
+  }
+
+  async buildNodeContext(): Promise<string> {
+    if (AIContextBuilder.cachedNodeContext) {
+        return AIContextBuilder.cachedNodeContext;
+    }
+
+    const nodeTypes = await this.nodeService.getNodeTypes();
+    AIContextBuilder.cachedNodeContext = this.minifyNodes(nodeTypes);
+    return AIContextBuilder.cachedNodeContext;
+  }
+
+  private minifyNodes(nodes: any[]): string {
+    const simplifiedSchemas = nodes.map(node => ({
+        id: node.identifier, 
+        name: node.displayName,
         in: node.inputs ? (node.inputs as any[]).map((i: any) => typeof i === 'string' ? i : i.name) : ['main'], 
         out: node.outputs ? (node.outputs as any[]).map((o: any) => typeof o === 'string' ? o : o.name) : ['main'],
-        props: node.properties
-            // Filter out hidden/advanced properties to save space. 
-            // We only want the core parameters the AI needs to set.
-            .filter(p => {
-                const prop = p as any;
-                return !prop.typeOptions?.password && prop.type !== 'hidden';
-            }) 
-            .map(p => {
-                const minProp: any = {
-                    n: p.name, // Rename 'name' to 'n'
-                    t: p.type, // Rename 'type' to 't'
+        props: (node.properties || [])
+            .filter((p: any) => !p.typeOptions?.password && p.type !== 'hidden') 
+            .map((p: any) => {
+                const minProp: any = { 
+                    n: p.name,
+                    t: p.type
                 };
-                
-                // Only add options if present and small
-                if (p.options && p.options.length > 0) {
-                    // Map [{name: 'GET', value: 'GET'}] -> ['GET']
-                    minProp.o = p.options.map((o: any) => o.value).slice(0, 5); // Reduced limit further
+
+                // CRITICAL: Include required flag so AI knows what must be set
+                if (p.required) {
+                    minProp.req = true;
                 }
                 
-                // Only add default if it exists and is short
-                if (p.default !== undefined && String(p.default).length < 20) {
+                // Include description for non-obvious parameters (helps AI understand what to set)
+                if (p.description && p.description.length < 100) {
+                    minProp.desc = p.description;
+                }
+                
+                // Include ALL options for enum-like types (not just 5)
+                if (p.options && p.options.length > 0) {
+                    // Show all options if 10 or fewer, otherwise show first 10 with indicator
+                    if (p.options.length <= 10) {
+                        minProp.o = p.options.map((o: any) => o.value);
+                    } else {
+                        minProp.o = [...p.options.slice(0, 10).map((o: any) => o.value), `...+${p.options.length - 10} more`];
+                    }
+                }
+                
+                // Include default value
+                if (p.default !== undefined && String(p.default).length < 50) {
                     minProp.d = p.default;
+                }
+
+                // Include placeholder/example if available
+                if (p.placeholder) {
+                    minProp.ex = p.placeholder;
                 }
                 
                 return minProp;

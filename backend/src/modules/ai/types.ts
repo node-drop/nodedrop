@@ -5,6 +5,7 @@ export interface GenerateWorkflowRequest {
   prompt: string;
   currentWorkflow?: Workflow;
   openAiKey?: string; // Optional: allow user to pass key if not in env
+  chatHistory?: { role: 'user' | 'assistant' | 'system', content: string }[];
 }
 
 export interface GenerateWorkflowResponse {

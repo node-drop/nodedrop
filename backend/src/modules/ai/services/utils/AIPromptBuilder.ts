@@ -32,13 +32,23 @@ If the user asks for functionality not covered by the installed nodes, you MAY s
 
 ### SCHEMA KEY
 - id: Node Identifier (use this in "type")
+- name: Display name
 - in: available input handles (default: ["main"])
 - out: available output handles (default: ["main"])
 - props: List of parameters
   - n: Name (use this in "parameters" key)
-  - t: Type (string, number, boolean, options, etc.)
-  - o: Allowed Options (values only)
-  - d: Default Value
+  - t: Type (string, number, boolean, options, json, etc.)
+  - req: If true, this parameter is REQUIRED and MUST be set
+  - desc: Description explaining what the parameter does
+  - o: Allowed Options (use one of these exact values)
+  - d: Default Value (use if user doesn't specify)
+  - ex: Example/placeholder value
+
+### PARAMETER RULES
+1. **Always set required parameters** (req: true). Workflows will fail if these are missing.
+2. For 'options' type, use ONLY values from 'o' array. Do not invent values.
+3. Use 'd' (default) or 'ex' (example) as reference for expected format.
+4. If a parameter seems needed based on user intent but has no default, make a reasonable choice and explain it.
 
 ### BEST PRACTICES & LOGIC RULES
 ${rulesSection}
@@ -55,8 +65,38 @@ ${constraintsSection}
 `;
   }
 
-  buildUserPrompt(prompt: string, currentWorkflow?: any): string {
-    let content = `User Request: "${prompt}"\n`;
+  buildNodeSelectionPrompt(userPrompt: string, nodeIndex: string): string {
+    return `
+You are an expert automation architect. Your task is to identify which nodes are required to fulfill the user's request.
+
+### AVAILABLE NODES
+${nodeIndex}
+
+### USER REQUEST
+"${userPrompt}"
+
+### INSTRUCTIONS
+1. Analyze the request.
+2. Select 3-8 nodes that are most relevant.
+3. Return a JSON array of node IDs ONLY.
+   Example: ["http-request", "slack", "schedule"]
+4. Do not include any explanations. Just the JSON array.
+`;
+  }
+
+  buildUserPrompt(prompt: string, currentWorkflow?: any, chatHistory?: { role: string, content: string }[]): string {
+    let content = "";
+
+    // Add Chat History if available
+    if (chatHistory && chatHistory.length > 0) {
+      content += `### CONVERSATION HISTORY\n`;
+      chatHistory.forEach(msg => {
+        content += `${msg.role.toUpperCase()}: ${msg.content}\n`;
+      });
+      content += `\n`;
+    }
+
+    content += `### CURRENT REQUEST\nUser Request: "${prompt}"\n`;
     
     if (currentWorkflow) {
       content += `\nCURRENT WORKFLOW JSON:\n${JSON.stringify(currentWorkflow)}\n\nINSTRUCTION: Modify the above workflow to satisfy the user request. Preserve existing nodes unless they strictly conflict with the request. Return the FULL updated workflow JSON.`;

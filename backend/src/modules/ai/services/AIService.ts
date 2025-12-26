@@ -33,7 +33,7 @@ export class AIService {
   public async generateWorkflow(
     request: GenerateWorkflowRequest
   ): Promise<GenerateWorkflowResponse> {
-    // 1. Initialize client (or use provided key)
+    // 1. Initialize client
     let client = this.openai;
     if (request.openAiKey) {
       client = new OpenAI({ apiKey: request.openAiKey });
@@ -43,33 +43,43 @@ export class AIService {
       throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY env var or provide it in the request.');
     }
 
-    // 2. Build Context (Node Schemas)
-    const nodeContext = await this.contextBuilder.buildNodeContext();
-
-    // 3. Build System Prompt
-    const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
-
-    // 4. Build User Prompt
-    const contextWorkflow = request.currentWorkflow 
-      ? this.contextBuilder.minifyWorkflowForAI(request.currentWorkflow) 
-      : undefined;
-      
-    const userPrompt = this.promptBuilder.buildUserPrompt(request.prompt, contextWorkflow);
-
-    logger.info('--- AI REQUEST START ---');
-    logger.info(`Estimated Prompt Tokens: ~${(systemPrompt.length + userPrompt.length) / 4}`);
-      
     try {
-      // 5. Call OpenAI with Tools
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        tools: AI_TOOLS,
-        tool_choice: 'auto', // Let AI decide between building, advising, or asking clarity
-        temperature: 0.7,
+      // --- STEP 1: Smart Node Selection ---
+      const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
+      const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
+      
+      const selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
+      logger.info(`AI Selected Nodes: ${selectedNodeIds.join(', ')}`);
+
+      // --- STEP 2: Build Scoped Context ---
+      // Always include connection-related nodes or common logic nodes if needed, 
+      // but for now relying on AI selection + basic defaults if we had them.
+      const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
+
+      // --- STEP 3: Generate Workflow ---
+      const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
+      
+      const contextWorkflow = request.currentWorkflow 
+        ? this.contextBuilder.minifyWorkflowForAI(request.currentWorkflow) 
+        : undefined;
+        
+      const userPrompt = this.promptBuilder.buildUserPrompt(request.prompt, contextWorkflow, request.chatHistory);
+
+      logger.info('--- AI REQUEST START ---');
+      logger.info(`Estimated Prompt Tokens: ~${(systemPrompt.length + userPrompt.length) / 4}`);
+        
+      // Call OpenAI with Retry
+      const completion = await this.retryOperation(async () => {
+        return await client!.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          tools: AI_TOOLS,
+          tool_choice: 'auto',
+          temperature: 0.7,
+        });
       });
 
       const message = completion.choices[0].message;
@@ -77,10 +87,9 @@ export class AIService {
 
       logger.info('--- AI RESPONSE RAW ---', { content: message.content, toolCalls });
 
-      // 6. Process Response via Helper
       return await this.responseProcessor.processToolCalls(
         toolCalls || [], 
-        request.currentWorkflow as any, // Cast to any/Workflow as needed by processor
+        request.currentWorkflow as any,
         message.content || undefined
       );
 
@@ -88,5 +97,48 @@ export class AIService {
       logger.error('AI Workflow generation failed', { error });
       throw error;
     }
+  }
+
+  private async selectRelevantNodes(client: OpenAI, prompt: string): Promise<string[]> {
+    try {
+        const response = await client.chat.completions.create({
+            model: 'gpt-4o', // Use a cheaper model if possible, but 4o is fast
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1, // Low temp for deterministic output
+        });
+
+        const text = response.choices[0].message.content || "[]";
+        // Attempt to parse JSON
+        const match = text.match(/\[.*\]/s);
+        if (match) {
+            return JSON.parse(match[0]);
+        }
+        return [];
+    } catch (e) {
+        logger.warn("Failed to select nodes, falling back to full context", { error: e });
+        // Fallback: Return all node IDs (conceptually, or let context builder handle empty list if we want full fallback)
+        // For now, let's return a safe list or re-throw. 
+        // Better strategy: If selection fails, maybe we just proceed with a default set? 
+        // Let's rely on the context builder to handle specific IDs.
+        // If empty, user might get a generic workflow.
+        return [];
+    }
+  }
+
+  private async retryOperation<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+    let lastError: any;
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            logger.warn(`AI Operation failed (attempt ${i + 1}/${retries})`, { error });
+            if (i < retries - 1) {
+                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // Exponential backoff
+            }
+        }
+    }
+    throw lastError;
   }
 }
