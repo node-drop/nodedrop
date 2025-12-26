@@ -4,6 +4,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const crypto = require('crypto');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -38,9 +39,10 @@ function exec(command, options = {}) {
 
 function generateRandomString(length = 32) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = crypto.randomBytes(length);
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(bytes[i] % chars.length);
   }
   return result;
 }
@@ -161,7 +163,7 @@ async function main() {
   const jwtSecret = generateRandomString(32);
 
   // Generate credential encryption key (64 hex characters = 32 bytes)
-  const credentialEncryptionKey = generateRandomString(32).split('').map(c => c.charCodeAt(0).toString(16)).join('').substring(0, 64);
+  const credentialEncryptionKey = crypto.randomBytes(32).toString('hex');
 
   // Generate unique suffix for container names
   const uniqueSuffix = Math.random().toString(36).substring(2, 8);
