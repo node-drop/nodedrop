@@ -8,4 +8,10 @@ const router = Router();
 // Protect AI endpoints
 router.post('/generate-workflow', requireAuth, AIController.generateWorkflow);
 
+// Chat Session Management
+router.get('/sessions', requireAuth, AIController.getSessions);
+router.post('/sessions', requireAuth, AIController.createSession);
+router.get('/sessions/:id/messages', requireAuth, AIController.getMessages);
+router.delete('/sessions/:id', requireAuth, AIController.deleteSession);
+
 export const aiRoutes = router;

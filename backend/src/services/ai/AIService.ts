@@ -52,12 +52,19 @@ export class AIService {
     const systemPrompt = this.buildSystemPrompt(nodeContext);
 
     // 4. Build User Prompt
-    const userPrompt = this.buildUserPrompt(request.prompt, request.currentWorkflow);
+    // Optimization: Minify workflow context to save tokens for large workflows
+    const contextWorkflow = request.currentWorkflow 
+      ? this.minifyWorkflowForAI(request.currentWorkflow) 
+      : undefined;
+      
+    const userPrompt = this.buildUserPrompt(request.prompt, contextWorkflow);
 
-      // DEBUG: Log prompts
-      logger.info('--- AI REQUEST START ---');
-      logger.info('System Prompt:', { systemPrompt });
-      logger.info('User Prompt:', { userPrompt });
+    // DEBUG: Log prompts
+    logger.info('--- AI REQUEST START ---');
+    logger.info('System Prompt:', { systemPrompt });
+    logger.info('User Prompt:', { userPrompt });
+    // Log token estimation (rough char count / 4)
+    logger.info(`Estimated Prompt Tokens: ~${(systemPrompt.length + userPrompt.length) / 4}`);
       
       try {
       // 5. Call OpenAI
@@ -242,5 +249,48 @@ You must respond with a JSON object containing two fields:
       }
     }
     return missing;
+  }
+
+  private minifyWorkflowForAI(workflow: any): any {
+    if (!workflow || !workflow.nodes) return workflow;
+
+    // Deep clone to avoid mutating original
+    const simplified = JSON.parse(JSON.stringify(workflow));
+
+    // Remove heavy UI/irrelevant properties from nodes
+    simplified.nodes = simplified.nodes.map((node: any) => {
+      // Keep only essential logic fields
+      const { id, type, name, parameters } = node;
+      
+      // Truncate large parameters (prevent huge JSON/code blocks from consuming all tokens)
+      const truncatedParams = { ...parameters };
+      if (truncatedParams) {
+        Object.keys(truncatedParams).forEach(key => {
+          const val = truncatedParams[key];
+          if (typeof val === 'string' && val.length > 500) {
+            truncatedParams[key] = val.substring(0, 500) + '...[TRUNCATED_FOR_AI]';
+          }
+        });
+      }
+
+      return {
+        id,
+        type,
+        name,
+        parameters: truncatedParams,
+        // Omit: position, icon, color, credentials, disabled, settings, etc.
+      };
+    });
+
+    // Simplify connections (usually already small, but ensures consistency)
+    simplified.connections = simplified.connections.map((conn: any) => ({
+        id: conn.id,
+        sourceNodeId: conn.sourceNodeId,
+        sourceOutput: conn.sourceOutput,
+        targetNodeId: conn.targetNodeId,
+        targetInput: conn.targetInput
+    }));
+
+    return simplified;
   }
 }

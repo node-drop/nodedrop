@@ -18,15 +18,17 @@
  */
 
 // Import all schema definitions
+export * from './ai';
 export * from './auth';
-export * from './workspace';
-export * from './teams';
-export * from './workflows';
-export * from './executions';
-export * from './credentials';
-export * from './variables';
-export * from './nodes';
-export * from './triggers';
-export * from './webhooks';
 export * from './categories';
+export * from './credentials';
+export * from './executions';
 export * from './git';
+export * from './nodes';
+export * from './teams';
+export * from './triggers';
+export * from './variables';
+export * from './webhooks';
+export * from './workflows';
+export * from './workspace';
+
