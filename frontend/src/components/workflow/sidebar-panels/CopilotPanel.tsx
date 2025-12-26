@@ -1,11 +1,10 @@
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from "@/services/api";
 import { useWorkflowStore } from "@/stores/workflow";
-import { AlertCircle, Loader2, Play, Sparkles } from 'lucide-react';
+import { AlertCircle, Loader2, Play, Sparkles, RotateCcw } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -102,8 +101,26 @@ export const CopilotPanel = memo(function CopilotPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <ScrollArea className="flex-1 p-4">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4" />
+          <span className="text-sm font-medium">AI Assistant</span>
+        </div>
+        <div className="flex gap-1">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6" 
+            onClick={() => setMessages([{ role: 'assistant', content: 'Hi! I can help you build workflows. Describe what you want to achieve.' }])}
+            title="Clear chat"
+          >
+            <RotateCcw className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto p-4">
         <div className="space-y-4">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -155,9 +172,9 @@ export const CopilotPanel = memo(function CopilotPanel() {
           ))}
           <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
 
-      <div className="p-4 border-t bg-background">
+      <div className="flex-shrink-0 p-4 border-t bg-background">
         <form 
             onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
             className="relative"
