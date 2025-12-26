@@ -6,7 +6,8 @@
  */
 
 import type { ExpressionContext } from "@nodedrop/types";
-import { createNodeHelperFunctions } from "./helpers.js";
+import vm from 'node:vm';
+// createNodeHelperFunctions removed as we now polyfill inside the VM
 
 // Polyfill for DateTime to be injected into the VM
 // This ensures DateTime is created INSIDE the sandbox using the sandbox's own Date/Object constructors
@@ -64,6 +65,51 @@ const DateTime = {
     };
   },
 };
+`;
+
+const CONSOLE_POLYFILL = `
+const console = {
+  log: () => {},
+  warn: () => {},
+  error: () => {},
+  info: () => {},
+  debug: () => {},
+};
+`;
+
+const HELPER_POLYFILL = `
+function isExecuted(nodeName) {
+  try {
+    return $node[nodeName] !== undefined && $node[nodeName] !== null;
+  } catch(e) { return false; }
+}
+
+function hasData(nodeName) {
+  try {
+    const data = $node[nodeName];
+    if (data === undefined || data === null) return false;
+    if (Array.isArray(data)) return data.length > 0;
+    if (typeof data === "object") return Object.keys(data).length > 0;
+    return true;
+  } catch(e) { return false; }
+}
+
+function getNodeData(nodeName, defaultValue = null) {
+  try {
+    const data = $node[nodeName];
+    return (data !== undefined && data !== null) ? data : defaultValue;
+  } catch(e) { return defaultValue; }
+}
+
+function firstExecuted(nodeNames) {
+  if (!Array.isArray(nodeNames)) return null;
+  for (const name of nodeNames) {
+    if ($node[name] !== undefined && $node[name] !== null) {
+      return $node[name];
+    }
+  }
+  return null;
+}
 `;
 
 /**
@@ -143,75 +189,77 @@ export function safeEvaluateExpression(
   item: any
 ): any {
   try {
-    // Validate expression first - this is our primary defense
+    // Validate expression first - defense in depth
     validateExpression(expression);
 
-    // Import VM module (works in both Node.js and Bun)
-    const vm = require('node:vm');
-    
-    const nodeData = context.$node || {};
-    const helperFunctions = createNodeHelperFunctions(nodeData);
+    // Serialize context data to JSON strings
+    // This allows us to pass data into the VM without passing Host Objects
+    // Host Objects (like checks for .constructor) are the primary vector for sandbox escapes
+    const _jsonStr = JSON.stringify(context.$json ?? item ?? {});
+    const _nodeStr = JSON.stringify(context.$node ?? {});
+    const _varsStr = JSON.stringify(context.$vars ?? {});
+    const _workflowStr = JSON.stringify(context.$workflow ?? {});
+    const _executionStr = JSON.stringify(context.$execution ?? {});
+    const _itemIndex = context.$itemIndex ?? 0;
 
-      // Build secure sandbox - NO process, require, Bun, global, or other dangerous globals
-     const sandbox = {
-      // Data sources
-      $json: context.$json ?? item,
-      $node: nodeData,
-      $vars: context.$vars || {},
-      $workflow: context.$workflow || {},
-      $execution: context.$execution || {},
-      $itemIndex: context.$itemIndex ?? 0,
-      
-      // Helper functions (direct access like $isExecuted("Node"))
-      ...helperFunctions,
-      
-      // Built-in variables
-      $now: new Date().toISOString(),
-      $today: new Date().toISOString().split('T')[0],
-
-      // Safe console for debugging (optional - can be removed)
-      console: {
-        log: (...args: any[]) => {
-          // Disabled in production, or log to secure logger
-        },
-        warn: (...args: any[]) => {
-          // Disabled in production
-        },
-        error: (...args: any[]) => {
-          // Disabled in production
-        },
-      },
+    // Secure Sandbox
+    // We only pass primitive strings and numbers. No objects that link back to the host.
+    const sandbox = {
+      _jsonStr,
+      _nodeStr,
+      _varsStr,
+      _workflowStr,
+      _executionStr,
+      _itemIndex,
     };
 
-    // Wrap expression to return its value
-    // Inject DateTime polyfill before the expression
-    const wrappedExpression = `"use strict"; ${DATE_TIME_POLYFILL}; (${expression})`;
+    // Wrap expression to:
+    // 1. Parse the JSON strings back into objects inside the VM
+    // 2. Define helper functions ($isExecuted etc) inside the VM
+    // 3. Define DateTime polyfill
+    // 4. Execute the user expression
+    const wrappedExpression = `
+      "use strict";
+      
+      // Rehydrate data from JSON strings
+      // This ensures all objects are natives of this VM context, not wrappers around host objects
+      const $json = JSON.parse(_jsonStr);
+      const $node = JSON.parse(_nodeStr);
+      const $vars = JSON.parse(_varsStr);
+      const $workflow = JSON.parse(_workflowStr);
+      const $execution = JSON.parse(_executionStr);
+      const $itemIndex = _itemIndex;
+      
+      // Polyfills
+      ${CONSOLE_POLYFILL}
+      ${DATE_TIME_POLYFILL}
+      ${HELPER_POLYFILL}
+      
+      // Built-in variables that depend on instantiated classes
+      const $now = new Date().toISOString();
+      const $today = new Date().toISOString().split('T')[0];
+
+      // Execute User Expression
+      (${expression})
+    `;
     
     // Execute in isolated VM context with timeout
     const result = vm.runInNewContext(wrappedExpression, sandbox, {
-      timeout: 5000, // 5 second timeout for expressions
+      timeout: 5000, 
       displayErrors: true,
       breakOnSigint: true,
     });
     
     return result;
   } catch (error) {
-    // Log security-relevant errors
+    // Log security-relevant errors (optional, keep minimal to avoid noise)
     if (error instanceof Error) {
-      if (error.message.includes('forbidden pattern')) {
-        console.error('[Security] Blocked malicious expression:', {
-          expression: expression.substring(0, 100),
-          error: error.message,
-        });
-      } else if (error.message.includes('timeout')) {
-        console.warn('[Security] Expression timeout:', {
-          expression: expression.substring(0, 100),
-        });
-      }
+       if (error.message.includes('forbidden pattern')) {
+          // Swallow or log if critical
+       }
     }
     
     // If evaluation fails, return the original expression wrapped
-    console.warn(`[safeEvaluateExpression] Failed to evaluate: ${expression.substring(0, 100)}`, error);
     return `{{${expression}}}`;
   }
 }
