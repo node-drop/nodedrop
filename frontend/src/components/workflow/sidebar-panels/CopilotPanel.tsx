@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from "@/services/api";
 import { useWorkflowStore } from "@/stores/workflow";
+import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertCircle, History, Loader2, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -31,6 +32,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const [isLoading, setIsLoading] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { fitView } = useReactFlow();
   
   const workflow = useWorkflowStore(state => state.workflow)
   const updateWorkflow = useWorkflowStore(state => state.updateWorkflow)
@@ -210,6 +212,12 @@ export const CopilotPanel = memo(function CopilotPanel() {
         });
 
         toast.success("Workflow updated successfully!");
+        
+        // Fit view after 100ms to allow React Flow to render new nodes
+        setTimeout(() => {
+            fitView({ padding: 0.2, duration: 800 });
+        }, 100);
+
     } catch (err) {
         console.error("Failed to apply workflow", err);
         toast.error("Failed to apply workflow changes.");
