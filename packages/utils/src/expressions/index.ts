@@ -28,14 +28,7 @@ export {
   buildExpressionContext,
 } from "./context";
 
-// Expression resolution
-export {
-  resolvePath,
-  safeEvaluateExpression,
-  resolveValue,
-} from "./resolver";
-
-// Expression validation
+// Expression validation (browser-safe)
 export {
   type ExpressionValidationError,
   type ExpressionValidationResult,

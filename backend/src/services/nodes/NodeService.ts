@@ -20,10 +20,12 @@ import { logger } from '../../utils/logger';
 import {
   extractJsonData,
   normalizeInputItems,
-  resolvePath,
-  resolveValue,
   wrapJsonData,
 } from '@nodedrop/utils';
+import {
+  resolvePath,
+  resolveValue,
+} from '@nodedrop/utils/expressions/resolver.js';
 import {
   SecureExecutionOptions,
   SecureExecutionService,

@@ -5,12 +5,21 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./expressions/resolver.js": {
+      "types": "./dist/expressions/resolver.d.ts",
+      "default": "./dist/expressions/resolver.js"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --format esm && bun run build:types",
-    "build:types": "tsc --emitDeclarationOnly",
+    "build": "tsc",
     "clean": "rm -rf dist",
     "lint": "eslint .",
     "format": "prettier --write .",

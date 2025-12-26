@@ -10,10 +10,12 @@ import { logger } from "../../utils/logger";
 import {
   extractJsonData,
   normalizeInputItems,
-  resolvePath,
-  resolveValue,
   wrapJsonData,
 } from "@nodedrop/utils";
+import {
+  resolvePath,
+  resolveValue,
+} from "@nodedrop/utils/expressions/resolver.js";
 import type { ExpressionContext } from "@nodedrop/types";
 import { getCredentialService, type ICredentialService } from "../CredentialService.factory";
 import { variableServiceDrizzle } from "../VariableService.factory";
