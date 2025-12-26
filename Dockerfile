@@ -10,12 +10,19 @@ COPY package.json bun.lock* ./
 # Copy workspace packages that frontend depends on
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
+COPY packages/config ./packages/config
 
 # Copy frontend package files
 COPY frontend/package.json ./frontend/
 
+# Patch package.json to remove unused workspaces for frontend build
+# This prevents bun install from failing due to missing folders
+RUN sed -i '/"backend"/d' package.json && \
+    sed -i '/"cli"/d' package.json && \
+    sed -i '/"installer"/d' package.json
+
 # Install workspace dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build workspace packages first
 RUN cd packages/types && bun run build
@@ -45,14 +52,20 @@ COPY package.json bun.lock* ./
 # Copy workspace packages that backend depends on
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
+COPY packages/config ./packages/config
 
 # Copy backend package files and Drizzle configuration
 COPY backend/package.json ./backend/
 COPY backend/drizzle.config.ts ./backend/
 COPY backend/src/db ./backend/src/db
 
+# Patch package.json to remove unused workspaces for backend build
+RUN sed -i '/"frontend"/d' package.json && \
+    sed -i '/"cli"/d' package.json && \
+    sed -i '/"installer"/d' package.json
+
 # Install workspace dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build workspace packages first (types, then utils which depends on types)
 RUN cd packages/types && bun run build

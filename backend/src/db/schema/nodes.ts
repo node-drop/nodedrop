@@ -1,14 +1,15 @@
+import { relations, sql } from 'drizzle-orm';
 import {
+  boolean,
+  index,
+  integer,
+  json,
   pgTable,
   text,
-  boolean,
-  integer,
   timestamp,
   uniqueIndex,
-  index,
-  json,
+  vector,
 } from 'drizzle-orm/pg-core';
-import { relations, sql } from 'drizzle-orm';
 import { workspaces } from './workspace';
 
 /**
@@ -61,6 +62,9 @@ export const nodeTypes = pgTable(
     // Workspace association (NULL = global/system node)
     workspaceId: text('workspace_id'),
     
+    // AI Embedding for semantic search (pgvector)
+    embedding: vector('embedding', { dimensions: 1536 }),
+
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
@@ -70,6 +74,8 @@ export const nodeTypes = pgTable(
     ),
     workspaceIdIdx: index('nodes_workspace_id_idx').on(table.workspaceId),
     isCoreIdx: index('nodes_is_core_idx').on(table.isCore),
+    // Note: HNSW index for vector should be created via raw SQL migration:
+    // CREATE INDEX nodes_embedding_idx ON nodes USING hnsw (embedding vector_cosine_ops);
   })
 );
 

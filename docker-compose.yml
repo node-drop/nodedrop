@@ -1,7 +1,7 @@
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: node-drop-postgres
     environment:
       POSTGRES_DB: node_drop

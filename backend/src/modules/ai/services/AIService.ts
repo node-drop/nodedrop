@@ -44,16 +44,32 @@ export class AIService {
     }
 
     try {
-      // --- STEP 1: Smart Node Selection ---
-      const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
-      const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
+      // --- STEP 1: Smart Node Selection (Embedding-based or LLM fallback) ---
+      const embeddingService = (await import('./NodeEmbeddingService')).NodeEmbeddingService.getInstance();
       
-      const selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
-      logger.info(`AI Selected Nodes: ${selectedNodeIds.join(', ')}`);
+      let selectedNodeIds: string[];
+      
+      if (embeddingService.isEnabled()) {
+        // Use fast embedding-based similarity search
+        selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, 10);
+        logger.info(`Embedding-based selection: ${selectedNodeIds.join(', ')}`);
+        
+        // If no results from embeddings, fall back to LLM selection
+        if (selectedNodeIds.length === 0) {
+          logger.warn('No embeddings found, falling back to LLM selection');
+          const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
+          const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
+          selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
+        }
+      } else {
+        // Fallback: Use LLM-based selection (for when embeddings are not configured)
+        const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
+        const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
+        selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
+        logger.info(`LLM-based selection: ${selectedNodeIds.join(', ')}`);
+      }
 
       // --- STEP 2: Build Scoped Context ---
-      // Always include connection-related nodes or common logic nodes if needed, 
-      // but for now relying on AI selection + basic defaults if we had them.
       const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
 
       // --- STEP 3: Generate Workflow ---

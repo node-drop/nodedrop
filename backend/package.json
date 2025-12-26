@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "db:migrate": "bun src/scripts/migrate.ts",
     "db:seed": "bun src/scripts/seed.ts",
+    "ai:index-nodes": "bun run src/scripts/index-nodes.ts",
     "node-cli": "bun src/cli/node-cli.ts",
     "nodes:register": "bun src/scripts/register-nodes.ts",
     "nodes:list": "bun src/scripts/node-cli.ts list",
@@ -49,7 +50,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "drizzle-orm": "^0.30.10",
+    "drizzle-orm": "^0.45.1",
     "effect": "^3.18.4",
     "express": "^4.18.2",
     "express-rate-limit": "^8.1.0",
@@ -85,7 +86,7 @@
     "@types/supertest": "^2.0.16",
     "@types/uuid": "^10.0.0",
     "bun-types": "latest",
-    "drizzle-kit": "^0.20.14",
+    "drizzle-kit": "^0.31.8",
     "fast-check": "^4.4.0",
     "supertest": "^6.3.4"
   }

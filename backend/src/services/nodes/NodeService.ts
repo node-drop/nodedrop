@@ -1,34 +1,24 @@
-import { eq, and, or, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { nodeTypes } from '../../db/schema/nodes';
 import {
-  NodeDefinition,
-  NodeExecutionContext,
-  NodeExecutionResult,
-  NodeInputData,
-  NodeOutputData,
-  NodeProperty,
-  NodeRegistrationResult,
-  NodeSchema,
-  NodeTypeInfo,
-  NodeValidationError,
-  NodeValidationResult,
-  StandardizedNodeOutput,
+    NodeDefinition,
+    NodeExecutionResult,
+    NodeInputData,
+    NodeOutputData,
+    NodeProperty,
+    NodeRegistrationResult,
+    NodeSchema,
+    NodeTypeInfo,
+    NodeValidationError,
+    NodeValidationResult,
+    StandardizedNodeOutput
 } from '../../types/node.types';
 import { NodeSettingsConfig } from '../../types/settings.types';
 import { logger } from '../../utils/logger';
 import {
-  extractJsonData,
-  normalizeInputItems,
-  wrapJsonData,
-} from '@nodedrop/utils';
-import {
-  resolvePath,
-  resolveValue,
-} from '@nodedrop/utils/expressions/resolver.js';
-import {
-  SecureExecutionOptions,
-  SecureExecutionService,
+    SecureExecutionOptions,
+    SecureExecutionService,
 } from '../execution/SecureExecutionService';
 
 /**
@@ -378,6 +368,49 @@ export class NodeService {
 
       // Store in memory registry
       this.nodeRegistry.set(nodeDefinition.identifier, nodeDefinition);
+
+      // Auto-index node logic
+      // Only re-index if:
+      // 1. It's a new node
+      // 2. Critical fields (description, name, group) changed
+      // 3. Embedding is missing
+      let shouldIndex = true;
+      
+      if (existingNode) {
+        const descriptionChanged = existingNode.description !== nodeDefinition.description;
+        const nameChanged = existingNode.displayName !== nodeDefinition.displayName;
+        const groupChanged = JSON.stringify(existingNode.group || []) !== JSON.stringify(nodeDefinition.group || []);
+        // Check if embedding exists (using any cast as type might not fully reflect schema update in this context execution)
+        const hasEmbedding = (existingNode as any).embedding != null;
+        
+        if (!descriptionChanged && !nameChanged && !groupChanged && hasEmbedding) {
+          shouldIndex = false;
+        }
+      }
+
+      if (shouldIndex) {
+        try {
+          const embeddingService = (await import('../../modules/ai/services/NodeEmbeddingService')).NodeEmbeddingService.getInstance();
+          if (embeddingService.isEnabled()) {
+            embeddingService.indexNode({
+              id: nodeDefinition.identifier,
+              identifier: nodeDefinition.identifier,
+              displayName: nodeDefinition.displayName,
+              description: nodeDefinition.description,
+              group: nodeDefinition.group,
+            }).catch(err => {
+              logger.warn('Failed to auto-index node during registration', {
+                identifier: nodeIdentifier,
+                error: err instanceof Error ? err.message : String(err)
+              });
+            });
+          }
+        } catch (importError) {
+          logger.warn('Failed to import NodeEmbeddingService for auto-indexing', { 
+             error: importError 
+          });
+        }
+      }
 
       return {
         success: true,
