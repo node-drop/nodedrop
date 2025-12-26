@@ -5,13 +5,25 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./expressions/resolver.js": {
+      "types": "./dist/expressions/resolver.d.ts",
+      "default": "./dist/expressions/resolver.js"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf dist",
-    "prepublishOnly": "npm run build"
+    "clean": "rm -rf dist",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "nodedrop",
@@ -25,8 +37,8 @@
     "@nodedrop/types": "^1.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.2.2",
-    "rimraf": "^5.0.5"
+    "bun-types": "latest",
+    "typescript": "^5.2.2"
   },
   "publishConfig": {
     "access": "public"

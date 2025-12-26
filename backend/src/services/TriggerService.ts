@@ -1,15 +1,15 @@
+import { and, eq } from "drizzle-orm";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as cron from "node-cron";
 import { v4 as uuidv4 } from "uuid";
-import { eq, and } from "drizzle-orm";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { AppError } from "../middleware/errorHandler";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
 import { CredentialService } from "./CredentialService";
-import ExecutionHistoryService from "./ExecutionHistoryService";
-import { IExecutionService } from "./ExecutionService.factory";
-import { NodeService } from "./NodeService";
+import ExecutionHistoryService from "./execution/ExecutionHistoryService";
+import { IExecutionService } from "./execution/ExecutionService.factory";
+import { NodeService } from "./nodes/NodeService";
 import { SocketService } from "./SocketService";
 import { TriggerExecutionRequest, TriggerManager } from "./TriggerManager";
 import { webhookRequestLogService } from "./WebhookRequestLogService.factory";
@@ -207,13 +207,13 @@ export class TriggerService {
           await this.activateTrigger(job.workflowId, trigger);
           loadedCount++;
         } catch (error) {
-          logger.error(`Failed to activate ${job.type} trigger ${job.triggerId}:`, error);
+          logger.error(`Failed to activate ${job.type} trigger ${job.triggerId}`, { error });
         }
       }
 
       logger.info(`✅ Loaded ${loadedCount} active triggers`);
     } catch (error) {
-      logger.error("Error loading active triggers:", error);
+      logger.error("Error loading active triggers", { error });
       throw new AppError(
         "Failed to load active triggers",
         500,
@@ -278,7 +278,7 @@ export class TriggerService {
       return trigger;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error("Error creating trigger:", error);
+      logger.error("Error creating trigger", { error });
       throw new AppError(
         "Failed to create trigger",
         500,
@@ -348,7 +348,7 @@ export class TriggerService {
       return updatedTrigger;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error("Error updating trigger:", error);
+      logger.error("Error updating trigger", { error });
       throw new AppError(
         "Failed to update trigger",
         500,
@@ -395,7 +395,7 @@ export class TriggerService {
 
     } catch (error) {
       if (error instanceof AppError) throw error;
-      logger.error("Error deleting trigger:", error);
+      logger.error("Error deleting trigger", { error });
       throw new AppError(
         "Failed to delete trigger",
         500,
@@ -440,7 +440,7 @@ export class TriggerService {
 
 
     } catch (error) {
-      logger.error(`Error activating trigger ${trigger.id}:`, error);
+      logger.error(`Error activating trigger ${trigger.id}`, { error });
       throw error;
     }
   }
@@ -476,7 +476,7 @@ export class TriggerService {
               )
             )
             .catch((err: any) => {
-              logger.error(`Failed to delete schedule trigger ${triggerId} from database:`, err);
+              logger.error(`Failed to delete schedule trigger ${triggerId} from database`, { error: err });
             });
           logger.info(`🗑️  Permanently deleted schedule trigger ${triggerId} from database`);
         } else {
@@ -490,7 +490,7 @@ export class TriggerService {
               )
             )
             .catch((err: any) => {
-              logger.error(`Failed to deactivate schedule trigger ${triggerId} in database:`, err);
+              logger.error(`Failed to deactivate schedule trigger ${triggerId} in database`, { error: err });
             });
         }
       }
@@ -515,9 +515,8 @@ export class TriggerService {
               )
             )
             .catch((err: any) => {
-              logger.error(`Failed to delete polling trigger ${triggerId} from database:`, err);
+              logger.error(`Failed to delete polling trigger ${triggerId} from database`, { error: err });
             });
-          console.log(`🗑️  Permanently deleted polling trigger ${triggerId} from database`);
           logger.info(`🗑️  Permanently deleted polling trigger ${triggerId} from database`);
         } else {
           await this.db
@@ -530,16 +529,15 @@ export class TriggerService {
               )
             )
             .catch((err: any) => {
-              logger.error(`Failed to deactivate polling trigger ${triggerId} in database:`, err);
+              logger.error(`Failed to deactivate polling trigger ${triggerId} in database`, { error: err });
             });
-          console.log(`🗑️  Deactivated polling trigger: ${triggerId}`);
           logger.info(`🗑️  Deactivated polling trigger: ${triggerId}`);
         }
       }
 
 
     } catch (error) {
-      logger.error(`Error deactivating trigger ${triggerId}:`, error);
+      logger.error(`Error deactivating trigger ${triggerId}`, { error });
       throw error;
     }
   }
@@ -611,13 +609,12 @@ export class TriggerService {
       );
     }
 
-    console.log(`🔄 Activating schedule trigger ${trigger.id} with cron: ${cronExpression}`);
     logger.info(`🔄 Activating schedule trigger ${trigger.id} with cron: ${cronExpression}`);
 
-    // Get workflow for description
+    // Get workflow for description and workspaceId
     const workflows = await this.db.query.workflows.findFirst({
       where: eq(schema.workflows.id, trigger.workflowId),
-      columns: { name: true },
+      columns: { name: true, workspaceId: true },
     });
 
     // Check if trigger job already exists
@@ -644,6 +641,7 @@ export class TriggerService {
       // Create new record
       await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
+        workspaceId: workflows?.workspaceId || null,
         triggerId: trigger.id,
         type: 'schedule',
         jobKey: trigger.id,
@@ -662,8 +660,8 @@ export class TriggerService {
           await this.handleScheduleTrigger(trigger);
         } catch (error) {
           logger.error(
-            `Error executing scheduled trigger ${trigger.id}:`,
-            error
+            `Error executing scheduled trigger ${trigger.id}`,
+            { error }
           );
         }
       },
@@ -677,7 +675,6 @@ export class TriggerService {
     this.scheduledTasks.set(trigger.id, task);
     task.start();
 
-    console.log(`✅ Schedule trigger ${trigger.id} activated and running`);
     logger.info(`✅ Schedule trigger ${trigger.id} activated and running`);
 
   }
@@ -695,13 +692,12 @@ export class TriggerService {
       );
     }
 
-    console.log(`🔄 Activating polling trigger ${trigger.id} with interval ${pollInterval}s`);
     logger.info(`🔄 Activating polling trigger ${trigger.id} with interval ${pollInterval}s`);
 
-    // Get workflow for description
+    // Get workflow for description and workspaceId
     const workflows = await this.db.query.workflows.findFirst({
       where: eq(schema.workflows.id, trigger.workflowId),
-      columns: { name: true },
+      columns: { name: true, workspaceId: true },
     });
 
     // Check if trigger job already exists
@@ -728,6 +724,7 @@ export class TriggerService {
       // Create new record
       await this.db.insert(schema.triggerJobs).values({
         workflowId: trigger.workflowId,
+        workspaceId: workflows?.workspaceId || null,
         triggerId: trigger.id,
         type: 'polling',
         jobKey: trigger.id,
@@ -762,13 +759,13 @@ export class TriggerService {
             })
             .where(eq(schema.triggerJobs.id, jobToUpdate.id))
             .catch((err: any) => {
-              logger.error(`Failed to update polling trigger ${trigger.id} in database:`, err);
+              logger.error(`Failed to update polling trigger ${trigger.id} in database`, { error: err });
             });
         }
       } catch (error) {
         logger.error(
-          `Error executing polling trigger ${trigger.id}:`,
-          error
+          `Error executing polling trigger ${trigger.id}`,
+          { error }
         );
         
         // Update fail count in database
@@ -790,12 +787,13 @@ export class TriggerService {
             })
             .where(eq(schema.triggerJobs.id, jobToUpdate.id))
             .catch((err: any) => {
-              logger.error(`Failed to update error for polling trigger ${trigger.id}:`, err);
+              logger.error(`Failed to update error for polling trigger ${trigger.id}`, { error: err });
             });
         } else {
           // Create new record if it doesn't exist
           await this.db.insert(schema.triggerJobs).values({
             workflowId: trigger.workflowId,
+            workspaceId: workflows?.workspaceId || null,
             triggerId: trigger.id,
             type: 'polling',
             jobKey: trigger.id,
@@ -805,7 +803,7 @@ export class TriggerService {
             failCount: 1,
             lastError: error instanceof Error ? { message: error.message, stack: error.stack } : { error: String(error) },
           }).catch((err: any) => {
-            logger.error(`Failed to update error for polling trigger ${trigger.id}:`, err);
+            logger.error(`Failed to update error for polling trigger ${trigger.id}`, { error: err });
           });
         }
       }
@@ -821,7 +819,6 @@ export class TriggerService {
     this.pollingIntervals.set(trigger.id, interval);
     this.pollingTriggers.set(trigger.id, trigger);
 
-    console.log(`✅ Polling trigger ${trigger.id} activated and running in background`);
     logger.info(`✅ Polling trigger ${trigger.id} activated and running in background`);
   }
 
@@ -901,7 +898,7 @@ export class TriggerService {
     
     if (saveRequestLogs) {
       await webhookRequestLogService.logRequest(logData)
-        .catch(err => logger.error('Failed to log webhook request:', err));
+        .catch(err => logger.error('Failed to log webhook request', { error: err }));
     } else {
       logger.debug('Webhook request logging disabled for this webhook');
     }
@@ -942,7 +939,7 @@ export class TriggerService {
           responseCode: 404,
           responseTime: Date.now() - startTime,
           testMode,
-        }).catch(err => logger.error('Failed to log webhook request:', err));
+        }).catch((err: any) => logger.error("Failed to log webhook request", { error: err }));
         
         throw new AppError(
           "Webhook trigger not found",
@@ -1102,7 +1099,7 @@ export class TriggerService {
         } catch (error) {
           logger.error(
             `Error fetching credential for webhook ${webhookId}`,
-            error
+            { error }
           );
           authConfig = undefined;
         }
@@ -1292,46 +1289,33 @@ export class TriggerService {
           triggerNodeId: trigger.nodeId,
           timestamp: new Date().toISOString(),
         };
-        
-        console.log(`🧪🧪🧪 TEST MODE DETECTED - Emitting webhook-test-triggered to workflow:${trigger.workflowId}`);
-        console.log(`🧪🧪🧪 Event data:`, JSON.stringify(eventData, null, 2));
-        
-        // Debug: Log all workflow rooms
-        this.socketService.logWorkflowRooms();
-        
+
         // Check how many clients are in the workflow room
         const room = this.socketService.getServer().sockets.adapter.rooms.get(`workflow:${trigger.workflowId}`);
         const clientCount = room ? room.size : 0;
-        console.log(`🧪🧪🧪 Clients in workflow:${trigger.workflowId} room: ${clientCount}`);
         
         if (clientCount === 0) {
-          console.log(`⚠️  WARNING: No clients subscribed to workflow:${trigger.workflowId}!`);
-          console.log(`⚠️  The frontend might not be subscribed to the workflow room.`);
-          console.log(`⚠️  This usually means the socket disconnected or never joined the room.`);
+          logger.warn(`⚠️  No clients subscribed to workflow:${trigger.workflowId}! The frontend might not be subscribed to the workflow room. This usually means the socket disconnected or never joined the room.`);
         }
         
-        logger.info(`🧪 Emitting webhook-test-triggered to workflow:${trigger.workflowId}`, eventData);
+        logger.debug(`🧪 Emitting webhook-test-triggered to workflow:${trigger.workflowId}`, eventData);
         
         this.socketService.getServer()
           .to(`workflow:${trigger.workflowId}`)
           .emit("webhook-test-triggered", eventData);
         
-        console.log(`🧪🧪🧪 Event emitted successfully to ${clientCount} client(s)`);
-        
-        logger.info(`🧪 Webhook test mode - execution visible in editor`, {
+        logger.debug(`🧪 Webhook test mode - execution visible in editor`, {
           webhookId,
           executionId: result.executionId,
           workflowId: trigger.workflowId,
         });
-      } else {
-        console.log(`ℹ️  Test mode NOT detected (testMode = ${testMode})`);
       }
 
       // If responseMode is "lastNode", extract response data from execution result
       let responseData = null;
       if (shouldWaitForCompletion && result.executionId) {
         try {
-          console.log(`✅ Execution completed (responseMode: lastNode)`, {
+          logger.debug(`✅ Execution completed (responseMode: lastNode)`, {
             executionId: result.executionId,
             webhookId,
             hasResult: !!(result as any).result,
@@ -1342,7 +1326,7 @@ export class TriggerService {
           if ((result as any).result) {
             const executionResult = (result as any).result;
             
-            console.log(`🔍 DEBUG Execution result details:`, {
+            logger.debug(`🔍 DEBUG Execution result details:`, {
               success: executionResult.success,
               hasError: !!executionResult.error,
               errorMessage: executionResult.error?.message,
@@ -1355,7 +1339,7 @@ export class TriggerService {
             // Check if execution failed or has errors
             // Note: success can be true even with errors, so we check for error presence
             const hasError = executionResult.error || executionResult.data?.hasFailures;
-            console.log(`🔍 DEBUG Error check:`, {
+            logger.debug(`🔍 DEBUG Error check:`, {
               hasError,
               hasErrorField: !!executionResult.error,
               hasFailuresField: !!executionResult.data?.hasFailures,
@@ -1366,7 +1350,7 @@ export class TriggerService {
               const errorMessage = executionResult.error?.message || "Workflow execution failed";
               const errorDetails = executionResult.error;
               
-              console.error(`❌ Execution failed`, {
+              logger.error(`❌ Execution failed`, {
                 executionId: result.executionId,
                 error: errorMessage,
                 errorDetails,
@@ -1392,24 +1376,14 @@ export class TriggerService {
             }
             
             responseData = await this.extractResponseDataFromResult(executionResult);
-            
-            console.log(`✅ Response data extracted from result`, {
-              executionId: result.executionId,
-              hasResponseData: !!responseData,
-              responseDataKeys: responseData ? Object.keys(responseData) : [],
-            });
           }
           
-          logger.info(`Execution completed, response data extracted`, {
+          logger.debug(`Execution completed, response data extracted`, {
             executionId: result.executionId,
             hasResponseData: !!responseData,
           });
         } catch (error) {
-          console.error(`❌ Error waiting for execution completion`, {
-            executionId: result.executionId,
-            error: error instanceof Error ? error.message : error,
-          });
-          logger.error(`Error waiting for execution completion`, {
+          logger.error(`❌ Error waiting for execution completion`, {
             executionId: result.executionId,
             error: error instanceof Error ? error.message : error,
           });
@@ -1431,7 +1405,7 @@ export class TriggerService {
           };
         }
       } else {
-        console.log(`ℹ️  Not waiting for completion:`, {
+        logger.debug(`Not waiting for completion:`, {
           shouldWaitForCompletion,
           hasExecutionId: !!result.executionId,
         });
@@ -1463,7 +1437,7 @@ export class TriggerService {
         webhookOptions, // Return webhook options for response handling
       };
     } catch (error) {
-      logger.error(`Error handling webhook trigger ${webhookId}:`, error);
+      logger.error(`Error handling webhook trigger ${webhookId}`, { error });
       
       // Try to log failed webhook request
       try {
@@ -1533,7 +1507,7 @@ export class TriggerService {
         }, webhookOptions);
       } catch (logError) {
         // Don't fail the webhook if logging fails
-        logger.error('Failed to log failed webhook request:', logError);
+        logger.error('Failed to log failed webhook request', { error: logError });
       }
       
       return {
@@ -1627,7 +1601,7 @@ export class TriggerService {
 
 
     } catch (error) {
-      logger.error(`Error handling schedule trigger ${trigger.id}:`, error);
+      logger.error(`Error handling schedule trigger ${trigger.id}`, { error });
     }
   }
 
@@ -1635,7 +1609,6 @@ export class TriggerService {
     trigger: TriggerDefinition
   ): Promise<void> {
     try {
-      console.log(`📬 Polling trigger ${trigger.id} checking for new data...`);
       logger.info(`📬 Polling trigger ${trigger.id} checking for new data...`);
 
       // Fetch workflow to get nodes and userId
@@ -1702,14 +1675,10 @@ export class TriggerService {
         pollResult.data.main.length > 0;
 
       if (!hasNewData) {
-        console.log(`📭 No new data found for polling trigger ${trigger.id}`);
         logger.info(`📭 No new data found for polling trigger ${trigger.id}`);
         return;
       }
 
-      console.log(`📬 New data found! Triggering workflow for ${trigger.id}`, {
-        itemCount: pollResult.data?.main?.length || 0
-      });
       logger.info(`📬 New data found! Triggering workflow for ${trigger.id}`, {
         itemCount: pollResult.data?.main?.length || 0
       });
@@ -1784,7 +1753,7 @@ export class TriggerService {
       });
 
     } catch (error) {
-      logger.error(`Error handling polling trigger ${trigger.id}:`, error);
+      logger.error(`Error handling polling trigger ${trigger.id}`, { error });
     }
   }
 
@@ -1893,7 +1862,7 @@ export class TriggerService {
       if (error instanceof AppError) {
         return { success: false, error: error.message };
       }
-      logger.error(`Error handling manual trigger:`, error);
+      logger.error(`Error handling manual trigger ${workflowId}`, { error });
       return { success: false, error: "Internal server error" };
     }
   }
@@ -2066,7 +2035,7 @@ export class TriggerService {
 
       return (ipNum & mask) === (rangeNum & mask);
     } catch (error) {
-      logger.error(`Invalid CIDR notation: ${cidr}`, error);
+      logger.error(`Invalid CIDR notation: ${cidr}`, { error });
       return false;
     }
   }
@@ -2134,7 +2103,7 @@ export class TriggerService {
           // Validate credentials
           return username === expectedUsername && password === expectedPassword;
         } catch (error) {
-          logger.error("Basic auth failed: Error decoding credentials", error);
+          logger.error("Basic auth failed: Error decoding credentials", { error });
           return false;
         }
 
@@ -2229,7 +2198,7 @@ export class TriggerService {
 
       return stats;
     } catch (error) {
-      logger.error("Error getting trigger stats:", error);
+      logger.error("Error getting trigger stats:", { error });
       throw new AppError(
         "Failed to get trigger statistics",
         500,
@@ -2285,7 +2254,7 @@ export class TriggerService {
       try {
         task.stop();
       } catch (error) {
-        logger.error(`Error stopping scheduled task ${triggerId}:`, error);
+        logger.error(`Error stopping scheduled task ${triggerId}:`, { error });
       }
     }
 
@@ -2354,7 +2323,7 @@ export class TriggerService {
         createdAt: job.createdAt,
       }));
     } catch (error) {
-      logger.error('Error getting active polling triggers:', error);
+      logger.error('Error getting active polling triggers:', { error });
       throw error;
     }
   }
@@ -2401,7 +2370,7 @@ export class TriggerService {
         createdAt: job.createdAt,
       }));
     } catch (error) {
-      logger.error('Error getting all active triggers:', error);
+      logger.error('Error getting all active triggers:', { error });
       throw error;
     }
   }
@@ -2444,7 +2413,7 @@ export class TriggerService {
         // This is safe because we re-activate them below if needed
       }
 
-      console.log(`🔄 Deactivating ${existingTriggers.length} existing trigger(s) for workflow ${workflowId}`);
+      logger.info(`🔄 Deactivating ${existingTriggers.length} existing trigger(s) for workflow ${workflowId}`);
       
       for (const trigger of existingTriggers) {
         await this.deactivateTrigger(trigger.id);
@@ -2476,7 +2445,7 @@ export class TriggerService {
         } triggers for workflow ${workflowId}`
       );
     } catch (error) {
-      logger.error(`Error syncing triggers for workflow ${workflowId}:`, error);
+      logger.error(`Error syncing triggers for workflow ${workflowId}:`, { error });
       throw error;
     }
   }
@@ -2510,7 +2479,7 @@ export class TriggerService {
           if (!execution) {
             // Don't reject immediately - execution might not be created yet
             // Continue polling until timeout
-            console.log(`⏳ Execution record not found yet, continuing to poll...`);
+            logger.debug(`⏳ Execution record not found yet, continuing to poll...`);
             setTimeout(checkExecution, pollInterval);
             return;
           }
@@ -2540,7 +2509,7 @@ export class TriggerService {
    */
   private async extractResponseDataFromResult(executionResult: ExecutionResult): Promise<any> {
     try {
-      console.log(`🔍 DEBUG extractResponseDataFromResult - Execution result:`, {
+      logger.debug(`🔍 DEBUG extractResponseDataFromResult - Execution result:`, {
         success: executionResult.success,
         hasData: !!executionResult.data,
         hasExecutionData: !!(executionResult.data as any)?.executionData,
@@ -2549,12 +2518,12 @@ export class TriggerService {
       // Get execution data from result
       const executionData = (executionResult.data as any)?.executionData;
       if (!executionData || !executionData.nodeResults) {
-        console.log(`⚠️  No execution data in result`);
+        logger.debug(`⚠️  No execution data in result`);
         return null;
       }
       
       const nodeResults = executionData.nodeResults;
-      console.log(`🔍 Found ${Object.keys(nodeResults).length} node results`);
+      logger.debug(`🔍 Found ${Object.keys(nodeResults).length} node results`);
       
       // Iterate through node results to find HTTP Response node
       for (const [nodeId, nodeResult] of Object.entries(nodeResults)) {
@@ -2573,7 +2542,7 @@ export class TriggerService {
             // Check for new format with _httpResponseData
             if (firstOutput._httpResponseData) {
               const responseData = firstOutput._httpResponseData;
-              console.log(`✅ Found HTTP Response node output (new format) in result`, {
+              logger.debug(`✅ Found HTTP Response node output (new format) in result`, {
                 nodeId,
                 statusCode: responseData.statusCode,
               });
@@ -2590,14 +2559,14 @@ export class TriggerService {
             if (firstOutput.json) {
               const output = firstOutput.json;
               
-              console.log(`🔍 Node ${nodeId} output:`, {
+              logger.debug(`🔍 Node ${nodeId} output:`, {
                 hasHttpResponseFlag: output._httpResponse === true,
                 outputKeys: Object.keys(output),
               });
               
               // Check if this is an HTTP Response node output (old format)
               if (output._httpResponse === true) {
-                console.log(`✅ Found HTTP Response node output (old format) in result`, {
+                logger.debug(`✅ Found HTTP Response node output (old format) in result`, {
                   nodeId,
                   statusCode: output.statusCode,
                 });
@@ -2624,7 +2593,7 @@ export class TriggerService {
           const lastOutput = lastResult.data.main[0];
           
           if (lastOutput && lastOutput.json) {
-            console.log(`ℹ️  No HTTP Response node found, returning last node output`, { nodeId: lastNodeId });
+            logger.debug(`ℹ️  No HTTP Response node found, returning last node output`, { nodeId: lastNodeId });
             return {
               statusCode: 200,
               headers: { "Content-Type": "application/json" },
@@ -2635,10 +2604,10 @@ export class TriggerService {
         }
       }
       
-      console.log(`⚠️  No suitable response data found in execution result`);
+      logger.debug(`⚠️  No suitable response data found in execution result`);
       return null;
     } catch (error) {
-      logger.error("Failed to extract response data from result:", error);
+      logger.error("Failed to extract response data from result", { error });
       return null;
     }
   }
@@ -2648,7 +2617,7 @@ export class TriggerService {
    */
   private async extractResponseData(execution: any): Promise<any> {
     try {
-      console.log(`🔍 DEBUG extractResponseData - Execution status:`, execution.status);
+      logger.debug(`🔍 DEBUG extractResponseData - Execution status:`, { status: execution.status });
       
       // Fetch node executions for this execution
       const nodeExecutions = await this.db.query.nodeExecutions.findMany({

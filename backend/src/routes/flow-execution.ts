@@ -5,7 +5,7 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
 import { workflowService } from "../services/WorkflowService";
 
 const router = express.Router();

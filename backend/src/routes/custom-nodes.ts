@@ -1,8 +1,6 @@
 import { Request, Response, Router } from "express";
 import { requireAuth } from "../middleware/auth";
-import { NodeLoader } from "../services/NodeLoader";
-import { NodeMarketplace } from "../services/NodeMarketplace";
-import { NodeTemplateGenerator } from "../services/NodeTemplateGenerator";
+import { NodeLoader, NodeMarketplace, NodeTemplateGenerator } from "../services";
 import { logger } from "../utils/logger";
 
 const router = Router();

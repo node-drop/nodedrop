@@ -69,11 +69,15 @@ interface CollapsedNodeContentProps {
   showInputLabels: boolean
   showOutputLabels: boolean
   hoveredOutput: string | null
+  hoveredInput?: string | null
   onOutputMouseEnter: (output: string) => void
   onOutputMouseLeave: () => void
+  onInputMouseEnter?: (input: string) => void
+  onInputMouseLeave?: () => void
   
   // Actions
   handleOutputClick: (event: React.MouseEvent<HTMLDivElement>, outputHandle: string) => void
+  handleInputClick: (event: React.MouseEvent<HTMLDivElement>, input: string) => void
   handleServiceInputClick: (event: React.MouseEvent<HTMLDivElement>, input: string) => void
   handleDoubleClick: (e: React.MouseEvent) => void
   handleToggleExpandClick: () => void
@@ -131,9 +135,13 @@ export function CollapsedNodeContent({
   showInputLabels,
   showOutputLabels,
   hoveredOutput,
+  hoveredInput,
   onOutputMouseEnter,
   onOutputMouseLeave,
+  onInputMouseEnter,
+  onInputMouseLeave,
   handleOutputClick,
+  handleInputClick,
   handleServiceInputClick,
   handleDoubleClick,
   handleToggleExpandClick,
@@ -183,9 +191,13 @@ export function CollapsedNodeContent({
         disabled={data.disabled}
         isTrigger={isTrigger}
         hoveredOutput={hoveredOutput}
+        hoveredInput={hoveredInput}
         onOutputMouseEnter={onOutputMouseEnter}
         onOutputMouseLeave={onOutputMouseLeave}
+        onInputMouseEnter={onInputMouseEnter}
+        onInputMouseLeave={onInputMouseLeave}
         onOutputClick={handleOutputClick}
+        onInputClick={handleInputClick}
         onServiceInputClick={handleServiceInputClick}
         readOnly={isReadOnly}
         showInputLabels={showInputLabels}

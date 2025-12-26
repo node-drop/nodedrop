@@ -7,6 +7,12 @@ import { NodeSettingsConfig } from "./settings.types";
 // Re-export shared types from @nodedrop/types
 // =============================================================================
 export {
+  // Built-in node types enum
+  BuiltInNodeTypes,
+} from "@nodedrop/types";
+
+// Re-export type-only exports
+export type {
   // Node category and capability types
   NodeCategory,
   ExecutionCapability,
@@ -39,9 +45,6 @@ export {
   
   // Node registration types
   NodeRegistrationResult,
-  
-  // Built-in node types
-  BuiltInNodeTypes,
   
   // Re-export TriggerType from workflow types
   TriggerType,

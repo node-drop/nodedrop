@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MonitoringLayout } from '@/components/layouts/MonitoringLayout'
 import { executionService } from '@/services/execution'
 import type { ExecutionDetails } from '@/services/execution'
 import { Activity, AlertCircle, CheckCircle, Clock, Filter, Loader2, Monitor, Search } from 'lucide-react'
@@ -119,18 +120,17 @@ export const ExecutionsPage: React.FC = () => {
   })
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 min-h-full">
-      {/* Header */}
+    <MonitoringLayout
+      title="Executions"
+      subtitle="Monitor your workflow execution history"
+    >
+      {/* Connection Status and Monitor Toggle */}
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Executions</h1>
-          <p className="text-muted-foreground">Monitor your workflow execution history</p>
-          <div className="flex items-center space-x-2 mt-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-sm text-muted-foreground">
-              Real-time monitoring {isConnected ? 'connected' : 'disconnected'}
-            </span>
-          </div>
+        <div className="flex items-center space-x-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className="text-sm text-muted-foreground">
+            Real-time monitoring {isConnected ? 'connected' : 'disconnected'}
+          </span>
         </div>
         <button
           onClick={() => setShowMonitor(!showMonitor)}
@@ -335,6 +335,6 @@ export const ExecutionsPage: React.FC = () => {
           </div>
         </>
       )}
-    </div>
+    </MonitoringLayout>
   )
 }

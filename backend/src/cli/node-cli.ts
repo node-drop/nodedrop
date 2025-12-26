@@ -6,12 +6,7 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import prisma from "../config/database";
 import { CredentialService } from "../services/CredentialService";
-import { NodeLoader } from "../services/NodeLoader";
-import { NodeService } from "../services/NodeService";
-import {
-    NodeTemplateGenerator,
-    NodeTemplateOptions,
-} from "../services/NodeTemplateGenerator";
+import { NodeLoader, NodeService, NodeTemplateGenerator, NodeTemplateOptions } from "../services";
 
 const program = new Command();
 

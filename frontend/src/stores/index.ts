@@ -1,10 +1,10 @@
 // Zustand store exports - using named exports for better tree-shaking
-export { useAddNodeDialogStore } from "./addNodeDialog";
 export { useAuthStore } from "./auth";
 export { useCopyPasteStore } from "./copyPaste";
 export { usePlaceholderNodeStore } from "./placeholderNode";
 export { useCredentialStore } from "./credential";
 export { useCustomNodeStore } from "./customNode";
+export { useGitStore } from "./git";
 export { useNodeConfigDialogStore } from "./nodeConfigDialog";
 export { useNodeTypesStore, useNodeTypes } from "./nodeTypes";
 export { usePinnedNodesStore } from "./pinnedNodes";

@@ -14,6 +14,7 @@
  * - triggers.ts: Trigger job management
  * - webhooks.ts: Webhook request logging
  * - categories.ts: Node categories
+ * - git.ts: Git repository configurations and credentials
  */
 
 // Import all schema definitions
@@ -28,3 +29,4 @@ export * from './nodes';
 export * from './triggers';
 export * from './webhooks';
 export * from './categories';
+export * from './git';

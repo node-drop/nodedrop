@@ -4,15 +4,15 @@ import { eq, and } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { ExecutionResult } from "../types/database";
 import { logger } from "../utils/logger";
-import { ExecutionResultCache } from "./ExecutionResultCache";
-import { IExecutionService } from "./ExecutionService.factory";
+import { ExecutionResultCache } from "./execution/ExecutionResultCache";
+import { IExecutionService } from "./execution/ExecutionService.factory";
 import {
   TriggerExecutionContext,
   TriggerExecutionContextFactory,
   TriggerExecutionOptions,
   TriggerImpactAnalyzer,
   TriggerResourceManager,
-} from "./TriggerExecutionContext";
+} from "./execution/TriggerExecutionContext";
 
 export interface TriggerExecutionRequest {
   triggerId: string;

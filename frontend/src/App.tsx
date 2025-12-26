@@ -20,6 +20,7 @@ const WorkflowEditorPage = lazy(() => import('@/pages/WorkflowEditorPage').then(
 const WorkflowEditorLayout = lazy(() => import('@/components/layouts/WorkflowEditorLayout').then(m => ({ default: m.WorkflowEditorLayout })))
 const WorkspacePage = lazy(() => import('@/pages/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
 const ExecutionsPage = lazy(() => import('@/pages/ExecutionsPage').then(m => ({ default: m.ExecutionsPage })))
+const BackupPage = lazy(() => import('@/pages/BackupPage').then(m => ({ default: m.BackupPage })))
 const WebhookRequestsPage = lazy(() => import('@/pages/WebhookRequestsPage').then(m => ({ default: m.WebhookRequestsPage })))
 const CustomNodesPage = lazy(() => import('@/pages/CustomNodesPage').then(m => ({ default: m.CustomNodesPage })))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
@@ -156,6 +157,7 @@ function App() {
                     <Route index element={<Navigate to="/workflows" replace />} />
                     <Route path="workspace" element={<WorkspacePage />} />
                     <Route path="executions" element={<ExecutionsPage />} />
+                    <Route path="backup" element={<BackupPage />} />
                     <Route path="webhook-requests" element={<WebhookRequestsPage />} />
                     <Route path="custom-nodes" element={<CustomNodesPage />} />
                     <Route path="profile" element={<ProfilePage />} />

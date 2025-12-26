@@ -3,7 +3,7 @@ import { promises as fsPromises } from "fs";
 import * as os from "os";
 import * as path from "path";
 import { promisify } from "util";
-import { VM } from "vm2";
+// Using BunVMService for secure JavaScript execution (Bun-compatible)
 import {
   NodeDefinition,
   NodeInputData,
@@ -192,7 +192,7 @@ print(json.dumps(results))`,
 };
 
 /**
- * Execute JavaScript code using vm2 sandbox
+ * Execute JavaScript code using Bun VM
  */
 async function executeJavaScript(
   code: string,
@@ -200,49 +200,37 @@ async function executeJavaScript(
   timeout: number
 ): Promise<any[]> {
   try {
-    // Create a secure VM sandbox
-    const vm = new VM({
-      timeout: timeout,
-      sandbox: {
-        items: items,
-        console: {
-          log: (...args: any[]) => {
-            // Capture console.log for debugging
-            console.log("[Code Node]", ...args);
-          },
-          error: (...args: any[]) => {
-            console.error("[Code Node]", ...args);
-          },
-          warn: (...args: any[]) => {
-            console.warn("[Code Node]", ...args);
-          },
-        },
-        // Provide common utilities
-        JSON: JSON,
-        Date: Date,
-        Math: Math,
-        Object: Object,
-        Array: Array,
-        String: String,
-        Number: Number,
-        Boolean: Boolean,
-        RegExp: RegExp,
-      },
-      eval: false,
-      wasm: false,
+    // Import BunVMService
+    const { getBunVMService } = await import("../../services/execution/BunVMService");
+    const vmService = getBunVMService();
+
+    // Validate user code first (before wrapping)
+    vmService.validateCode(code);
+
+    // Create safe context
+    const context = vmService.createSafeContext({
+      items: items,
     });
 
-    // Wrap the user code to ensure it returns a value
-    const wrappedCode = `
-      (function() {
-        ${code}
-      })();
-    `;
+    // User code will be wrapped by BunVMService in an async function
+    // Just pass it through directly
+    const wrappedCode = code;
 
-    // Execute the code
-    const result = vm.run(wrappedCode);
+    // Execute the code (skip validation since we already validated)
+    const result = await vmService.execute(wrappedCode, {
+      timeout,
+      context,
+      skipValidation: true, // Already validated the user code
+    });
 
-    return result;
+    if (!result.success) {
+      throw new Error(result.error || 'Execution failed');
+    }
+
+    // Log the result for debugging
+    console.log('[Code Node] Execution result:', result.result);
+
+    return result.result;
   } catch (error) {
     throw new Error(
       `JavaScript execution failed: ${

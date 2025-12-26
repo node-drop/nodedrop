@@ -3,8 +3,8 @@ import { Request, Response, Router } from "express";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { db } from "../db/client";
 import { getCredentialService } from "../services/CredentialService.factory";
-import ExecutionHistoryService from "../services/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/ExecutionService.factory";
+import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
+import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
 import { workflowService } from "../services/WorkflowService";
 import {
     getTriggerService,

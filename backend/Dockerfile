@@ -1,5 +1,5 @@
 # Multi-stage build for production
-FROM node:22-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 # Install OpenSSL for database connections
 RUN apk add --no-cache openssl openssl-dev
@@ -7,19 +7,18 @@ RUN apk add --no-cache openssl openssl-dev
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci && npm cache clean --force
+# Install all dependencies
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
-# Build application
-RUN npm run build
+# Note: Bun runs TypeScript directly, no build needed
 
 # Production stage
-FROM node:22-alpine AS production
+FROM oven/bun:1-alpine AS production
 
 WORKDIR /app
 
@@ -27,27 +26,26 @@ WORKDIR /app
 RUN apk add --no-cache curl openssl openssl-dev
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 
 # Install all dependencies (including devDependencies for migrations)
-RUN npm ci && npm cache clean --force
+RUN bun install --frozen-lockfile
 
-# Copy built application
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
+# Copy source code (Bun runs TypeScript directly)
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/drizzle.config.ts ./
-COPY --from=builder /app/src/db ./src/db
+COPY --from=builder /app/custom-nodes ./custom-nodes
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S bunuser && \
+    adduser -S bunuser -u 1001
 
 # Create directories that need write access
 RUN mkdir -p /app/custom-nodes /app/temp/uploads /app/temp/extract /app/logs
 
 # Change ownership
-RUN chown -R nodejs:nodejs /app
-USER nodejs
+RUN chown -R bunuser:bunuser /app
+USER bunuser
 
 # Expose port
 EXPOSE 4000
@@ -57,5 +55,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
   CMD curl -f http://localhost:4000/health || exit 1
 
 # Start application with Drizzle migrations
-# Node registration happens after server starts to avoid blocking and race conditions
-CMD ["sh", "-c", "npm run db:migrate && npm start"]
+CMD ["sh", "-c", "bun run db:migrate && bun run start"]

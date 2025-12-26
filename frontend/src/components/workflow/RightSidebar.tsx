@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react'
-import { Bot, Code2, Settings, X, Sliders, PackagePlus } from 'lucide-react'
+import { Bot, Code2, Settings, X, Sliders, PackagePlus, GitBranch, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
@@ -9,6 +9,8 @@ import { CopilotPanel } from './sidebar-panels/CopilotPanel'
 import { CodePanel } from './sidebar-panels/CodePanel'
 import { WorkflowSettingsPanel } from './sidebar-panels/WorkflowSettingsPanel'
 import { CreateCustomNodePanel } from './sidebar-panels/CreateCustomNodePanel'
+import { GitPanel } from './sidebar-panels/GitPanel'
+import { ExecutionsPanel } from './sidebar-panels/ExecutionsPanel'
 
 interface RightSidebarProps {
   selectedNodes: { id: string }[]
@@ -77,51 +79,64 @@ export const RightSidebar = memo(function RightSidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background border-l">
-      {/* Header with tabs */}
       <div className="flex-shrink-0 flex items-center justify-between px-2 py-1 border-b">
         <Tabs value={rightSidebarTab} onValueChange={(v) => setRightSidebarTab(v as any)} className="flex-1">
           <TabsList className="h-8 bg-transparent p-0 gap-1">
-            <TabsTrigger 
-              value="settings" 
+            <TabsTrigger
+              value="settings"
               className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
               title="Quick Settings"
             >
               <Settings className="h-3.5 w-3.5" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="copilot" 
+            <TabsTrigger
+              value="copilot"
               className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
               title="Copilot"
             >
               <Bot className="h-3.5 w-3.5" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="code" 
+            <TabsTrigger
+              value="code"
               className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
               title="Code View"
             >
               <Code2 className="h-3.5 w-3.5" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="workflow" 
+            <TabsTrigger
+              value="workflow"
               className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
               title="Workflow Settings"
             >
               <Sliders className="h-3.5 w-3.5" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="template" 
+            <TabsTrigger
+              value="executions"
+              className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
+              title="Executions"
+            >
+              <Activity className="h-3.5 w-3.5" />
+            </TabsTrigger>
+            <TabsTrigger
+              value="template"
               className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
               title="Create Custom Node"
               disabled={selectedNodes.length === 0}
             >
               <PackagePlus className="h-3.5 w-3.5" />
             </TabsTrigger>
+            <TabsTrigger
+              value="git"
+              className="h-7 px-2 data-[state=active]:bg-muted rounded-md"
+              title="Git Version Control"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+            </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="h-7 w-7 flex-shrink-0"
           onClick={closeRightSidebar}
         >
@@ -132,7 +147,7 @@ export const RightSidebar = memo(function RightSidebar({
       {/* Tab content - must be flex-1 with min-h-0 to allow proper scrolling */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightSidebarTab === 'settings' && (
-          <QuickSettingsPanel 
+          <QuickSettingsPanel
             node={selectedNode}
             nodeType={selectedNodeType}
             readOnly={readOnly}
@@ -142,22 +157,33 @@ export const RightSidebar = memo(function RightSidebar({
           <CopilotPanel />
         )}
         {rightSidebarTab === 'code' && (
-          <CodePanel 
+          <CodePanel
             selectedNodes={selectedNodes}
             readOnly={readOnly}
           />
         )}
         {rightSidebarTab === 'workflow' && (
-          <WorkflowSettingsPanel 
+          <WorkflowSettingsPanel
             readOnly={readOnly}
           />
         )}
+        {rightSidebarTab === 'executions' && (
+          <ExecutionsPanel
+            workflowId={workflow?.id}
+          />
+        )}
         {rightSidebarTab === 'template' && (
-          <CreateCustomNodePanel 
+          <CreateCustomNodePanel
             nodes={selectedNodesData}
             connections={selectedConnections}
             onCreateCustomNode={handleCreateCustomNode}
             onClose={closeRightSidebar}
+          />
+        )}
+        {rightSidebarTab === 'git' && (
+          <GitPanel
+            workflowId={workflow?.id}
+            readOnly={readOnly}
           />
         )}
       </div>

@@ -1,0 +1,35 @@
+{
+  "name": "@nodedrop/config",
+  "version": "1.0.0",
+  "description": "Shared TypeScript and linting configurations for NodeDrop",
+  "type": "module",
+  "files": [
+    "*.json",
+    "*.js"
+  ],
+  "keywords": [
+    "nodedrop",
+    "config",
+    "typescript",
+    "eslint",
+    "prettier"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "prettier": "^3.2.5",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0",
+    "prettier": ">=3.0.0",
+    "typescript": ">=5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

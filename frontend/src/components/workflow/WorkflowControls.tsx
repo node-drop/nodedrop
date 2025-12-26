@@ -393,6 +393,66 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
     }
     
     try {
+      // Check auto-save preferences and save before execution if enabled
+      const { userService } = await import('@/services/user')
+      const preferences = await userService.getPreferences()
+      
+      if (preferences.autoSave?.saveOnExecute && preferences.autoSave?.enabled) {
+        const { isDirty, isTitleDirty } = useWorkflowStore.getState()
+        
+        if (isDirty || isTitleDirty) {
+          console.log('[WorkflowControls] Saving before execution...')
+          
+          // Import workflowService directly instead of using the hook
+          const { workflowService } = await import('@/services')
+          const { setWorkflow, setDirty, saveTitle } = useWorkflowStore.getState()
+          const { user } = await import('@/stores').then(m => m.useAuthStore.getState())
+          
+          if (workflow && user) {
+            try {
+              // Save title changes first if needed
+              if (isTitleDirty) {
+                saveTitle()
+              }
+
+              // Build workflow data
+              const { extractTriggersFromNodes } = await import('@nodedrop/utils')
+              const { useNodeTypes } = await import('@/stores')
+              const activeNodeTypes = useNodeTypes().activeNodeTypes
+              
+              const triggers = extractTriggersFromNodes(workflow.nodes, activeNodeTypes)
+              const workflowData = {
+                name: workflow.name,
+                description: workflow.description,
+                nodes: workflow.nodes,
+                connections: workflow.connections,
+                triggers: triggers,
+                settings: workflow.settings,
+                active: workflow.active,
+                category: workflow.category || undefined,
+                tags: workflow.tags,
+                teamId: workflow.teamId !== undefined && workflow.teamId !== null ? workflow.teamId : undefined,
+              }
+
+              const isNewWorkflow = workflow.id === 'new' || !workflow.id
+              
+              // Save workflow
+              const savedWorkflow = isNewWorkflow
+                ? await workflowService.createWorkflow(workflowData)
+                : await workflowService.updateWorkflow(workflow.id, workflowData)
+
+              setWorkflow(savedWorkflow)
+              setDirty(false)
+              
+              console.log('[WorkflowControls] Saved successfully before execution')
+            } catch (error) {
+              console.error('[WorkflowControls] Failed to save before execution:', error)
+              // Continue with execution anyway
+            }
+          }
+        }
+      }
+      
       // Execute the workflow using the workflow store's executeNode method
       const { executeNode } = useWorkflowStore.getState()
       await executeNode(triggerNodeId || workflow.nodes.find(n => 

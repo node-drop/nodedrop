@@ -3,7 +3,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Database, Bug, Tag, X, FileText } from 'lucide-react'
 import { WorkflowAutocomplete } from '../node-config/custom-fields/WorkflowAutocomplete'
 import { useWorkflowStore } from '@/stores'
@@ -127,142 +126,146 @@ export const WorkflowSettingsPanel = memo(function WorkflowSettingsPanel({
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-4 space-y-6">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold">Workflow Settings</h3>
-          <p className="text-xs text-muted-foreground">
-            Configure workflow behavior and metadata
-          </p>
-        </div>
-
-        {/* Save Execution Setting */}
-        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1 flex-1">
-              <Label htmlFor="sidebar-save-execution" className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                <Database className="w-3.5 h-3.5" />
-                Save Execution History
-              </Label>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Store execution data in database. Disable for high-traffic APIs to improve performance.
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-1 min-h-0 relative">
+        <div className="absolute inset-0 overflow-auto">
+          <div className="p-4 space-y-6">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold">Workflow Settings</h3>
+              <p className="text-xs text-muted-foreground">
+                Configure workflow behavior and metadata
               </p>
             </div>
-            <Switch
-              id="sidebar-save-execution"
-              checked={saveExecutionToDatabase}
-              onCheckedChange={handleSaveExecutionChange}
-              disabled={readOnly}
-              className="flex-shrink-0"
-            />
-          </div>
-        </div>
 
-        {/* Error Workflow Setting */}
-        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-xs font-medium">
-              <Bug className="w-3.5 h-3.5" />
-              Error Workflow
-            </Label>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Select a workflow to execute when this workflow fails. The error workflow will receive details about the failure.
-            </p>
-            <WorkflowAutocomplete
-              value={errorWorkflowId}
-              onChange={handleErrorWorkflowChange}
-              disabled={readOnly}
-              refreshable={false}
-            />
-          </div>
-        </div>
+            {/* Save Execution Setting */}
+            <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1 flex-1">
+                  <Label htmlFor="sidebar-save-execution" className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                    <Database className="w-3.5 h-3.5" />
+                    Save Execution History
+                  </Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Store execution data in database. Disable for high-traffic APIs to improve performance.
+                  </p>
+                </div>
+                <Switch
+                  id="sidebar-save-execution"
+                  checked={saveExecutionToDatabase}
+                  onCheckedChange={handleSaveExecutionChange}
+                  disabled={readOnly}
+                  className="flex-shrink-0"
+                />
+              </div>
+            </div>
 
-        {/* Title Field */}
-        <div className="space-y-2">
-          <Label htmlFor="sidebar-title" className="text-xs font-medium">
-            Workflow Name *
-          </Label>
-          <Input
-            id="sidebar-title"
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            placeholder="Enter workflow name"
-            disabled={readOnly}
-            className="text-xs"
-          />
-        </div>
+            {/* Error Workflow Setting */}
+            <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-xs font-medium">
+                  <Bug className="w-3.5 h-3.5" />
+                  Error Workflow
+                </Label>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Select a workflow to execute when this workflow fails. The error workflow will receive details about the failure.
+                </p>
+                <WorkflowAutocomplete
+                  value={errorWorkflowId}
+                  onChange={handleErrorWorkflowChange}
+                  disabled={readOnly}
+                  refreshable={false}
+                />
+              </div>
+            </div>
 
-        {/* Description Field */}
-        <div className="space-y-2">
-          <Label htmlFor="sidebar-description" className="flex items-center gap-2 text-xs font-medium">
-            <FileText className="w-3.5 h-3.5" />
-            Description
-          </Label>
-          <Textarea
-            id="sidebar-description"
-            value={description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            placeholder="Describe what this workflow does"
-            rows={4}
-            disabled={readOnly}
-            className="text-xs resize-none"
-          />
-        </div>
-
-        {/* Tags Field */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2 text-xs font-medium">
-            <Tag className="w-3.5 h-3.5" />
-            Tags
-          </Label>
-          
-          {/* Tag Input */}
-          {!readOnly && (
-            <div className="flex space-x-2">
+            {/* Title Field */}
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-title" className="text-xs font-medium">
+                Workflow Name *
+              </Label>
               <Input
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={handleTagKeyPress}
-                placeholder="Add a tag"
-                className="flex-1 h-8 text-xs"
+                id="sidebar-title"
+                value={title}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter workflow name"
+                disabled={readOnly}
+                className="text-xs"
               />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                disabled={!newTag.trim() || tags.includes(newTag.trim())}
-                className="px-3 h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Add
-              </button>
             </div>
-          )}
 
-          {/* Existing Tags */}
-          {tags.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-full"
-                >
-                  {tag}
-                  {!readOnly && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="ml-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
+            {/* Description Field */}
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-description" className="flex items-center gap-2 text-xs font-medium">
+                <FileText className="w-3.5 h-3.5" />
+                Description
+              </Label>
+              <Textarea
+                id="sidebar-description"
+                value={description}
+                onChange={(e) => handleDescriptionChange(e.target.value)}
+                placeholder="Describe what this workflow does"
+                rows={4}
+                disabled={readOnly}
+                className="text-xs resize-none"
+              />
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">No tags added yet</p>
-          )}
+
+            {/* Tags Field */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-xs font-medium">
+                <Tag className="w-3.5 h-3.5" />
+                Tags
+              </Label>
+              
+              {/* Tag Input */}
+              {!readOnly && (
+                <div className="flex space-x-2">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={handleTagKeyPress}
+                    placeholder="Add a tag"
+                    className="flex-1 h-8 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    disabled={!newTag.trim() || tags.includes(newTag.trim())}
+                    className="px-3 h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
+              {/* Existing Tags */}
+              {tags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-full"
+                    >
+                      {tag}
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No tags added yet</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </ScrollArea>
+    </div>
   )
 })

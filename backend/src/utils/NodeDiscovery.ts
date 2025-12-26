@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { NodeDefinition } from "../types/node.types";
+import { logger } from "./logger";
 
 export interface NodeInfo {
   name: string;
@@ -62,7 +63,7 @@ export class NodeDiscovery {
         }
       }
     } catch (error) {
-      console.error("Error discovering node directories:", error);
+      logger.error("Error discovering node directories", { error });
     }
 
     return directories;
@@ -113,7 +114,7 @@ export class NodeDiscovery {
           }
         }
       } catch (error) {
-        console.warn(`Failed to load node from directory ${dirName}:`, error);
+        logger.warn(`Failed to load node from directory ${dirName}`, { error });
       }
     }
 
@@ -177,7 +178,7 @@ export class NodeDiscovery {
         }
       }
     } catch (error) {
-      console.error(`Error loading node from ${dirPath}:`, error);
+      logger.error(`Error loading node from ${dirPath}`, { error });
     }
 
     return null;
@@ -294,19 +295,19 @@ export class NodeDiscovery {
                 }
               }
             } catch (error) {
-              console.warn(`Failed to load node from ${packageDir.name}/${path.basename(nodeFile)}`);
+              logger.warn(`Failed to load node from ${packageDir.name}/${path.basename(nodeFile)}`);
             }
           }
         } catch (error) {
-          console.warn(`Failed to load custom node package ${packageDir.name}`);
+          logger.warn(`Failed to load custom node package ${packageDir.name}`);
         }
       }
     } catch (error) {
-      console.warn("Failed to load custom nodes:", error);
+      logger.warn("Failed to load custom nodes", { error });
     }
 
     if (nodeInfos.length > 0) {
-      console.log(`✅ Loaded ${nodeInfos.length} custom nodes`);
+      logger.info(`✅ Loaded ${nodeInfos.length} custom nodes`);
     }
     return nodeInfos;
   }
@@ -356,7 +357,7 @@ export class NodeDiscovery {
       const nodeModule = require(filePath);
       return nodeModule;
     } catch (error) {
-      console.warn(`Failed to require node file ${filePath}:`, error);
+      logger.warn(`Failed to require node file ${filePath}`, { error });
       
       // Try with dynamic import as fallback for ES modules
       try {
@@ -364,7 +365,7 @@ export class NodeDiscovery {
         const nodeModule = await import(fileUrl + `?t=${Date.now()}`); // Add timestamp to bypass cache
         return nodeModule;
       } catch (importError) {
-        console.warn(`Failed to import node file ${filePath}:`, importError);
+        logger.warn(`Failed to import node file ${filePath}`, { error: importError });
         return null;
       }
     }

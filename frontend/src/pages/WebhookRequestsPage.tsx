@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { MonitoringLayout } from '@/components/layouts/MonitoringLayout'
 import { webhookService } from '@/services/webhook'
 import type { WebhookRequestLog } from '@/types/webhook'
 import { 
@@ -143,16 +144,10 @@ export const WebhookRequestsPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 min-h-full">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center space-x-3 mb-2">
-          <Activity className="w-8 h-8 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Request Logs</h1>
-        </div>
-        <p className="text-muted-foreground">Monitor all incoming webhook, form, and chat requests</p>
-      </div>
-
+    <MonitoringLayout
+      title="Request Logs"
+      subtitle="Monitor all incoming webhook, form, and chat requests"
+    >
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card className="p-4">
@@ -386,6 +381,6 @@ export const WebhookRequestsPage: React.FC = () => {
           </div>
         </>
       )}
-    </div>
+    </MonitoringLayout>
   )
 }

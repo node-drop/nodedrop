@@ -22,6 +22,11 @@ export function useEnvironmentSwitcher(workflowId: string) {
     async (environment: EnvironmentType) => {
       selectEnvironment(environment);
 
+      // Also update the Git store's active environment
+      const { useGitStore } = await import("@/stores/git");
+      const { setActiveEnvironment } = useGitStore.getState();
+      setActiveEnvironment(environment);
+
       if (!workflowId) return;
 
       try {
@@ -62,12 +67,17 @@ export function useEnvironmentSwitcher(workflowId: string) {
    * Reloads the main workflow from the server
    */
   const exitEnvironmentView = useCallback(async () => {
-    // Clear the selected environment
-    selectEnvironment(null as any);
-
     if (!workflowId) return;
 
     try {
+      // Clear the selected environment FIRST
+      selectEnvironment(null);
+
+      // Also clear the Git store's active environment
+      const { useGitStore } = await import("@/stores/git");
+      const { setActiveEnvironment } = useGitStore.getState();
+      setActiveEnvironment(null);
+
       const { setWorkflow } = await import("@/stores/workflow").then((m) => ({
         setWorkflow: m.useWorkflowStore.getState().setWorkflow,
       }));

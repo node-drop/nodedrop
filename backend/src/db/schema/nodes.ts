@@ -17,7 +17,7 @@ import { workspaces } from './workspace';
  * Each node type defines inputs, outputs, properties, and credential requirements
  */
 export const nodeTypes = pgTable(
-  'node_types',
+  'nodes',
   {
     id: text('id').primaryKey().default(sql`cuid()`),
     
@@ -65,11 +65,11 @@ export const nodeTypes = pgTable(
     updatedAt: timestamp('updated_at').defaultNow(),
   },
   (table) => ({
-    identifierUnique: uniqueIndex('node_types_identifier_unique').on(
+    identifierUnique: uniqueIndex('nodes_identifier_unique').on(
       table.identifier
     ),
-    workspaceIdIdx: index('node_types_workspace_id_idx').on(table.workspaceId),
-    isCoreIdx: index('node_types_is_core_idx').on(table.isCore),
+    workspaceIdIdx: index('nodes_workspace_id_idx').on(table.workspaceId),
+    isCoreIdx: index('nodes_is_core_idx').on(table.isCore),
   })
 );
 

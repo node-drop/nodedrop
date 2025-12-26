@@ -20,16 +20,12 @@ import {
     useSelectedNodes,
     useWorkflowOperations,
 } from '@/hooks/workflow'
-import { useAddNodeDialogStore, useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
+import { useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
 import { useNodeTypes } from '@/stores/nodeTypes'
-import { templateService } from '@/services'
 import { NodeType } from '@/types'
-import { useToast } from '@/hooks/useToast'
-import { AddNodeCommandDialog } from './AddNodeCommandDialog'
 import { RightSidebar } from './RightSidebar'
 
 import { ChatDialog } from './ChatDialog'
-import { CreateTemplateDialog } from './CreateTemplateDialog'
 import { TemplateVariableDialog } from './TemplateVariableDialog'
 import { CustomNode } from './CustomNode'
 import { ExecutionPanel } from './ExecutionPanel'
@@ -64,16 +60,12 @@ export function WorkflowEditor({
     const redo = useWorkflowStore(state => state.redo)
     const closeNodeProperties = useWorkflowStore(state => state.closeNodeProperties)
     const closeChatDialog = useWorkflowStore(state => state.closeChatDialog)
-    const showTemplateDialog = useWorkflowStore(state => state.showTemplateDialog)
-    const closeTemplateDialog = useWorkflowStore(state => state.closeTemplateDialog)
     const showTemplateVariableDialog = useWorkflowStore(state => state.showTemplateVariableDialog)
     const templateVariableDialogData = useWorkflowStore(state => state.templateVariableDialogData)
     const closeTemplateVariableDialog = useWorkflowStore(state => state.closeTemplateVariableDialog)
 
-    const { showSuccess, showError } = useToast()
-
     // Get dynamic node types from store to include newly uploaded nodes
-    const { activeNodeTypes: storeNodeTypes, refetchNodeTypes } = useNodeTypes()
+    const { activeNodeTypes: storeNodeTypes } = useNodeTypes()
 
     // Don't load node types on component mount - let them load lazily when needed
     // Node types will be loaded when user opens the add node dialog or nodes sidebar
@@ -89,7 +81,7 @@ export function WorkflowEditor({
             group: GroupNode as any,
             annotation: AnnotationNode as any,
             'node-selector': NodeSelectorNode as any,
-          //  'ai-agent': AIAgentNode,
+  
         }
 
         // For dynamically uploaded nodes, they all use the CustomNode component
@@ -102,9 +94,6 @@ export function WorkflowEditor({
 
         return baseNodeTypes
     }, [storeNodeTypes])
-
-    // Command dialog state (keeping for backward compatibility, may be removed later)
-    const { isOpen: showAddNodeDialog, closeDialog, position } = useAddNodeDialogStore()
 
     // Use custom hooks for better organization
     const {
@@ -217,48 +206,6 @@ export function WorkflowEditor({
             // Template expanded successfully
         })
     }, [templateVariableDialogData])
-
-    // Handle template creation
-    const handleCreateTemplate = useCallback(async (data: {
-        name: string
-        displayName: string
-        description: string
-        icon?: string
-        color?: string
-        group?: string[]
-    }) => {
-        if (!workflow || selectedNodes.length === 0) return
-
-        // Include child nodes if a group is selected
-        const selectedGroupIds = selectedNodes
-            .filter((node) => node.type === "group")
-            .map((node) => node.id)
-
-        const childNodeIds = workflow.nodes
-            .filter((node) => node.parentId && selectedGroupIds.includes(node.parentId))
-            .map((node) => node.id)
-
-        const allNodeIds = [...selectedNodes.map(n => n.id), ...childNodeIds]
-        const selectedNodeIds = new Set(allNodeIds)
-
-        const templateNodes = workflow.nodes.filter(node => selectedNodeIds.has(node.id))
-        const templateConnections = workflow.connections.filter(conn =>
-            selectedNodeIds.has(conn.sourceNodeId) && selectedNodeIds.has(conn.targetNodeId)
-        )
-
-        await templateService.createTemplate({
-            ...data,
-            nodes: templateNodes,
-            connections: templateConnections,
-        })
-
-        showSuccess('Template created', {
-            message: `Template "${data.displayName}" has been created successfully.`,
-        })
-
-        // Reload node types to include the new template
-        await refetchNodeTypes()
-    }, [workflow, selectedNodes, showSuccess, showError, refetchNodeTypes])
 
     // Memoize add node handler - create NodeSelectorNode at viewport center
     const handleAddNode = useCallback(() => {
@@ -591,31 +538,6 @@ export function WorkflowEditor({
                     nodeName={chatNodeName}
                     isOpen={showChatDialog}
                     onClose={closeChatDialog}
-                />
-            )}
-
-
-
-            {/* Add Node Command Dialog - Hidden in read-only mode */}
-            {!readOnly && (
-                <AddNodeCommandDialog
-                    open={showAddNodeDialog}
-                    onOpenChange={closeDialog}
-                    position={position}
-                />
-            )}
-
-            {/* Create Template Dialog */}
-            {workflow && selectedNodes.length > 0 && (
-                <CreateTemplateDialog
-                    open={showTemplateDialog}
-                    onOpenChange={closeTemplateDialog}
-                    nodes={workflow.nodes.filter(n => selectedNodes.some(sn => sn.id === n.id))}
-                    connections={workflow.connections.filter(conn =>
-                        selectedNodes.some(n => n.id === conn.sourceNodeId) &&
-                        selectedNodes.some(n => n.id === conn.targetNodeId)
-                    )}
-                    onCreateTemplate={handleCreateTemplate}
                 />
             )}
 

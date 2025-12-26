@@ -2,9 +2,9 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
 import { useSelectedNodes } from '@/hooks/workflow'
-import { useReactFlowUIStore, useWorkflowStore } from '@/stores'
+import { useReactFlowUIStore } from '@/stores'
 import { ExecutionState } from '@/types'
-import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight, Activity, GitBranch } from 'lucide-react'
 
 interface ExecutionPanelHeaderProps {
   executionState: ExecutionState
@@ -18,8 +18,7 @@ export function ExecutionPanelHeader({
   onToggle
 }: ExecutionPanelHeaderProps) {
   const { validateAndShowResult } = useWorkflowOperations()
-  const { showRightSidebar, toggleRightSidebar } = useReactFlowUIStore()
-  const { openTemplateDialog } = useWorkflowStore()
+  const { showRightSidebar, toggleRightSidebar, openRightSidebar } = useReactFlowUIStore()
   
   // Get selected nodes count
   const { selectedNodesCount, hasSelectedNodes } = useSelectedNodes()
@@ -55,6 +54,36 @@ export function ExecutionPanelHeader({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              onClick={() => openRightSidebar('executions')}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <Activity className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View execution history</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => openRightSidebar('git')}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <GitBranch className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Git version control</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
               onClick={validateAndShowResult}
               variant="ghost"
               size="sm"
@@ -70,7 +99,7 @@ export function ExecutionPanelHeader({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              onClick={openTemplateDialog}
+              onClick={() => openRightSidebar('template')}
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0"

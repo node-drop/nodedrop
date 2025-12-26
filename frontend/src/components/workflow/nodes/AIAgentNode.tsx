@@ -25,6 +25,7 @@ export const AIAgentNode = memo(function AIAgentNode({
   data,
 }: NodeProps) {
   const [hoveredOutput, setHoveredOutput] = useState<string | null>(null)
+  const [hoveredInput, setHoveredInput] = useState<string | null>(null)
   
   const {
     handleOpenProperties,
@@ -35,6 +36,7 @@ export const AIAgentNode = memo(function AIAgentNode({
     handleUngroup,
     handleGroup,
     handleOutputClick,
+    handleInputClick,
     handleToggleDisabled,
     handleCopyFromContext,
     handleCutFromContext,
@@ -85,9 +87,13 @@ export const AIAgentNode = memo(function AIAgentNode({
               disabled={nodeData.disabled}
               isTrigger={isTrigger}
               hoveredOutput={hoveredOutput}
+              hoveredInput={hoveredInput}
               onOutputMouseEnter={setHoveredOutput}
               onOutputMouseLeave={() => setHoveredOutput(null)}
+              onInputMouseEnter={setHoveredInput}
+              onInputMouseLeave={() => setHoveredInput(null)}
               onOutputClick={handleOutputClick}
+              onInputClick={handleInputClick}
               readOnly={false}
               showInputLabels={false}
               showOutputLabels={false}

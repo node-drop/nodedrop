@@ -199,7 +199,7 @@ export function EnvironmentSelector({
                   {summary.active && (
                     <>
                       <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">Active</span>
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">Published</span>
                     </>
                   )}
                 </div>

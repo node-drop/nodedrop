@@ -10,6 +10,9 @@ import { db } from "../db/client";
 import { sessions } from "../db/schema/auth";
 import { workflows } from "../db/schema/workflows";
 import { eq } from "drizzle-orm";
+import { EventBufferService } from "./EventBufferService";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 
 export interface AuthenticatedSocket extends Socket {
   userId: string;
@@ -32,20 +35,57 @@ export interface ExecutionLogEntry {
   timestamp: Date;
 }
 
+export interface SocketServiceConfig {
+  redisUrl?: string;
+  redisPassword?: string;
+  enableRedisAdapter?: boolean;
+  bufferRetentionMs?: number;
+  maxBufferedExecutions?: number;
+  maxEventsPerExecution?: number;
+}
+
+export interface AdapterStatus {
+  enabled: boolean;
+  connected: boolean;
+  error?: string;
+}
+
 export class SocketService {
   private io: SocketIOServer;
-  private authenticatedSockets: Map<string, AuthenticatedSocket> = new Map();
 
-  // Event buffering for late subscribers
+  // Event buffering for late subscribers (deprecated - will be removed)
   private executionEventBuffer: Map<string, ExecutionEventData[]> = new Map();
   private bufferRetentionMs = 60000; // Keep events for 60 seconds (increased for production latency)
   private bufferCleanupInterval: NodeJS.Timeout;
   
   // Memory leak prevention limits
-  private readonly MAX_BUFFERED_EXECUTIONS = 100; // Limit total executions buffered
-  private readonly MAX_EVENTS_PER_EXECUTION = 20; // Reduced from 50 to prevent memory issues
+  private MAX_BUFFERED_EXECUTIONS: number;
+  private MAX_EVENTS_PER_EXECUTION: number;
 
-  constructor(httpServer: HTTPServer) {
+  // Redis adapter for horizontal scaling
+  private redisAdapter?: any;
+  private redisPubClient?: any;
+  private redisSubClient?: any;
+  private adapterEnabled: boolean = false;
+  private adapterError?: string;
+  private eventBufferService?: EventBufferService;
+
+  constructor(httpServer: HTTPServer, config?: SocketServiceConfig) {
+    // Read configuration from environment variables or config parameter
+    const redisUrl = config?.redisUrl || process.env.REDIS_URL || "redis://localhost:6379";
+    const enableAdapter = config?.enableRedisAdapter ?? 
+      (process.env.ENABLE_SOCKET_REDIS_ADAPTER === "true");
+    const bufferRetentionMs = config?.bufferRetentionMs ?? 
+      parseInt(process.env.SOCKET_BUFFER_RETENTION_MS || "60000", 10);
+    const maxBufferedExecutions = config?.maxBufferedExecutions ?? 
+      parseInt(process.env.SOCKET_MAX_BUFFERED_EXECUTIONS || "100", 10);
+    const maxEventsPerExecution = config?.maxEventsPerExecution ?? 
+      parseInt(process.env.SOCKET_MAX_EVENTS_PER_EXECUTION || "20", 10);
+
+    this.bufferRetentionMs = bufferRetentionMs;
+    this.MAX_BUFFERED_EXECUTIONS = maxBufferedExecutions;
+    this.MAX_EVENTS_PER_EXECUTION = maxEventsPerExecution;
+
     this.io = new SocketIOServer(httpServer, {
       cors: {
         origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -60,6 +100,24 @@ export class SocketService {
       maxHttpBufferSize: 1e6,    // 1MB - max buffer size
     });
 
+    // Initialize Redis adapter if enabled
+    if (enableAdapter) {
+      this.initializeRedisAdapter(redisUrl, config?.redisPassword).catch((error) => {
+        logger.warn(
+          "Redis adapter unavailable, running in single-server mode",
+          error
+        );
+        // Continue without adapter - graceful degradation
+      });
+    }
+
+    // Initialize EventBufferService
+    this.eventBufferService = new EventBufferService({
+      bufferRetentionMs,
+      maxBufferedExecutions,
+      maxEventsPerExecution,
+    });
+
     this.setupAuthentication();
     this.setupConnectionHandlers();
 
@@ -67,6 +125,80 @@ export class SocketService {
     this.bufferCleanupInterval = setInterval(() => {
       this.cleanupEventBuffer();
     }, 5000); // Clean up every 5 seconds
+  }
+
+  /**
+   * Initialize Redis adapter for Socket.IO
+   * Enables horizontal scaling across multiple server instances
+   */
+  private async initializeRedisAdapter(
+    redisUrl: string,
+    redisPassword?: string
+  ): Promise<void> {
+    try {
+      logger.info("Initializing Socket.IO Redis adapter...", { redisUrl });
+
+      // Create separate Redis clients for pub and sub
+      // Socket.IO adapter requires separate clients for publishing and subscribing
+      this.redisPubClient = createClient({
+        url: redisUrl,
+        password: redisPassword,
+      });
+
+      this.redisSubClient = this.redisPubClient.duplicate();
+
+      // Set up error handlers before connecting
+      this.redisPubClient.on("error", (err: Error) => {
+        logger.error("Redis pub client error:", err);
+        this.adapterError = err.message;
+      });
+
+      this.redisSubClient.on("error", (err: Error) => {
+        logger.error("Redis sub client error:", err);
+        this.adapterError = err.message;
+      });
+
+      // Connect both clients
+      await Promise.all([
+        this.redisPubClient.connect(),
+        this.redisSubClient.connect(),
+      ]);
+
+      // Create and attach the adapter
+      this.redisAdapter = createAdapter(this.redisPubClient, this.redisSubClient);
+      this.io.adapter(this.redisAdapter);
+
+      this.adapterEnabled = true;
+      this.adapterError = undefined;
+
+      logger.info("Socket.IO Redis adapter initialized successfully");
+    } catch (error: any) {
+      logger.error("Failed to initialize Redis adapter:", error);
+      this.adapterError = error.message;
+      this.adapterEnabled = false;
+      
+      // Clean up clients if initialization failed
+      if (this.redisPubClient) {
+        try {
+          await this.redisPubClient.quit();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        this.redisPubClient = undefined;
+      }
+      
+      if (this.redisSubClient) {
+        try {
+          await this.redisSubClient.quit();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        this.redisSubClient = undefined;
+      }
+      
+      // Re-throw to be caught by graceful degradation handler
+      throw error;
+    }
   }
 
   /**
@@ -133,9 +265,6 @@ export class SocketService {
       const authSocket = socket as AuthenticatedSocket;
       // User connected silently
 
-      // Store authenticated socket
-      this.authenticatedSockets.set(authSocket.userId, authSocket);
-
       // Join user-specific room for targeted broadcasts
       socket.join(`user:${authSocket.userId}`);
 
@@ -177,7 +306,6 @@ export class SocketService {
       socket.on("disconnect", () => {
         // User disconnected silently
         logger.info(`User ${authSocket.userId} disconnected from Socket.io`);
-        this.authenticatedSockets.delete(authSocket.userId);
       });
 
       // Send connection confirmation
@@ -192,11 +320,11 @@ export class SocketService {
   /**
    * Handle execution subscription
    */
-  private handleExecutionSubscription(
+  private async handleExecutionSubscription(
     socket: AuthenticatedSocket,
     executionId: string,
     callback?: Function
-  ): void {
+  ): Promise<void> {
     logger.debug(
       `User ${socket.userId} subscribing to execution ${executionId}`
     );
@@ -206,14 +334,16 @@ export class SocketService {
       socket.join(`execution:${executionId}`);
 
       // Send any buffered events for this execution to the new subscriber
-      const bufferedEvents = this.executionEventBuffer.get(executionId);
-      if (bufferedEvents && bufferedEvents.length > 0) {
-        logger.info(
-          `Sending ${bufferedEvents.length} buffered events for execution ${executionId} to late subscriber`
-        );
-        bufferedEvents.forEach((eventData) => {
-          socket.emit("execution-event", eventData);
-        });
+      if (this.eventBufferService) {
+        const bufferedEvents = await this.eventBufferService.getBufferedEvents(executionId);
+        if (bufferedEvents.length > 0) {
+          logger.info(
+            `Sending ${bufferedEvents.length} buffered events for execution ${executionId} to late subscriber`
+          );
+          bufferedEvents.forEach((eventData) => {
+            socket.emit("execution-event", eventData);
+          });
+        }
       }
 
       // Confirm subscription with callback if provided
@@ -534,7 +664,7 @@ export class SocketService {
    * Get connected users count
    */
   public getConnectedUsersCount(): number {
-    return this.authenticatedSockets.size;
+    return this.io.sockets.sockets.size;
   }
 
   /**
@@ -548,7 +678,7 @@ export class SocketService {
   /**
    * Cleanup execution room to prevent memory leaks
    */
-  public cleanupExecutionRoom(executionId: string): void {
+  public async cleanupExecutionRoom(executionId: string): Promise<void> {
     const room = `execution:${executionId}`;
     
     // Get all sockets in the room
@@ -567,8 +697,8 @@ export class SocketService {
     }
     
     // Also cleanup the event buffer for this execution
-    if (this.executionEventBuffer.has(executionId)) {
-      this.executionEventBuffer.delete(executionId);
+    if (this.eventBufferService) {
+      await this.eventBufferService.deleteBuffer(executionId);
       logger.debug(`Cleaned up event buffer for execution: ${executionId}`);
     }
   }
@@ -614,6 +744,33 @@ export class SocketService {
   }
 
   /**
+   * Get Redis adapter status
+   * Returns connection state and any errors
+   */
+  public getAdapterStatus(): AdapterStatus {
+    return {
+      enabled: this.adapterEnabled,
+      connected: this.isRedisConnected(),
+      error: this.adapterError,
+    };
+  }
+
+  /**
+   * Check if Redis adapter is connected
+   */
+  public isRedisConnected(): boolean {
+    if (!this.adapterEnabled) {
+      return false;
+    }
+
+    // Check if both pub and sub clients are connected
+    const pubConnected = this.redisPubClient?.isOpen ?? false;
+    const subConnected = this.redisSubClient?.isOpen ?? false;
+
+    return pubConnected && subConnected;
+  }
+
+  /**
    * Shutdown the socket service
    */
   public async shutdown(): Promise<void> {
@@ -627,6 +784,25 @@ export class SocketService {
     // Disconnect all clients
     this.io.disconnectSockets();
 
+    // Close Redis clients if they exist
+    if (this.redisPubClient) {
+      try {
+        await this.redisPubClient.quit();
+        logger.info("Redis pub client closed");
+      } catch (error) {
+        logger.error("Error closing Redis pub client:", error);
+      }
+    }
+
+    if (this.redisSubClient) {
+      try {
+        await this.redisSubClient.quit();
+        logger.info("Redis sub client closed");
+      } catch (error) {
+        logger.error("Error closing Redis sub client:", error);
+      }
+    }
+
     // Close the server
     this.io.close();
 
@@ -636,61 +812,21 @@ export class SocketService {
   /**
    * Buffer execution event for late subscribers
    */
-  private bufferExecutionEvent(
+  private async bufferExecutionEvent(
     executionId: string,
     eventData: ExecutionEventData
-  ): void {
-    // Limit total number of buffered executions to prevent memory leaks
-    if (this.executionEventBuffer.size >= this.MAX_BUFFERED_EXECUTIONS) {
-      // Remove oldest execution buffer
-      const oldestKey = this.executionEventBuffer.keys().next().value;
-      if (oldestKey) {
-        this.executionEventBuffer.delete(oldestKey);
-        logger.warn(`Event buffer limit reached (${this.MAX_BUFFERED_EXECUTIONS}), removed oldest execution: ${oldestKey}`);
-      }
+  ): Promise<void> {
+    if (this.eventBufferService) {
+      await this.eventBufferService.bufferEvent(executionId, eventData);
     }
-
-    if (!this.executionEventBuffer.has(executionId)) {
-      this.executionEventBuffer.set(executionId, []);
-    }
-
-    const buffer = this.executionEventBuffer.get(executionId)!;
-    buffer.push(eventData);
-
-    // Limit buffer size to prevent memory issues (reduced from 50 to 20)
-    if (buffer.length > this.MAX_EVENTS_PER_EXECUTION) {
-      buffer.splice(0, buffer.length - this.MAX_EVENTS_PER_EXECUTION);
-    }
-
-    logger.debug(
-      `Buffered event for execution ${executionId}, buffer size: ${buffer.length}, total buffers: ${this.executionEventBuffer.size}`
-    );
   }
 
   /**
    * Clean up old buffered events
    */
-  private cleanupEventBuffer(): void {
-    const now = Date.now();
-
-    for (const [executionId, events] of this.executionEventBuffer.entries()) {
-      // Remove events older than retention period
-      const filteredEvents = events.filter((event) => {
-        const eventTime =
-          event.timestamp instanceof Date
-            ? event.timestamp.getTime()
-            : new Date(event.timestamp).getTime();
-        return now - eventTime < this.bufferRetentionMs;
-      });
-
-      if (filteredEvents.length === 0) {
-        // Remove empty buffers
-        this.executionEventBuffer.delete(executionId);
-        logger.debug(`Cleaned up event buffer for execution ${executionId}`);
-      } else {
-        // Update buffer with filtered events
-        this.executionEventBuffer.set(executionId, filteredEvents);
-      }
+  private async cleanupEventBuffer(): Promise<void> {
+    if (this.eventBufferService) {
+      await this.eventBufferService.cleanupExpiredBuffers();
     }
   }
 

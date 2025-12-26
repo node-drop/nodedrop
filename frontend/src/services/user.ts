@@ -15,6 +15,12 @@ export interface UserPreferences {
   };
   theme?: "light" | "dark" | "system";
   pinnedNodes?: string[]; // Array of node type identifiers
+  autoSave?: {
+    enabled?: boolean;
+    debounceMs?: number;
+    saveOnExecute?: boolean;
+    notifyOnSave?: boolean;
+  };
   // Future: language, etc.
 }
 

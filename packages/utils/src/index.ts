@@ -131,13 +131,17 @@ export {
   buildNodeIdToNameMap,
   buildNodeOutputsMap,
   buildExpressionContext,
-  // Expression resolution
-  resolvePath,
-  safeEvaluateExpression,
-  resolveValue,
-  // Expression validation
+  // Expression validation (browser-safe)
   type ExpressionValidationError,
   type ExpressionValidationResult,
   validateExpression,
   getExpressionBlocks,
 } from "./expressions";
+
+// Expression resolution (Node.js only - uses node:vm)
+// Import these only in backend/Node.js code, not in frontend
+export {
+  resolvePath,
+  safeEvaluateExpression,
+  resolveValue,
+} from "./expressions/resolver.js";

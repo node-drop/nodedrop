@@ -21,6 +21,7 @@
     "no-code"
   ],
   "workspaces": [
+    "packages/config",
     "packages/types",
     "packages/utils",
     "frontend",
@@ -30,10 +31,18 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
-    "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && bun run dev",
+    "dev:backend:npm": "npm run dev --workspace=backend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && echo 'Bun runs TypeScript directly - no build needed'",
+    "build:frontend": "cd frontend && bun run build",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && bun run start",
+    "start:frontend": "cd frontend && bun run preview",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && bun test",
+    "test:frontend": "cd frontend && bun test",
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker-compose -f docker-compose.yml up --build",
     "docker:setup": "node -e \"require('child_process').execSync(process.platform === 'win32' ? 'scripts\\\\dev.bat' : 'bash scripts/dev.sh', {stdio: 'inherit'})\"",
@@ -44,13 +53,15 @@
     "stop": "docker-compose down",
     "restart": "docker-compose restart",
     "clean": "docker-compose down -v --remove-orphans && docker system prune -f",
-    "db:reset": "docker-compose exec backend npm run db:reset",
-    "db:migrate": "docker-compose exec backend npm run db:migrate",
-    "db:seed": "docker-compose exec backend npm run db:seed",
+    "db:reset": "cd backend && bun run db:reset",
+    "db:migrate": "cd backend && bun run db:migrate",
+    "db:seed": "cd backend && bun run db:seed",
     "cli:build": "npm run build --workspace=cli",
     "cli:dev": "node scripts/nodedrop.js",
     "nodedrop": "node scripts/nodedrop.js",
-    "check-version": "node scripts/check-version.js"
+    "check-version": "node scripts/check-version.js",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
   },
   "devDependencies": {
     "@types/pg": "^8.16.0",
@@ -58,13 +69,12 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "npm": ">=9.0.0",
+    "bun": ">=1.0.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.6.0",
     "dotenv": "^17.2.3",
     "node-fetch": "^3.3.2",
-    "pg": "^8.16.3",
-    "prisma": "^5.6.0"
+    "pg": "^8.16.3"
   }
 }

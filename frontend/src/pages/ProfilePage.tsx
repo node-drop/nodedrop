@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MonitoringLayout } from '@/components/layouts/MonitoringLayout'
 import { useAuth } from '@/contexts/AuthContext'
 import { userService } from '@/services'
-import { Loader2, Save, Shield, User } from 'lucide-react'
+import { Loader2, Save, Shield } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -102,32 +103,30 @@ export function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-          <span className="text-gray-600">Loading profile...</span>
+      <MonitoringLayout
+        title="Profile"
+        subtitle="Manage your personal information and account settings"
+      >
+        <div className="flex items-center justify-center h-full">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <span className="text-muted-foreground">Loading profile...</span>
+          </div>
         </div>
-      </div>
+      </MonitoringLayout>
     )
   }
 
   return (
-    <div className="flex flex-1 flex-col h-full overflow-hidden">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <User className="h-8 w-8" />
-              Profile
-            </h1>
-            {authUser?.role && <RoleBadge role={authUser.role} />}
-          </div>
-          <p className="text-muted-foreground mt-2">
-            Manage your personal information and account settings
-          </p>
-        </div>
+    <MonitoringLayout
+      title="Profile"
+      subtitle="Manage your personal information and account settings"
+    >
+      <div className="mb-6 flex items-center gap-3">
+        {authUser?.role && <RoleBadge role={authUser.role} />}
+      </div>
 
-        <div className="space-y-6">
+      <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
@@ -220,7 +219,6 @@ export function ProfilePage() {
               </CardContent>
             </Card>
         </div>
-      </div>
-    </div>
+    </MonitoringLayout>
   )
 }

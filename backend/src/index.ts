@@ -11,6 +11,7 @@ import { createServer } from "http";
 // Import routes
 import aiMemoryRoutes from "./routes/ai-memory.routes";
 import { authRoutes } from "./routes/auth";
+import { backupRoutes } from "./routes/backup";
 import credentialRoutes from "./routes/credentials";
 import { customNodeRoutes } from "./routes/custom-nodes";
 import environmentRoutes from "./routes/environment";
@@ -20,6 +21,7 @@ import executionRecoveryRoutes from "./routes/execution-recovery";
 import executionResumeRoutes from "./routes/execution-resume";
 import { executionRoutes } from "./routes/executions";
 import flowExecutionRoutes from "./routes/flow-execution";
+import { gitRouter } from "./routes/git";
 import googleRoutes from "./routes/google";
 import { nodeTypeRoutes } from "./routes/node-types";
 import { nodeRoutes } from "./routes/nodes";
@@ -41,16 +43,19 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 // Import services
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
-import ExecutionHistoryService from "./services/ExecutionHistoryService";
-import { executionServiceDrizzle } from "./services/ExecutionService.factory";
-import { NodeLoader } from "./services/NodeLoader";
-import { NodeService } from "./services/NodeService";
-import { RealtimeExecutionEngine } from "./services/RealtimeExecutionEngine";
+import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
+import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
+import { ExecutionListenerManager } from "./services/execution/ExecutionListenerManager";
+import { ExecutionQueueService, getExecutionQueueService } from "./services/execution/ExecutionQueueService";
+import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
+import { ExecutionWorker, getExecutionWorker } from "./services/execution/ExecutionWorker";
+import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
+import { NodeLoader, NodeService } from "./services";
 import { SocketService } from "./services/SocketService";
 import { logger } from "./utils/logger";
 
 // Import database after dotenv is loaded
-import { db, checkDatabaseConnection, disconnectDatabase } from "./db/client";
+import { db, disconnectDatabase } from "./db/client";
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,7 +75,7 @@ try {
   credentialService.registerCoreCredentials();
   logger.info("✅ Core credentials registered successfully");
 } catch (error) {
-  console.error("❌ Failed to register core credentials:", error);
+  logger.error("❌ Failed to register core credentials", { error });
 }
 
 // Initialize OAuth providers (Google, Microsoft, Slack, GitHub)
@@ -79,7 +84,7 @@ try {
   initializeOAuthProviders();
   logger.info("✅ OAuth providers initialized successfully");
 } catch (error) {
-  console.error("❌ Failed to initialize OAuth providers:", error);
+  logger.error("❌ Failed to initialize OAuth providers", { error });
 }
 
 const nodeLoader = new NodeLoader(nodeService as any, credentialService as any);
@@ -93,13 +98,16 @@ const executionService = executionServiceDrizzle;
 // Initialize RealtimeExecutionEngine (for WebSocket execution)
 const realtimeExecutionEngine = new RealtimeExecutionEngine(db as any, nodeService as any);
 
+// Initialize ExecutionListenerManager (for memory leak prevention)
+const executionListenerManager = new ExecutionListenerManager(realtimeExecutionEngine);
+
 // Initialize ErrorTriggerService (for workflow failure monitoring)
 const errorTriggerService = new ErrorTriggerService(db as any);
 
 // Import WorkflowService, TriggerService singleton, and ScheduleJobManager
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
-import { workflowService } from "./services/WorkflowService";
 import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
+import { workflowService } from "./services/WorkflowService";
 
 // WorkflowService is already initialized as a singleton
 
@@ -117,16 +125,17 @@ const scheduleJobManager = new ScheduleJobManager(
 );
 
 // Connect RealtimeExecutionEngine events to SocketService
-realtimeExecutionEngine.on("execution-started", (data) => {
+// Using named functions for proper cleanup
+function handleExecutionStarted(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "started",
     timestamp: data.timestamp,
   });
-});
+}
 
-realtimeExecutionEngine.on("node-started", (data) => {
-  logger.info('🔵 [RealtimeEngine] node-started event received', {
+function handleNodeStarted(data: any) {
+  logger.debug('🔵 [RealtimeEngine] node-started event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -140,14 +149,10 @@ realtimeExecutionEngine.on("node-started", (data) => {
     data: { nodeName: data.nodeName, nodeType: data.nodeType },
     timestamp: data.timestamp,
   });
-  
-  logger.info('✅ [RealtimeEngine] node-started event broadcast', {
-    nodeId: data.nodeId,
-  });
-});
+}
 
-realtimeExecutionEngine.on("node-completed", (data) => {
-  logger.info('🟢 [RealtimeEngine] node-completed event received', {
+function handleNodeCompleted(data: any) {
+  logger.debug('🟢 [RealtimeEngine] node-completed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -165,14 +170,10 @@ realtimeExecutionEngine.on("node-completed", (data) => {
     },
     timestamp: data.timestamp,
   });
-  
-  logger.info('✅ [RealtimeEngine] node-completed event broadcast', {
-    nodeId: data.nodeId,
-  });
-});
+}
 
-realtimeExecutionEngine.on("node-failed", (data) => {
-  logger.error('🔴 [RealtimeEngine] node-failed event received', {
+function handleNodeFailed(data: any) {
+  logger.debug('🔴 [RealtimeEngine] node-failed event received', {
     executionId: data.executionId,
     nodeId: data.nodeId,
     nodeName: data.nodeName,
@@ -187,23 +188,18 @@ realtimeExecutionEngine.on("node-failed", (data) => {
     error: data.error,
     timestamp: data.timestamp,
   });
-  
-  logger.error('✅ [RealtimeEngine] node-failed event broadcast', {
-    nodeId: data.nodeId,
-    error: data.error,
-  });
-});
+}
 
-realtimeExecutionEngine.on("execution-completed", (data) => {
+function handleExecutionCompleted(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "completed",
     data: { duration: data.duration },
     timestamp: data.timestamp,
   });
-});
+}
 
-realtimeExecutionEngine.on("execution-failed", async (data) => {
+async function handleExecutionFailed(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "failed",
@@ -231,18 +227,17 @@ realtimeExecutionEngine.on("execution-failed", async (data) => {
   } catch (errorTriggerError) {
     logger.error("Failed to fire error triggers:", errorTriggerError);
   }
-});
+}
 
-realtimeExecutionEngine.on("execution-cancelled", (data) => {
+function handleExecutionCancelled(data: any) {
   socketService.broadcastExecutionEvent(data.executionId, {
     executionId: data.executionId,
     type: "cancelled",
     timestamp: data.timestamp,
   });
-});
+}
 
-// Listen for execution-log events (tool calls, service calls, etc.)
-realtimeExecutionEngine.on("execution-log", (logEntry) => {
+function handleExecutionLog(logEntry: any) {
   logger.debug('📝 [RealtimeEngine] execution-log event received', {
     executionId: logEntry.executionId,
     nodeId: logEntry.nodeId,
@@ -251,7 +246,17 @@ realtimeExecutionEngine.on("execution-log", (logEntry) => {
   });
   
   socketService.broadcastExecutionLog(logEntry.executionId, logEntry);
-});
+}
+
+// Register global event handlers (these stay for the lifetime of the app)
+realtimeExecutionEngine.on("execution-started", handleExecutionStarted);
+realtimeExecutionEngine.on("node-started", handleNodeStarted);
+realtimeExecutionEngine.on("node-completed", handleNodeCompleted);
+realtimeExecutionEngine.on("node-failed", handleNodeFailed);
+realtimeExecutionEngine.on("execution-completed", handleExecutionCompleted);
+realtimeExecutionEngine.on("execution-failed", handleExecutionFailed);
+realtimeExecutionEngine.on("execution-cancelled", handleExecutionCancelled);
+realtimeExecutionEngine.on("execution-log", handleExecutionLog);
 
 // Make services available globally for other services
 declare global {
@@ -261,10 +266,14 @@ declare global {
   var credentialService: any;
   var executionService: ExecutionService;
   var realtimeExecutionEngine: RealtimeExecutionEngine;
+  var executionListenerManager: ExecutionListenerManager;
   var errorTriggerService: ErrorTriggerService;
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
   var triggerService: any;
+  var executionEventBridge: ExecutionEventBridge;
+  var executionQueueService: ExecutionQueueService;
+  var executionWorker: ExecutionWorker;
   var db: any;
 }
 global.socketService = socketService;
@@ -273,6 +282,7 @@ global.nodeService = nodeService;
 global.credentialService = credentialService as any;
 global.executionService = executionService;
 global.realtimeExecutionEngine = realtimeExecutionEngine;
+global.executionListenerManager = executionListenerManager;
 global.errorTriggerService = errorTriggerService;
 global.workflowService = workflowService;
 global.scheduleJobManager = scheduleJobManager;
@@ -291,9 +301,9 @@ async function initializeNodeSystems() {
       try {
         await nodeService.registerDiscoveredNodes();
         const newNodeTypes = await nodeService.getNodeTypes();
-        console.log(`✅ Registered ${newNodeTypes.length} nodes`);
+        logger.info(`✅ Registered ${newNodeTypes.length} nodes`);
       } catch (registrationError) {
-        console.error("Failed to register nodes:", registrationError);
+        logger.error("Failed to register nodes", { error: registrationError });
       }
     }
 
@@ -302,9 +312,9 @@ async function initializeNodeSystems() {
     
     // Show total nodes loaded
     const totalNodes = await nodeService.getNodeTypes();
-    console.log(`✅ Loaded ${totalNodes.length} nodes`);
+    logger.info(`✅ Loaded ${totalNodes.length} nodes`);
   } catch (error) {
-    console.error("❌ Failed to initialize node systems:", error);
+    logger.error("❌ Failed to initialize node systems", { error });
     // Don't throw the error - allow the application to start
   }
 }
@@ -340,7 +350,7 @@ const corsOriginFunction = (origin: string | undefined, callback: (err: Error | 
   }
 
   // Log rejected origins for debugging
-  console.warn(`CORS: Rejected origin: ${origin}`);
+  logger.warn(`CORS: Rejected origin: ${origin}`, { origin });
   return callback(new Error('Not allowed by CORS'), false);
 };
 
@@ -383,7 +393,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  logger.http({ method: req.method, path: req.path });
   next();
 });
 
@@ -391,30 +401,120 @@ app.use((req, res, next) => {
 app.get("/health", async (req, res) => {
   try {
     const nodeTypes = await nodeService.getNodeTypes();
+    
+    // Get queue statistics if available
+    let queueStats = null;
+    let queueStatus = "not_initialized";
+    
+    if (global.executionQueueService && global.executionQueueService.isConnected()) {
+      try {
+        queueStats = await global.executionQueueService.getQueueStats();
+        queueStatus = "ok";
+      } catch (queueError) {
+        queueStatus = "error";
+        logger.error("Failed to get queue stats for health check", { error: queueError });
+      }
+    }
+
+    // Get worker status if available
+    let workerStatus = null;
+    if (global.executionWorker) {
+      workerStatus = global.executionWorker.getStatus();
+    }
+
+    // Get Redis adapter status
+    const adapterStatus = socketService.getAdapterStatus();
+
+    // Get listener manager stats
+    const listenerStats = executionListenerManager.getStats();
+
+    // Determine overall status
+    // Degraded if queue is unhealthy, adapter is enabled but disconnected, or worker is not running
+    let overallStatus = "ok";
+    if (queueStatus === "error" || (workerStatus && !workerStatus.isRunning)) {
+      overallStatus = "degraded";
+    }
+    // Check if adapter is enabled but disconnected
+    if (adapterStatus.enabled && !adapterStatus.connected) {
+      overallStatus = "degraded";
+    }
+    // Check for excessive listeners (potential memory leak)
+    if (listenerStats.totalListeners > 500) {
+      overallStatus = "degraded";
+    }
+
     res.status(200).json({
-      status: "ok",
+      status: overallStatus,
       timestamp: new Date().toISOString(),
       service: "node-drop-backend",
       version: "1.0.0",
       hot_reload: "BACKEND HOT RELOAD WORKING!",
       websocket: {
         connected_users: socketService.getConnectedUsersCount(),
+        adapter: {
+          enabled: adapterStatus.enabled,
+          connected: adapterStatus.connected,
+          ...(adapterStatus.error && { error: adapterStatus.error }),
+        },
       },
       nodes: {
         registered_count: nodeTypes.length,
         status: nodeTypes.length > 0 ? "ok" : "no_nodes_registered"
       },
+      queue: {
+        status: queueStatus,
+        stats: queueStats,
+      },
+      worker: workerStatus ? {
+        status: workerStatus.isRunning ? "running" : "stopped",
+        activeJobs: workerStatus.activeJobs,
+        processedJobs: workerStatus.processedJobs,
+        failedJobs: workerStatus.failedJobs,
+      } : null,
+      listeners: {
+        activeExecutions: listenerStats.activeExecutions,
+        totalListeners: listenerStats.totalListeners,
+        oldestListenerAge: listenerStats.oldestListenerAge,
+        status: listenerStats.totalListeners > 500 ? "high" : "ok",
+      },
     });
   } catch (error) {
+    // Even in error case, try to get adapter status
+    let adapterStatus = { enabled: false, connected: false };
+    try {
+      adapterStatus = socketService.getAdapterStatus();
+    } catch (adapterError) {
+      // Ignore adapter status errors in error handler
+    }
+
     res.status(500).json({
       status: "error",
       timestamp: new Date().toISOString(),
       service: "node-drop-backend",
       version: "1.0.0",
       error: "Failed to check node status",
+      websocket: {
+        connected_users: 0,
+        adapter: {
+          enabled: adapterStatus.enabled,
+          connected: adapterStatus.connected,
+          ...(adapterStatus.error && { error: adapterStatus.error }),
+        },
+      },
       nodes: {
         registered_count: 0,
         status: "error"
+      },
+      queue: {
+        status: "unknown",
+        stats: null,
+      },
+      worker: null,
+      listeners: {
+        activeExecutions: 0,
+        totalListeners: 0,
+        oldestListenerAge: null,
+        status: "unknown",
       },
     });
   }
@@ -484,15 +584,13 @@ app.use("/api/execution-recovery", executionRecoveryRoutes);
 app.use("/api/executions", executionResumeRoutes);
 app.use("/api", oauthGenericRoutes);
 app.use("/api/google", googleRoutes);
-app.use("/api/ai-memory", aiMemoryRoutes);
-app.use("/api", webhookLogsRoutes);
-
-// Webhook routes (public endpoints without /api prefix for easier external integration)
-// All webhook-based triggers are under /webhook for consistency
-// IMPORTANT: Register specific routes BEFORE generic webhook route
-app.use("/webhook/forms", publicFormsRoutes);
-app.use("/webhook/chats", publicChatsRoutes);
-app.use("/webhook", webhookRoutes);
+  app.use("/api/ai-memory", aiMemoryRoutes);
+  app.use("/api/backup", backupRoutes);
+  app.use("/api", webhookLogsRoutes);
+  app.use("/api/git", gitRouter);
+  app.use("/webhook/forms", publicFormsRoutes);
+  app.use("/webhook/chats", publicChatsRoutes);
+  app.use("/webhook", webhookRoutes);
 
 // Serve frontend static files (for unified Docker image)
 // This allows the backend to serve the frontend in production
@@ -538,24 +636,33 @@ app.use(errorHandler);
 
 // Start server
 httpServer.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT} - BACKEND HOT RELOAD WORKS!`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔌 Socket.io enabled for real-time updates`);
-  console.log(`🔗 API endpoints:`);
-  console.log(`   - Auth: http://localhost:${PORT}/api/auth`);
-  console.log(`   - Workflows: http://localhost:${PORT}/api/workflows`);
-  console.log(`   - Executions: http://localhost:${PORT}/api/executions`);
-  console.log(`   - Nodes: http://localhost:${PORT}/api/nodes`);
-  console.log(`   - Node Types: http://localhost:${PORT}/api/node-types`);
-  console.log(`   - Credentials: http://localhost:${PORT}/api/credentials`);
-  console.log(`   - Variables: http://localhost:${PORT}/api/variables`);
-  console.log(`   - Triggers: http://localhost:${PORT}/api/triggers`);
-  console.log(`   - Custom Nodes: http://localhost:${PORT}/api/custom-nodes`);
-  console.log(`📨 Webhook endpoint (public):`);
-  console.log(`   - http://localhost:${PORT}/webhook/{webhookId}`);
+  logger.info(`🚀 Server running on port ${PORT} - BACKEND HOT RELOAD WORKS!`);
+  logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+  logger.info(`🔌 Socket.io enabled for real-time updates`);
+  logger.info(`🔗 API endpoints:`);
+  logger.info(`   - Auth: http://localhost:${PORT}/api/auth`);
+  logger.info(`   - Workflows: http://localhost:${PORT}/api/workflows`);
+  logger.info(`   - Executions: http://localhost:${PORT}/api/executions`);
+  logger.info(`   - Nodes: http://localhost:${PORT}/api/nodes`);
+  logger.info(`   - Node Types: http://localhost:${PORT}/api/node-types`);
+  logger.info(`   - Credentials: http://localhost:${PORT}/api/credentials`);
+  logger.info(`   - Variables: http://localhost:${PORT}/api/variables`);
+  logger.info(`   - Triggers: http://localhost:${PORT}/api/triggers`);
+  logger.info(`   - Custom Nodes: http://localhost:${PORT}/api/custom-nodes`);
+  logger.info(`📨 Webhook endpoint (public):`);
+  logger.info(`   - http://localhost:${PORT}/webhook/{webhookId}`);
 
   // Initialize node systems after server starts
   await initializeNodeSystems();
+
+  // Initialize Git storage directories
+  try {
+    const { initializeGitStorage } = await import('./config/git');
+    await initializeGitStorage();
+    logger.info(`✅ Initialized Git storage directories`);
+  } catch (error) {
+    logger.error(`❌ Failed to initialize Git storage`, { error });
+  }
 
   // Initialize TriggerService singleton to load active triggers
   try {
@@ -569,26 +676,63 @@ httpServer.listen(PORT, async () => {
       credentialService as any
     );
     global.triggerService = getTriggerService();
-    console.log(`✅ Initialized triggers & webhooks`);
+    logger.info(`✅ Initialized triggers & webhooks`);
   } catch (error) {
-    console.error(`Failed to initialize TriggerService:`, error);
+    logger.error(`Failed to initialize TriggerService`, { error });
   }
 
   // Initialize ErrorTriggerService for workflow failure monitoring
   try {
     errorTriggerService.setExecutionService(executionService);
     await errorTriggerService.initialize();
-    console.log(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
+    logger.info(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
   } catch (error) {
-    console.error(`Failed to initialize ErrorTriggerService:`, error);
+    logger.error(`Failed to initialize ErrorTriggerService`, { error });
   }
 
   // Initialize ScheduleJobManager for persistent schedule jobs
   try {
     await scheduleJobManager.initialize();
-    console.log(`✅ Initialized schedule jobs`);
+    logger.info(`✅ Initialized schedule jobs`);
   } catch (error) {
-    console.error(`❌ Failed to initialize ScheduleJobManager:`, error);
+    logger.error(`❌ Failed to initialize ScheduleJobManager`, { error });
+  }
+
+  // Initialize ExecutionEventBridge for Redis Pub/Sub to WebSocket forwarding
+  try {
+    global.executionEventBridge = await createExecutionEventBridge(socketService);
+    logger.info(`✅ Initialized execution event bridge (Redis -> WebSocket)`);
+  } catch (error) {
+    logger.error(`❌ Failed to initialize ExecutionEventBridge`, { error });
+  }
+
+  // Initialize ExecutionQueueService for queue-based workflow execution
+  try {
+    global.executionQueueService = getExecutionQueueService();
+    await global.executionQueueService.initialize();
+    logger.info(`✅ Initialized execution queue service`);
+  } catch (error) {
+    logger.error(`❌ Failed to initialize ExecutionQueueService`, { error });
+    // Don't throw - allow fallback to direct execution
+  }
+
+  // Initialize ExecutionWorker for processing queued jobs
+  // Only start worker if not in API-only mode
+  const workerMode = process.env.WORKER_MODE || 'hybrid'; // hybrid | api-only | worker-only
+  
+  if (workerMode !== 'api-only') {
+    try {
+      global.executionWorker = getExecutionWorker();
+      await global.executionWorker.initialize(nodeService);
+      await global.executionWorker.start();
+      const workerStatus = global.executionWorker.getStatus();
+      logger.info(`✅ Initialized execution worker (running: ${workerStatus.isRunning}, mode: ${workerMode})`);
+    } catch (error) {
+      logger.error(`❌ Failed to initialize ExecutionWorker`, { error });
+      // Don't throw - allow fallback to direct execution
+    }
+  } else {
+    logger.info(`ℹ️  Worker disabled (WORKER_MODE=${workerMode})`);
   }
 });
 
@@ -602,20 +746,22 @@ setInterval(() => {
   
   // Alert if memory usage is high
   if (heapUsedMB > 1024) { // 1GB threshold
-    console.warn(`⚠️  High memory usage detected: ${heapUsedMB}MB`);
+    logger.warn(`⚠️  High memory usage detected: ${heapUsedMB}MB`);
     
     // Log active resources
     const activeExecutions = (realtimeExecutionEngine as any).activeExecutions?.size || 0;
     const connectedSockets = socketService.getConnectedUsersCount();
     const eventBufferSize = (socketService as any).executionEventBuffer?.size || 0;
+    const listenerStats = executionListenerManager.getStats();
     
-    console.log(`  Active executions: ${activeExecutions}`);
-    console.log(`  Connected sockets: ${connectedSockets}`);
-    console.log(`  Event buffer size: ${eventBufferSize}`);
+    logger.debug(`  Active executions: ${activeExecutions}`);
+    logger.debug(`  Connected sockets: ${connectedSockets}`);
+    logger.debug(`  Event buffer size: ${eventBufferSize}`);
+    logger.debug(`  Event listeners: ${listenerStats.totalListeners} (${listenerStats.activeExecutions} executions)`);
     
     // Force garbage collection if available
     if (global.gc) {
-      console.log('  Running garbage collection...');
+      logger.debug('  Running garbage collection...');
       global.gc();
     }
   }
@@ -623,7 +769,10 @@ setInterval(() => {
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, shutting down gracefully...");
+  logger.info("SIGTERM received, shutting down gracefully...");
+  
+  // Cleanup listener manager first
+  executionListenerManager.cleanupAll();
   
   // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();
@@ -635,18 +784,36 @@ process.on("SIGTERM", async () => {
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
   
+  // Stop execution event bridge
+  if (global.executionEventBridge) {
+    await global.executionEventBridge.stop();
+  }
+
+  // Stop execution worker
+  if (global.executionWorker) {
+    await global.executionWorker.stop();
+  }
+
+  // Shutdown execution queue service
+  if (global.executionQueueService) {
+    await global.executionQueueService.shutdown();
+  }
+  
   // Drain connection pool before closing
   await drainConnectionPool(30000);
   await disconnectDatabase();
   
   httpServer.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });
 
 process.on("SIGINT", async () => {
-  console.log("SIGINT received, shutting down gracefully...");
+  logger.info("SIGINT received, shutting down gracefully...");
+  
+  // Cleanup listener manager first
+  executionListenerManager.cleanupAll();
   
   // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();
@@ -655,13 +822,28 @@ process.on("SIGINT", async () => {
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
   
+  // Stop execution event bridge
+  if (global.executionEventBridge) {
+    await global.executionEventBridge.stop();
+  }
+
+  // Stop execution worker
+  if (global.executionWorker) {
+    await global.executionWorker.stop();
+  }
+
+  // Shutdown execution queue service
+  if (global.executionQueueService) {
+    await global.executionQueueService.shutdown();
+  }
+  
   // Drain connection pool before closing
   const { drainConnectionPool } = await import('./db/client');
   await drainConnectionPool(30000);
   await disconnectDatabase();
   
   httpServer.close(() => {
-    console.log("Server closed");
+    logger.info("Server closed");
     process.exit(0);
   });
 });

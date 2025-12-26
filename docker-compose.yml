@@ -52,12 +52,20 @@ services:
       - IMAGE_NAME=ghcr.io/node-drop/nodedrop:latest
       - INSTALL_DIR=/host-compose
       - DB_SSL_REJECT_UNAUTHORIZED=false
+      # Execution Queue Configuration
+      - EXECUTION_WORKER_CONCURRENCY=${EXECUTION_WORKER_CONCURRENCY:-5}
+      - EXECUTION_STATE_TTL=${EXECUTION_STATE_TTL:-86400}
+      - EXECUTION_COMPLETION_TTL=${EXECUTION_COMPLETION_TTL:-3600}
+      # Worker mode: hybrid (default) | api-only | worker-only
+      - WORKER_MODE=${WORKER_MODE:-hybrid}
     volumes:
       - custom_nodes_data:/app/custom-nodes
       - temp_data:/app/temp
       - logs_data:/app/logs
       - .:/host-compose:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      # REMOVED FOR SECURITY: Docker socket mount
+      # Self-updates are disabled. Use docker-compose pull and restart instead.
+      # - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy

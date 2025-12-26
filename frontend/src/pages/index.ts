@@ -1,5 +1,6 @@
 // Page exports - using named exports for better tree-shaking
 export { AcceptInvitationPage } from "./AcceptInvitationPage";
+export { BackupPage } from "./BackupPage";
 export { CustomNodesPage } from "./CustomNodesPage";
 export { ExecutionDetailPage } from "./ExecutionDetailPage";
 export { ExecutionsPage } from "./ExecutionsPage";
@@ -13,3 +14,4 @@ export { WebhookRequestsPage } from "./WebhookRequestsPage";
 export { WorkflowEditorPage } from "./WorkflowEditorPage";
 export { WorkflowsPage } from "./WorkflowsPage";
 export { WorkspacePage } from "./WorkspacePage";
+

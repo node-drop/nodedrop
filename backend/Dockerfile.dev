@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM oven/bun:1-alpine
 
 # Install OpenSSL for database connections
 RUN apk add --no-cache openssl openssl-dev
@@ -6,10 +6,10 @@ RUN apk add --no-cache openssl openssl-dev
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json bun.lock* ./
 
 # Install dependencies
-RUN npm install
+RUN bun install
 
 # Copy source code
 COPY . .
@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 4000
 
 # Start development server
-CMD ["npm", "run", "dev"]
+CMD ["bun", "run", "dev"]

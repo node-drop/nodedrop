@@ -24,6 +24,7 @@ import { validateImportFile } from '@nodedrop/utils'
 
 import {
   ChevronDown,
+  Clock,
   Download,
   Loader2,
   MoreHorizontal,
@@ -32,7 +33,8 @@ import {
   RefreshCw,
   Save,
   Settings,
-  Upload
+  Upload,
+  AlertCircle
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -43,11 +45,17 @@ import { WorkflowBreadcrumb } from './WorkflowBreadcrumb'
 interface WorkflowToolbarProps {
   // Minimal props - mainly for workflow operations that need main workflow store
   onSave: () => void
+  autoSaveStatus?: 'idle' | 'saving' | 'saved' | 'error'
+  autoSaveError?: string | null
+  autoSaveEnabled?: boolean
 }
 
 export function WorkflowToolbar({
   // Minimal props - mainly for workflow operations that need main workflow store
   onSave,
+  autoSaveStatus = 'idle',
+  autoSaveError = null,
+  autoSaveEnabled = true,
 }: WorkflowToolbarProps) {
   const { showConfirm, ConfirmDialog } = useConfirmDialog()
   const [showDeployDialog, setShowDeployDialog] = useState(false)
@@ -343,19 +351,31 @@ export function WorkflowToolbar({
                 size="sm"
                 className="relative h-7 px-2.5 text-xs rounded-r-none border-r-0"
               >
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {isSaving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : autoSaveStatus === 'error' ? (
+                  <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                ) : autoSaveEnabled && workflow && (isDirty || mainTitleDirty) ? (
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
                 <span className="ml-1.5">
                   {isSaving ? 'Saving...' : 'Save'}
                 </span>
-                {(isDirty || mainTitleDirty) && !isSaving && (
+                {(isDirty || mainTitleDirty) && !isSaving && autoSaveStatus !== 'error' && (
                   <Badge variant="destructive" className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 p-0" />
                 )}
               </Button>
             </TooltipTrigger>
             <TooltipContent>
               <p>
-                {selectedEnvironment 
+                {selectedEnvironment
                   ? `Cannot save - viewing ${getEnvironmentLabel(selectedEnvironment)}. Use "Update ${getEnvironmentLabel(selectedEnvironment)}" instead.`
+                  : autoSaveStatus === 'error'
+                  ? `Auto-save failed: ${autoSaveError || 'Unknown error'}. Click to save manually.`
+                  : autoSaveEnabled && (isDirty || mainTitleDirty)
+                  ? 'Auto-save waiting for changes to settle...'
                   : `Save Workflow (Ctrl+S)${(isDirty || mainTitleDirty) ? ' - Unsaved changes' : ' - No changes'}`}
               </p>
             </TooltipContent>
