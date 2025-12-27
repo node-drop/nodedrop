@@ -46,8 +46,22 @@ export const SplitNode: NodeDefinition = {
     displayName: "Split",
     name: "split",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Split data into multiple outputs or batches",
+    ai: {
+        description: "Splits a list of items into batches or groups. Use this before processing large datasets to handle them in chunks.",
+        useCases: [
+            "Batch processing (e.g. 10 items at a time)",
+            "A/B testing split",
+            "Group items by field value"
+        ],
+        tags: ["split", "batch", "chunk", "group", "divide"],
+        rules: [
+            "Use 'Batch' mode to break large arrays into smaller chunks",
+            "Use 'By Field Value' to group items by category"
+        ],
+        complexityScore: 3
+    },
     icon: "svg:split",
     color: "#FF5722",
     defaults: {

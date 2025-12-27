@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const ChatNode: NodeDefinition = {
@@ -9,9 +9,22 @@ export const ChatNode: NodeDefinition = {
   displayName: "Chat",
   name: "chat",
   group: ["communication", "ai"],
-  version: 1,
-  description:
-    "Interactive chat interface - Send messages and trigger workflows. Can be used as a trigger or accept input from other nodes.",
+  description: "Interactive chat interface - Send messages and trigger workflows. Can be used as a trigger or accept input from other nodes.",
+  version: 2,
+  ai: {
+    description: "An AI Chat Interface. Use this to build chatbots or conversational agents. Can use OpenAI or Anthropic models.",
+    useCases: [
+      "Customer support chatbot",
+      "Interactive data query assistant",
+      "Human-in-the-loop approval workflow"
+    ],
+    tags: ["chat", "ai", "bot", "interface", "conversation"],
+    rules: [
+      "Set 'AI Service' to 'None' if you want to handle the response logic yourself (e.g. via Chain of Thought)",
+      "Enable 'Accept Input' to use context from previous nodes"
+    ],
+    complexityScore: 3
+  },
   icon: "lucide:message-circle",
   color: "#3b82f6",
   executionCapability: "trigger",

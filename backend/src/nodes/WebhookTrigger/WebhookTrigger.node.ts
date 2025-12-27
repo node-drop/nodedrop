@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const WebhookTriggerNode: NodeDefinition = {
@@ -11,8 +11,22 @@ export const WebhookTriggerNode: NodeDefinition = {
   group: ["trigger"],
   nodeCategory: "trigger",
   triggerType: "webhook",
-  version: 1,
+  version: 2,
   description: "Triggers workflow execution when a webhook is called",
+  ai: {
+    description: "Use this to receive data from external services via HTTP (webhooks). It creates a unique URL that triggers this workflow when accessed.",
+    useCases: [
+      "Receive real-time data from Typeform, Stripe, GitHub, etc.",
+      "Build a custom API endpoint",
+      "Process incoming HTTP requests"
+    ],
+    tags: ["webhook", "http trigger", "api", "receive data", "listener"],
+    rules: [
+      "Set 'httpMethod' to match the sender (usually POST for data)",
+      "Use 'Response Mode' = 'When Workflow Finishes' if you want to return calculated data"
+    ],
+    complexityScore: 3
+  },
   icon: "Webhook",
   color: "#3B82F6",
   defaults: {

@@ -28,8 +28,23 @@ export const SwitchNode: NodeDefinition = {
     displayName: "Switch",
     name: "switch",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Route data to different outputs based on rules",
+    ai: {
+        description: "Routes data to one of many outputs. Better than multiple IfElse nodes when you have 3+ possible paths.",
+        useCases: [
+            "Route orders by status (New, Paid, Shipped)",
+            "Categorize support tickets by priority",
+            "Handle different file types differently"
+        ],
+        tags: ["logic", "switch", "route", "branch", "multi-path"],
+        rules: [
+            "Data is routed to the FIRST matching rule's output",
+            "Unmatched items are discarded unless a 'fallback' rule is created",
+            "Use 'Expression' mode to route dynamically by index number"
+        ],
+        complexityScore: 3
+    },
     icon: "fa:random",
     color: "#506782",
     defaults: {

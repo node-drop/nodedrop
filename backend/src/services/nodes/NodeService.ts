@@ -2,23 +2,23 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { nodeTypes } from '../../db/schema/nodes';
 import {
-    NodeDefinition,
-    NodeExecutionResult,
-    NodeInputData,
-    NodeOutputData,
-    NodeProperty,
-    NodeRegistrationResult,
-    NodeSchema,
-    NodeTypeInfo,
-    NodeValidationError,
-    NodeValidationResult,
-    StandardizedNodeOutput
+  NodeDefinition,
+  NodeExecutionResult,
+  NodeInputData,
+  NodeOutputData,
+  NodeProperty,
+  NodeRegistrationResult,
+  NodeSchema,
+  NodeTypeInfo,
+  NodeValidationError,
+  NodeValidationResult,
+  StandardizedNodeOutput
 } from '../../types/node.types';
 import { NodeSettingsConfig } from '../../types/settings.types';
 import { logger } from '../../utils/logger';
 import {
-    SecureExecutionOptions,
-    SecureExecutionService,
+  SecureExecutionOptions,
+  SecureExecutionService,
 } from '../execution/SecureExecutionService';
 
 /**
@@ -370,20 +370,20 @@ export class NodeService {
       this.nodeRegistry.set(nodeDefinition.identifier, nodeDefinition);
 
       // Auto-index node logic
-      // Only re-index if:
-      // 1. It's a new node
-      // 2. Critical fields (description, name, group) changed
-      // 3. Embedding is missing
+      // DISABLED: User requested to stop auto-embedding on server start.
+      // Use `npm run ai:index-nodes` to manually update embeddings.
+      /*
       let shouldIndex = true;
       
       if (existingNode) {
         const descriptionChanged = existingNode.description !== nodeDefinition.description;
         const nameChanged = existingNode.displayName !== nodeDefinition.displayName;
         const groupChanged = JSON.stringify(existingNode.group || []) !== JSON.stringify(nodeDefinition.group || []);
+        const versionChanged = existingNode.version !== nodeDefinition.version;
         // Check if embedding exists (using any cast as type might not fully reflect schema update in this context execution)
         const hasEmbedding = (existingNode as any).embedding != null;
         
-        if (!descriptionChanged && !nameChanged && !groupChanged && hasEmbedding) {
+        if (!descriptionChanged && !nameChanged && !groupChanged && !versionChanged && hasEmbedding) {
           shouldIndex = false;
         }
       }
@@ -398,6 +398,8 @@ export class NodeService {
               displayName: nodeDefinition.displayName,
               description: nodeDefinition.description,
               group: nodeDefinition.group,
+              ai: nodeDefinition.ai,
+              properties: resolvedProperties,
             }).catch(err => {
               logger.warn('Failed to auto-index node during registration', {
                 identifier: nodeIdentifier,
@@ -411,6 +413,7 @@ export class NodeService {
           });
         }
       }
+      */
 
       return {
         success: true,

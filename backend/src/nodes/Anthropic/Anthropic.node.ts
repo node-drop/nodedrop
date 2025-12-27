@@ -2,9 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { MemoryManager } from "../../modules/ai/utils/MemoryManager";
 import { AIMessage, ANTHROPIC_MODELS } from "../../types/ai.types";
 import {
-    NodeDefinition,
-    NodeInputData,
-    NodeOutputData,
+  NodeDefinition,
+  NodeInputData,
+  NodeOutputData,
 } from "../../types/node.types";
 
 export const AnthropicNode: NodeDefinition = {
@@ -12,9 +12,24 @@ export const AnthropicNode: NodeDefinition = {
   displayName: "Anthropic (Claude)",
   name: "anthropic",
   group: ["ai", "transform"],
-  version: 1,
-  description:
-    "Interact with Anthropic Claude models (Claude 3.5 Sonnet, Opus, Haiku)",
+
+  description: "Interact with Anthropic Claude models (Claude 3.5 Sonnet, Opus, Haiku)",
+  version: 2,
+  ai: {
+    description: "Use Anthropic's Claude models for text generation. Strong at reasoning, coding, and handling large contexts.",
+    useCases: [
+      "Analyze large documents (up to 200k tokens)",
+      "Generate complex code",
+      "Reasoning and logic tasks"
+    ],
+    tags: ["ai", "llm", "anthropic", "claude", "text generation"],
+    rules: [
+      "Use 'Claude 3.5 Sonnet' for best balance of speed and intelligence",
+      "Use 'Opus' for most complex tasks",
+      "Enable memory for chat workflows"
+    ],
+    complexityScore: 3
+  },
   icon: "🧠",
   color: "#D97757",
   defaults: {

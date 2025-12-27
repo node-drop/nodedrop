@@ -7,6 +7,7 @@
 
 import { db } from '@/db/client';
 import { nodeTypes } from '@/db/schema/nodes';
+import { NodeAIMetadata, NodeProperty } from '@/types/node.types';
 import { logger } from '@/utils/logger';
 import { eq, sql } from 'drizzle-orm';
 import OpenAI from 'openai';
@@ -17,6 +18,9 @@ interface NodeForEmbedding {
   displayName: string;
   description: string;
   group?: string[];
+  keywords?: string[];
+  ai?: NodeAIMetadata;
+  properties?: NodeProperty[];
 }
 
 export class NodeEmbeddingService {
@@ -52,11 +56,47 @@ export class NodeEmbeddingService {
   private buildEmbeddingText(node: NodeForEmbedding): string {
     const parts = [
       node.displayName,
-      node.description,
     ];
+
+    // Priority 1: Use AI-specific description if available, otherwise standard description
+    if (node.ai?.description) {
+      parts.push(node.ai.description);
+    } else {
+      parts.push(node.description);
+    }
     
+    // Priority 2: Use Cases and Tags from AI metadata
+    if (node.ai?.useCases && node.ai.useCases.length > 0) {
+      parts.push(`Best used for: ${node.ai.useCases.join(', ')}`);
+    }
+
+    if (node.ai?.tags && node.ai.tags.length > 0) {
+      parts.push(`Tags: ${node.ai.tags.join(', ')}`);
+    }
+
+    if (node.ai?.rules && node.ai.rules.length > 0) {
+      parts.push(`Rules: ${node.ai.rules.join('. ')}`);
+    }
+
+    // Priority 3: Keywords (legacy/manual)
+    if (node.keywords && node.keywords.length > 0) {
+      parts.push(`Keywords: ${node.keywords.join(', ')}`);
+    }
+
     if (node.group && node.group.length > 0) {
       parts.push(`Category: ${node.group.join(', ')}`);
+    }
+
+    // Include top-level property names (parameters) to help AI configure the node
+    if (node.properties && node.properties.length > 0) {
+      const propNames = node.properties
+        .filter(p => p.displayName)
+        .map(p => p.displayName)
+        .join(', ');
+      
+      if (propNames) {
+        parts.push(`Available Options: ${propNames}`);
+      }
     }
     
     return parts.join('. ');

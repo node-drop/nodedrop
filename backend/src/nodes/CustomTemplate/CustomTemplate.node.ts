@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 /**
@@ -20,9 +20,20 @@ export const CustomTemplateNode: NodeDefinition = {
   displayName: "Custom Template Example",
   name: "customTemplateExample",
   group: ["transform"],
-  version: 1,
-  description:
-    "Example node showing how to use custom templates in form configuration",
+
+  description: "Example node showing how to use custom templates in form configuration",
+  version: 2,
+  ai: {
+    description: "An example node demonstrating complex form fields and custom UI components. Use this as a reference or for testing dynamic forms.",
+    useCases: [
+      "Test custom UI components",
+      "Verify form field rendering",
+      "Example of collection and json types"
+    ],
+    tags: ["example", "demo", "template", "form", "ui"],
+    rules: [],
+    complexityScore: 2
+  },
   icon: "fa:code",
   color: "#FF6B6B",
   defaults: {

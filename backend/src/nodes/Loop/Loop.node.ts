@@ -36,8 +36,23 @@ export const LoopNode: NodeDefinition = {
     displayName: "Loop",
     name: "loop",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Iterate over items one at a time through downstream nodes",
+    ai: {
+        description: "Iterates over a list of items. CRITICAL: Nodes inside the loop must be connected to the 'Loop' output. Nodes named to run AFTER the loop finishes must connect to the 'Done' output.",
+        useCases: [
+            "Process a list of emails one by one",
+            "Scrape multiple URLs from a previous step",
+            "Batch API requests"
+        ],
+        tags: ["loop", "iterate", "repeat", "foreach", "cycle"],
+        rules: [
+            "Items come out of 'Loop' one by one",
+            "The workflow resets for each item inside the loop",
+            "Connect the 'Done' output to continue after all items are processed"
+        ],
+        complexityScore: 4
+    },
     icon: "fa:repeat",
     color: "#FF6B6B",
     defaults: {

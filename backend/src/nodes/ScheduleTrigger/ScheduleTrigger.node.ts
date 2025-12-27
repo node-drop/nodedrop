@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const ScheduleTriggerNode: NodeDefinition = {
@@ -11,9 +11,23 @@ export const ScheduleTriggerNode: NodeDefinition = {
   group: ["trigger"],
   nodeCategory: "trigger",
   triggerType: "schedule",
-  version: 1,
+  version: 2,
   description:
     "Triggers workflow execution on a schedule using cron expressions or specific date/time",
+  ai: {
+    description: "Runs the workflow automatically at set intervals. Use this for periodic tasks like daily reports or hourly checks.",
+    useCases: [
+      "Run reports every Monday",
+      "Cleanup database every night",
+      "Check API for updates every 15 minutes"
+    ],
+    tags: ["schedule", "cron", "timer", "periodic", "recurring"],
+    rules: [
+      "Use 'Cron Expression' for complex schedules (e.g. 'Every weekday at 9am')",
+      "Use 'Simple Schedule' for basic intervals"
+    ],
+    complexityScore: 2
+  },
   icon: "lucide:calendar",
   color: "#9C27B0",
   defaults: {

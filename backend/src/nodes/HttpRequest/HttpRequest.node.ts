@@ -14,8 +14,24 @@ export const HttpRequestNode: NodeDefinition = {
   displayName: "HTTP Request",
   name: "httpRequest",
   group: ["transform"],
-  version: 1,
-  description: "Make HTTP requests to any URL with support for authentication, headers, and body data. Common uses: fetch APIs, webhook calls, data retrieval, REST API integration, third-party service integration, scraping, posting forms, GraphQL queries. Supports GET, POST, PUT, DELETE, PATCH methods. Input: URL string + optional headers/body/authentication. Output: JSON response or full response with status/headers/response time.",
+  version: 2,
+  description: "Make HTTP requests to any URL with support for authentication, headers, and body data.",
+  ai: {
+    description: "Use this node to interact with external systems, APIs, or webhooks. It is the primary node for data fetching/sending outside the workflow environment. Supports JSON payloads and custom headers.",
+    useCases: [
+      "Fetch data from a third-party API (REST/GraphQL)",
+      "Send a webhook or notification to another service",
+      "Scrape simple HTML pages content",
+      "Download binary files or images"
+    ],
+    tags: ["api", "http", "fetch", "rest", "webhook", "integration", "post", "get"],
+    rules: [
+      "Always check the 'method' matches the API requirement (GET vs POST)",
+      "For POST/PUT, ensure the 'body' format matches the 'Content-Type' header (usually JSON)",
+      "Use 'Full Response' format if you need to check status codes (e.g. 201 vs 200)"
+    ],
+    complexityScore: 5
+  },
   keywords: ["http", "api", "rest", "fetch", "request", "webhook", "curl", "api call", "api integration", "data fetch", "http client", "rest api", "graphql", "post", "get", "put", "delete", "patch"],
   icon: "fa:globe",
   color: "#2196F3",

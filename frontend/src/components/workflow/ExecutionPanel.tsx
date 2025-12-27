@@ -30,7 +30,7 @@ export function ExecutionPanel({
   onClearLogs
 }: ExecutionPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('progress')
-  const { workflow } = useWorkflowStore()
+  const workflow = useWorkflowStore(state => state.workflow)
 
   // Get display data for tabs, filtering out deleted nodes
   const filteredRealTimeResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
@@ -67,7 +67,7 @@ export function ExecutionPanel({
             executionState={executionState}
             lastExecutionResult={lastExecutionResult}
             executionLogs={executionLogs}
-            realTimeResults={realTimeResults}
+            realTimeResults={filteredRealTimeResults}
             flowExecutionStatus={flowExecutionStatus}
             onClearLogs={onClearLogs}
           />

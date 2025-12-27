@@ -1,12 +1,19 @@
-import { NodeDefinition, NodeInputData, NodeOutputData, NodeExecutionContext } from "../../types/node.types";
+import { NodeDefinition, NodeExecutionContext, NodeInputData, NodeOutputData } from "../../types/node.types";
 
 export const TestUploadNode: NodeDefinition = {
   identifier: "test-upload",
   displayName: "Test Upload Node",
   name: "testUpload",
   group: ["Custom"],
-  version: 1,
+  version: 2,
   description: "A test node uploaded via ZIP",
+  ai: {
+    description: "A test node for verifying upload functionality.",
+    useCases: ["Testing node uploads"],
+    tags: ["test", "upload"],
+    rules: [],
+    complexityScore: 1
+  },
   icon: "fa:upload",
   color: "#9b59b6",
   defaults: {},

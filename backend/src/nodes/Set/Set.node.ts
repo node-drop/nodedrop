@@ -1,8 +1,8 @@
 import {
-  BuiltInNodeTypes,
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    BuiltInNodeTypes,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 /**
@@ -33,8 +33,22 @@ export const SetNode: NodeDefinition = {
   displayName: "Set",
   name: "set",
   group: ["transform"],
-  version: 1,
+  version: 2,
   description: "Set values on the data",
+  ai: {
+    description: "Modifies existing data items by adding or updating fields. Use this to prepare data for the next node.",
+    useCases: [
+      "Rename fields (e.g. set 'newKey' = '{{json.oldKey}}')",
+      "Add timestamp or static values",
+      "Calculate simple values"
+    ],
+    tags: ["set", "update", "modify", "add field", "transform"],
+    rules: [
+      "Can use dot notation for nested fields (e.g. 'user.address.city')",
+      "Overwrites the field if it already exists"
+    ],
+    complexityScore: 2
+  },
   icon: "S",
   color: "#4CAF50",
   defaults: {

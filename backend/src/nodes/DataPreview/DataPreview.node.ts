@@ -15,8 +15,22 @@ export const DataPreviewNode: NodeDefinition = {
     displayName: "Data Preview",
     name: "dataPreview",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Display data in a terminal-like collapsible preview for testing and debugging",
+    ai: {
+        description: "A debugging tool that shows the data passing through it in a readable format. Does NOT modify data (passthrough).",
+        useCases: [
+            "Inspect data structure during testing",
+            "Verify loop iterations",
+            "Debug transformations without affecting the workflow"
+        ],
+        tags: ["preview", "debug", "test", "inspect", "log"],
+        rules: [
+            "Use this node temporarily for debugging",
+            "Data passes through unchanged to the next node"
+        ],
+        complexityScore: 1
+    },
     icon: "fa:terminal",
     color: "#4CAF50",
     outputComponent: "DataPreviewOutput", // Custom output renderer

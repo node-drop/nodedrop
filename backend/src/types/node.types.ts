@@ -43,9 +43,8 @@ import type {
   NodeHooks,
   NodeInputConfig,
   NodeProperty,
-  NodeSettings,
   ServiceInput,
-  TriggerType,
+  TriggerType
 } from "@nodedrop/types";
 
 // =============================================================================
@@ -217,7 +216,63 @@ export interface NodeDefinition {
     ) => Promise<Array<{ name: string; value: any; description?: string }>>
   >;
   /** Custom settings specific to this node type */
-  settings?: NodeSettings;
   /** Keywords for search and classification */
   keywords?: string[];
+  /**
+   * AI-specific metadata to help the agent understand and utilize this node
+   */
+  ai?: NodeAIMetadata;
 }
+
+/**
+ * Metadata to help AI agents understand and utilize this node effectively
+ */
+export interface NodeAIMetadata {
+  /**
+   * Detailed description of the node's functionality, specifically optimized for AI understanding.
+   * Should explain *when* and *why* to use this node over others.
+   */
+  description?: string;
+
+  /**
+   * List of specific scenarios or use cases where this node is the best choice.
+   * e.g., "Summarizing long articles", "Extracting sentiment from text"
+   */
+  useCases?: string[];
+
+  /**
+   * Constraints or limitations the AI should be aware of.
+   * e.g., "Max file size 5MB", "Only supports JSON input"
+   */
+  limitations?: string[];
+
+  /**
+   * Keywords that an AI might associate with this node but aren't part of the name.
+   */
+  tags?: string[];
+
+  /**
+   * strict rules or requirements that the AI must follow when using this node.
+   * e.g. "Input must be a valid JSON string", "Always enable memory for chat workflows"
+   */
+  rules?: string[];
+
+  /**
+   * Score (1-10) indicating how complex this node is to configure.
+   * 1 = Trivial, 10 = Very Complex (e.g. requires raw code or complex auth)
+   * Helps AI prefer simpler nodes when possible.
+   */
+  complexityScore?: number;
+
+  /**
+   * Recommended connections or configurations for this node.
+   * Helps the AI proactively suggest next steps.
+   */
+  recommendations?: {
+    /** Suggested nodes to connect to specific inputs */
+    inputs?: Record<string, string[]>;
+    /** Suggested nodes to connect to specific outputs */
+    outputs?: Record<string, string[]>;
+  };
+}
+

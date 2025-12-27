@@ -1,8 +1,8 @@
 import {
-  BuiltInNodeTypes,
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    BuiltInNodeTypes,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const JsonNode: NodeDefinition = {
@@ -10,8 +10,22 @@ export const JsonNode: NodeDefinition = {
   displayName: "JSON",
   name: "json",
   group: ["transform"],
-  version: 1,
+  version: 2,
   description: "Compose a JSON object",
+  ai: {
+    description: "Creates raw JSON data. Useful for seeding a workflow with initial data or creating mock data for testing.",
+    useCases: [
+      "Create hardcoded data",
+      "Seed test values",
+      "Mock API responses"
+    ],
+    tags: ["json", "data", "create", "mock", "seed"],
+    rules: [
+      "Use 'Key-Value Pairs' mode for simple objects",
+      "Use 'JSON' mode for complex nested structures"
+    ],
+    complexityScore: 2
+  },
   icon: "fa:code",
   color: "#FF9800",
   defaults: {

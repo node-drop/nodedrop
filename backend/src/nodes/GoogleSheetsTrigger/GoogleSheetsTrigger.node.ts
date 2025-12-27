@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const GoogleSheetsTriggerNode: NodeDefinition = {
@@ -9,9 +9,22 @@ export const GoogleSheetsTriggerNode: NodeDefinition = {
   displayName: "Google Sheets Trigger",
   name: "googleSheetsTrigger",
   group: ["trigger"],
-  version: 1,
-  description:
-    "Triggers workflow execution when changes occur in Google Sheets",
+  version: 2,
+  description: "Triggers workflow execution when changes occur in Google Sheets",
+  ai: {
+    description: "Monitors a Google Sheet for changes (new rows, updates, deletions). Triggered automatically based on poll interval.",
+    useCases: [
+      "Process new form responses",
+      "Sync sheet data to database",
+      "Monitor stock levels in a sheet"
+    ],
+    tags: ["google sheets", "spreadsheet", "trigger", "watch", "monitor"],
+    rules: [
+      "Select 'Authentication' first",
+      "Ensure the sheet has a header row if 'Has Header' is true"
+    ],
+    complexityScore: 3
+  },
   icon: "📊",
   color: "#0F9D58",
   defaults: {

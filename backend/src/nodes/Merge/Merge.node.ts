@@ -51,8 +51,22 @@ export const MergeNode: NodeDefinition = {
     displayName: "Merge",
     name: "merge",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Merge data from multiple inputs",
+    ai: {
+        description: "Combines data from multiple branches back into a single flow. Essential for parallel processing patterns.",
+        useCases: [
+            "Wait for two parallel branches to finish",
+            "Combine two lists of items",
+            "Enrich data by merging with another source"
+        ],
+        tags: ["merge", "combine", "join", "sync"],
+        rules: [
+            "Default mode 'Append' just adds items together",
+            "Use 'Wait for All Inputs' to ensure synchronization"
+        ],
+        complexityScore: 3
+    },
     icon: "svg:merge",
     color: "#9C27B0",
     defaults: {

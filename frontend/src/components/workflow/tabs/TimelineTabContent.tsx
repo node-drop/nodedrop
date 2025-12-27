@@ -8,7 +8,6 @@ import {
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflow'
 import { ExecutionFlowStatus, NodeExecutionResult } from '@/types'
-import { filterExistingNodeResultsMap } from '@/utils/executionResultsFilter'
 import { Activity, AlertCircle, CheckCircle2, Clock, XCircle, ZoomIn, ZoomOut } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -37,12 +36,10 @@ export function TimelineTabContent({
   
   // Get execution state for accurate total duration
   const executionState = useWorkflowStore((state) => state.executionState)
-  const { workflow } = useWorkflowStore()
+  const workflow = useWorkflowStore(state => state.workflow)
 
   const timelineData = useMemo(() => {
-    // Filter out deleted nodes before processing
-    const filteredResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
-    const nodeResults = Array.from(filteredResults.entries())
+    const nodeResults = Array.from(realTimeResults.entries())
     if (nodeResults.length === 0) return null
 
     const now = Date.now()

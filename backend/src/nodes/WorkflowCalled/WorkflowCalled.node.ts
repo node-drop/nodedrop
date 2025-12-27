@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 export const WorkflowCalledNode: NodeDefinition = {
@@ -11,8 +11,23 @@ export const WorkflowCalledNode: NodeDefinition = {
   group: ["trigger"],
   nodeCategory: "trigger",
   triggerType: "workflow-called",
-  version: 1,
+
+  version: 2,
   description: "Receives data when this workflow is called by another workflow",
+  ai: {
+    description: "The entry point for sub-workflows. Use this trigger when you want this workflow to be callable by other workflows (via the 'Trigger Workflow' node).",
+    useCases: [
+      "Create a reusable error handler",
+      "Create a shared utility workflow",
+      "Process data sent from a parent workflow"
+    ],
+    tags: ["subworkflow", "child", "called", "receive"],
+    rules: [
+      "Automatically receives input data from the parent workflow",
+      "The result of the last node will be returned to the parent"
+    ],
+    complexityScore: 2
+  },
   icon: "fa:phone-alt",
   color: "#16A085",
   defaults: {

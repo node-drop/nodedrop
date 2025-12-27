@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 /**
@@ -55,9 +55,23 @@ export const ErrorTriggerNode: NodeDefinition = {
   group: ["trigger"],
   nodeCategory: "trigger",
   triggerType: "error",
-  version: 1,
+  version: 2,
   description:
     "Receives error data when a workflow fails. Set this workflow as the Error Workflow in other workflows' settings.",
+  ai: {
+    description: "The starting point for Error Handling workflows. Receives error details (message, node, timestamp) when another workflow fails.",
+    useCases: [
+      "Send error alerts to Slack/Email",
+      "Log errors to a database",
+      "Attempt auto-recovery strategies"
+    ],
+    tags: ["error", "failure", "catch", "exception", "handler"],
+    rules: [
+      "Must be the first node in the workflow",
+      "Configure this workflow as the 'Error Workflow' in other workflows' settings"
+    ],
+    complexityScore: 3
+  },
   icon: "lucide:bug",
   color: "#EF4444",
   defaults: {},

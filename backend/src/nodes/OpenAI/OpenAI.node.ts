@@ -20,9 +20,9 @@ import OpenAI from "openai";
 import { MemoryManager } from "../../modules/ai/utils/MemoryManager";
 import { AIMessage, OPENAI_MODELS } from "../../types/ai.types";
 import {
-    NodeDefinition,
-    NodeInputData,
-    NodeOutputData,
+  NodeDefinition,
+  NodeInputData,
+  NodeOutputData,
 } from "../../types/node.types";
 
 /**
@@ -36,8 +36,24 @@ export const OpenAINode: NodeDefinition = {
   displayName: "OpenAI",
   name: "openai",
   group: ["ai", "transform"],
-  version: 1,
+  version: 2,
   description: "Interact with OpenAI models (GPT-4, GPT-3.5, etc.)",
+  ai: {
+    description: "Use this node to generate text, answer questions, or process data using OpenAI's GPT models. It supports conversation history and advanced parameters.",
+    useCases: [
+      "Summarize long text or articles",
+      "Generate creative content like emails or blog posts",
+      "Extract structured data from unstructured text",
+      "Chatbot and conversational agents"
+    ],
+    tags: ["llm", "gpt", "generative-ai", "nlp"],
+    rules: [
+      "Always set maxTokens to at least 500 for content generation",
+      "Enable memory if the user mentions 'chat' or 'conversation'",
+      "Use jsonMode if the user expects structured data"
+    ],
+    complexityScore: 4
+  },
   icon: "svg:openai",
   color: "#000",
   defaults: {

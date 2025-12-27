@@ -19,8 +19,22 @@ export const IfElseNode: NodeDefinition = {
     displayName: "IF",
     name: "ifElse",
     group: ["transform"],
-    version: 1,
+    version: 2,
     description: "Route data based on conditions. Simple, Combine, or Grouped modes.",
+    ai: {
+        description: "A binary logic gate. Routes data to 'true' or 'false' output based on conditions. Use this for simple Yes/No decisions.",
+        useCases: [
+            "Filter items that don't match criteria",
+            "Branch workflow based on data value",
+            "Check if an execution was successful"
+        ],
+        tags: ["logic", "if", "branch", "condition", "filter"],
+        rules: [
+            "Use 'Combine' mode if you need multiple conditions (AND/OR)",
+            "Use 'Grouped' mode for complex nested logic like ((A or B) and C)"
+        ],
+        complexityScore: 2
+    },
     icon: "lucide:milestone",
     color: "#FF6B6B",
     defaults: {

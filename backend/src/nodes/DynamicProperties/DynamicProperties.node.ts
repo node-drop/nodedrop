@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 /**
@@ -18,9 +18,19 @@ export const DynamicPropertiesNode: NodeDefinition = {
   displayName: "Dynamic Properties Example",
   name: "dynamicPropertiesExample",
   group: ["transform"],
-  version: 1,
-  description:
-    "Example node showing how properties can be defined as a function for dynamic generation",
+  description: "Example node showing how properties can be defined as a function for dynamic generation",
+  version: 2,
+  ai: {
+    description: "A demonstration node for dynamic properties and custom UI components.",
+    useCases: [
+      "Example of Visual Query Builder",
+      "Example of Custom Code Editor",
+      "Test dynamic property generation"
+    ],
+    tags: ["example", "demo", "dynamic", "properties", "custom ui"],
+    rules: [],
+    complexityScore: 2
+  },
   icon: "fa:magic",
   color: "#9C27B0",
   defaults: {

@@ -1,6 +1,6 @@
 import { useWorkflowStore } from '@/stores/workflow'
 import { ExecutionFlowStatus, ExecutionState, NodeExecutionResult, WorkflowExecutionResult } from '@/types'
-import { filterExistingNodeResults, filterExistingNodeResultsMap } from '@/utils/executionResultsFilter'
+import { filterExistingNodeResults } from '@/utils/executionResultsFilter'
 import type { ExecutionLogEntry } from '@nodedrop/types'
 import { TabType } from './ExecutionPanelTabs'
 import { LogsTabContent } from './tabs/LogsTabContent'
@@ -27,10 +27,11 @@ export function ExecutionPanelContent({
   flowExecutionStatus,
   onClearLogs
 }: ExecutionPanelContentProps) {
-  const { workflow } = useWorkflowStore()
+  const workflow = useWorkflowStore(state => state.workflow)
   
   // Get current and final results for display, filtering out deleted nodes
-  const filteredRealTimeResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
+  // Real-time results are already filtered by the parent (ExecutionPanel)
+  const filteredRealTimeResults = realTimeResults
   const currentResults = Array.from(filteredRealTimeResults.values())
   const finalResults = filterExistingNodeResults(lastExecutionResult?.nodeResults || [], workflow?.nodes)
   const displayResults = executionState.status === 'running' ? currentResults : finalResults

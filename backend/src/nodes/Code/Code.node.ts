@@ -5,9 +5,9 @@ import * as path from "path";
 import { promisify } from "util";
 // Using BunVMService for secure JavaScript execution (Bun-compatible)
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 
 const execAsync = promisify(exec);
@@ -17,8 +17,23 @@ export const CodeNode: NodeDefinition = {
   displayName: "Code",
   name: "code",
   group: ["transform"],
-  version: 1,
+  version: 2,
   description: "Execute JavaScript or Python code to process data",
+  ai: {
+    description: "The most powerful node. Executes custom JavaScript or Python code. Use this ONLY when other nodes cannot achieve the desired transformation.",
+    useCases: [
+      "Complex data transformation",
+      "Math calculations",
+      "Custom logic not available in other nodes"
+    ],
+    tags: ["code", "script", "javascript", "python", "custom"],
+    rules: [
+      "Use 'items' variable to access input data",
+      "Must return an array of objects",
+      "Avoid using external libraries unless they are built-in"
+    ],
+    complexityScore: 8
+  },
   icon: "lucide:code",
   color: "#FF6B6B",
   defaults: {

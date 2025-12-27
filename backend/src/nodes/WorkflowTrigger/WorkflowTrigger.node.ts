@@ -1,7 +1,7 @@
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
 import { WorkflowTriggerHelper } from "./WorkflowTriggerHelper";
 
@@ -10,8 +10,22 @@ export const WorkflowTriggerNode: NodeDefinition = {
   displayName: "Trigger Workflow",
   name: "workflowTrigger",
   group: ["automation"],
-  version: 1,
+  version: 2,
   description: "Trigger another workflow with optional data",
+  ai: {
+    description: "Executes ANOTHER workflow from the current one. Useful for creating modular, reusable sub-routines.",
+    useCases: [
+      "Process each item in a separate workflow",
+      "Call a shared error handling workflow",
+      "Run a complex sub-task"
+    ],
+    tags: ["execute", "subworkflow", "trigger", "call"],
+    rules: [
+      "Must select both a 'Workflow' and a 'Trigger' inside it",
+      "Set 'Wait for Completion' to true if you need the results back"
+    ],
+    complexityScore: 4
+  },
   icon: "fa:play-circle",
   color: "#10B981",
   executionCapability: "action",
