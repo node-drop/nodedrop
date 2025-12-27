@@ -19,6 +19,7 @@
 
 // Import all schema definitions
 export * from './ai';
+export * from './ai_settings';
 export * from './auth';
 export * from './categories';
 export * from './credentials';

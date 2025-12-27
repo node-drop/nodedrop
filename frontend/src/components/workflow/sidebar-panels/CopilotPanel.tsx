@@ -9,9 +9,10 @@ import { useWorkflowStore } from "@/stores/workflow";
 import { validateWorkflowDetailed } from '@/utils/workflowValidation';
 import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Play, Plus, Sparkles, StopCircle, Trash2, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Play, Plus, Settings, Sparkles, StopCircle, Trash2, XCircle } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { AISettingsForm } from './AISettingsForm';
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -33,6 +34,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -379,6 +381,15 @@ export const CopilotPanel = memo(function CopilotPanel() {
           >
             <Plus className="h-4 w-4" />
           </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6" 
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
@@ -536,6 +547,25 @@ export const CopilotPanel = memo(function CopilotPanel() {
           </Button>
         </form>
       </div>
+      {/* AI Settings Slide-in Panel */}
+      {showSettings && (
+        <div className="absolute inset-0 bg-background z-20 flex flex-col animate-in slide-in-from-right duration-200">
+          <div className="flex-shrink-0 border-b p-3 flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSettings(false)}
+              className="h-7 w-7 p-0 flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h3 className="text-sm font-semibold">AI Settings</h3>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto p-4">
+             <AISettingsForm onClose={() => setShowSettings(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 })

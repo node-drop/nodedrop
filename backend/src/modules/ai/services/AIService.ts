@@ -1,11 +1,15 @@
 
+import { db } from '@/db/client';
+import { userAiSettings } from '@/db/schema/ai_settings';
 import { AI_TOOLS } from '@/modules/ai/config/tools';
 import { AIContextBuilder } from '@/modules/ai/services/utils/AIContextBuilder';
 import { AIPromptBuilder } from '@/modules/ai/services/utils/AIPromptBuilder';
 import { AIResponseProcessor } from '@/modules/ai/services/utils/AIResponseProcessor';
 import { GenerateWorkflowRequest, GenerateWorkflowResponse } from '@/modules/ai/types';
+import { getCredentialService } from '@/services/CredentialService.factory';
 import { NodeService } from '@/services/nodes/NodeService';
 import { logger } from '@/utils/logger';
+import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 
 export class AIService {
@@ -33,15 +37,42 @@ export class AIService {
   public async generateWorkflow(
     request: GenerateWorkflowRequest
   ): Promise<GenerateWorkflowResponse> {
-    // 1. Initialize client
-    let client = this.openai;
-    if (request.openAiKey) {
-      client = new OpenAI({ apiKey: request.openAiKey });
+    
+    // 1. Determine Configuration (Key & Model)
+    let apiKey = request.openAiKey || process.env.OPENAI_API_KEY;
+    let model = request.model || 'gpt-4o';
+    let provider = 'openai';
+
+    // If userId present, check settings table
+    if (request.userId) {
+       try {
+         const settings = await db.query.userAiSettings.findFirst({
+           where: eq(userAiSettings.userId, request.userId)
+         });
+
+         if (settings) {
+            if (settings.model) model = settings.model;
+            // if (settings.provider) provider = settings.provider; // Future support
+
+            if (settings.credentialId) {
+               const credentialService = getCredentialService();
+               const cred = await credentialService.getCredential(settings.credentialId, request.userId);
+               if (cred && cred.data && cred.data.apiKey) {
+                  apiKey = cred.data.apiKey;
+               }
+            }
+         }
+       } catch (err) {
+         logger.warn('Failed to fetch user AI settings, falling back to defaults', { error: err });
+       }
     }
 
-    if (!client) {
-      throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY env var or provide it in the request.');
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY env var or provide it in settings.');
     }
+
+    const client = new OpenAI({ apiKey });
+
 
     try {
       // --- STEP 1: Smart Node Selection (Embedding-based or LLM fallback) ---
@@ -87,7 +118,7 @@ export class AIService {
       // Call OpenAI with Retry
       const completion = await this.retryOperation(async () => {
         return await client!.chat.completions.create({
-          model: 'gpt-4o',
+          model: model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
