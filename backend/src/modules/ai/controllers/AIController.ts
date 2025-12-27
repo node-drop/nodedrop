@@ -7,7 +7,7 @@ export class AIController {
   
   static async generateWorkflow(req: Request, res: Response) {
     try {
-      const { prompt, currentWorkflow, openAiKey, sessionId, workflowId, model } = req.body;
+      const { prompt, currentWorkflow, openAiKey, sessionId, workflowId, model, executionContext } = req.body;
       const userId = (req as any).user?.id || 'anonymous'; // Fallback for dev
 
       if (!prompt) {
@@ -44,10 +44,12 @@ export class AIController {
       const result = await aiService.generateWorkflow({
         prompt,
         currentWorkflow,
+        workflowId,
         openAiKey,
         chatHistory,
         userId,
-        model
+        model,
+        executionContext
       });
 
       // Save Assistant Message if session exists

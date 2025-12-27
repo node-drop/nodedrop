@@ -79,5 +79,17 @@ export const AI_TOOLS: ChatCompletionTool[] = [
                 required: ["message"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_latest_execution_logs",
+            description: "Fetches the full execution logs and errors from the most recent workflow run. Use this when the user mentions a failure, bug, or error, or asks 'why did it fail?'.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: []
+            }
+        }
     }
 ];

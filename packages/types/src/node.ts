@@ -194,6 +194,8 @@ export interface NodeDefinition {
   group: string[];
   version: number;
   description: string;
+  /** Keywords for AI semantic search and understanding */
+  keywords?: string[];
   defaults: Record<string, any>;
   inputs: string[];
   outputs: string[];

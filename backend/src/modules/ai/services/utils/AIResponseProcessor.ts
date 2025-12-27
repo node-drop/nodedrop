@@ -52,6 +52,34 @@ export class AIResponseProcessor {
                 });
             }
 
+            // --- CRITICAL POSITION FIX ---
+            // Merge AI nodes with existing workflow to PRESERVE positions
+            if (currentWorkflow && currentWorkflow.nodes && workflow.nodes) {
+                const existingNodesMap = new Map(currentWorkflow.nodes.map(n => [n.id, n]));
+                
+                workflow.nodes = workflow.nodes.map((n: any) => {
+                    const existingNode = existingNodesMap.get(n.id);
+                    let position = n.position;
+
+                    // 1. If node exists, FORCE preservation of its position 
+                    // (unless AI was explicitly told to layout, but usually we want stability)
+                    if (existingNode && existingNode.position) {
+                        position = existingNode.position;
+                    } 
+                    // 2. If new node and no position, provide a default to avoid overlap/stacking at 0,0
+                    // Ideally we'd find a smart spot, but for now a safe default or AI's position is better than null
+                    else if (!position) {
+                         // Default to center-ish if nothing else
+                         position = { x: 100, y: 100 };
+                    }
+
+                    return {
+                        ...n,
+                        position
+                    };
+                });
+            }
+
             const msg = args.message;
             const missingNodeTypes = await this.detectMissingNodes(workflow);
 
@@ -62,9 +90,9 @@ export class AIResponseProcessor {
             };
 
         } else if (funcName === 'advise_user') {
-            // Advice Only - Return original workflow unchanged
+            // Advice Only - Return null workflow to signal no change was made
             return {
-                workflow: currentWorkflow || { nodes: [], connections: [] } as Workflow,
+                workflow: null as any, // Null signals to frontend: do NOT show workflow widget
                 message: args.message + (args.suggestions ? `\n\nTips:\n${args.suggestions.map((s: string) => `- ${s}`).join('\n')}` : ''),
                 missingNodeTypes: []
             };

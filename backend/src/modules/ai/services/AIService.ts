@@ -4,7 +4,8 @@ import { userAiSettings } from '@/db/schema/ai_settings';
 import { AI_TOOLS } from '@/modules/ai/config/tools';
 import { AIContextBuilder } from '@/modules/ai/services/utils/AIContextBuilder';
 import { AIPromptBuilder } from '@/modules/ai/services/utils/AIPromptBuilder';
-import { AIResponseProcessor } from '@/modules/ai/services/utils/AIResponseProcessor';
+import { setNodeService, ToolContext } from '@/modules/ai/tools/handlers';
+import { toolRegistry } from '@/modules/ai/tools/registry';
 import { GenerateWorkflowRequest, GenerateWorkflowResponse } from '@/modules/ai/types';
 import { getCredentialService } from '@/services/CredentialService.factory';
 import { NodeService } from '@/services/nodes/NodeService';
@@ -12,18 +13,26 @@ import { logger } from '@/utils/logger';
 import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 
+// Register all handlers on module load
+import { adviseUserHandler, buildWorkflowHandler, getExecutionLogsHandler } from '@/modules/ai/tools/handlers';
+toolRegistry.register(buildWorkflowHandler);
+toolRegistry.register(adviseUserHandler);
+toolRegistry.register(getExecutionLogsHandler);
+
 export class AIService {
   private nodeService: NodeService;
   private openai: OpenAI | null = null;
   private contextBuilder: AIContextBuilder;
   private promptBuilder: AIPromptBuilder;
-  private responseProcessor: AIResponseProcessor;
 
   constructor(nodeService: NodeService) {
     this.nodeService = nodeService;
     this.contextBuilder = new AIContextBuilder(nodeService);
     this.promptBuilder = new AIPromptBuilder();
-    this.responseProcessor = new AIResponseProcessor(nodeService);
+    
+    // Inject nodeService into handlers that need it
+    setNodeService(nodeService);
+    
     this.initializeOpenAI();
   }
 
@@ -41,7 +50,6 @@ export class AIService {
     // 1. Determine Configuration (Key & Model)
     let apiKey = request.openAiKey || process.env.OPENAI_API_KEY;
     let model = request.model || 'gpt-4o';
-    let provider = 'openai';
 
     // If userId present, check settings table
     if (request.userId) {
@@ -52,7 +60,6 @@ export class AIService {
 
          if (settings) {
             if (settings.model) model = settings.model;
-            // if (settings.provider) provider = settings.provider; // Future support
 
             if (settings.credentialId) {
                const credentialService = getCredentialService();
@@ -81,11 +88,9 @@ export class AIService {
       let selectedNodeIds: string[];
       
       if (embeddingService.isEnabled()) {
-        // Use fast embedding-based similarity search
         selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, 10);
         logger.info(`Embedding-based selection: ${selectedNodeIds.join(', ')}`);
         
-        // If no results from embeddings, fall back to LLM selection
         if (selectedNodeIds.length === 0) {
           logger.warn('No embeddings found, falling back to LLM selection');
           const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
@@ -93,7 +98,6 @@ export class AIService {
           selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
         }
       } else {
-        // Fallback: Use LLM-based selection (for when embeddings are not configured)
         const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
         const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
         selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
@@ -103,42 +107,106 @@ export class AIService {
       // --- STEP 2: Build Scoped Context ---
       const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
 
-      // --- STEP 3: Generate Workflow ---
+      // --- STEP 3: Generate Workflow with Agentic Loop ---
       const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
       
       const contextWorkflow = request.currentWorkflow 
         ? this.contextBuilder.minifyWorkflowForAI(request.currentWorkflow) 
         : undefined;
         
-      const userPrompt = this.promptBuilder.buildUserPrompt(request.prompt, contextWorkflow, request.chatHistory);
+      const userPrompt = this.promptBuilder.buildUserPrompt(
+          request.prompt, 
+          contextWorkflow, 
+          request.chatHistory,
+          request.executionContext
+      );
 
       logger.info('--- AI REQUEST START ---');
-      logger.info(`Estimated Prompt Tokens: ~${(systemPrompt.length + userPrompt.length) / 4}`);
-        
-      // Call OpenAI with Retry
-      const completion = await this.retryOperation(async () => {
-        return await client!.chat.completions.create({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          tools: AI_TOOLS,
-          tool_choice: 'auto',
-          temperature: 0.7,
-        });
-      });
+      
+      const messages: any[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ];
 
-      const message = completion.choices[0].message;
-      const toolCalls = message.tool_calls;
+      // Tool context for handlers
+      const toolContext: ToolContext = {
+        request,
+        currentWorkflow: request.currentWorkflow,
+        db
+      };
 
-      logger.info('--- AI RESPONSE RAW ---', { content: message.content, toolCalls });
+      let turns = 0;
+      const MAX_TURNS = 5;
 
-      return await this.responseProcessor.processToolCalls(
-        toolCalls || [], 
-        request.currentWorkflow as any,
-        message.content || undefined
-      );
+      while (turns < MAX_TURNS) {
+          logger.info(`AI Turn ${turns + 1}/${MAX_TURNS}`);
+          
+          const completion = await this.retryOperation(async () => {
+            return await client!.chat.completions.create({
+              model: model,
+              messages: messages,
+              tools: AI_TOOLS,
+              tool_choice: 'auto',
+              temperature: 0.7,
+            });
+          });
+
+          const message = completion.choices[0].message;
+          messages.push(message);
+          
+          const toolCalls = message.tool_calls;
+
+          if (!toolCalls || toolCalls.length === 0) {
+             // No tools called - treat as fallback advice
+             return {
+                workflow: null as any,
+                message: message.content || "I couldn't process your request.",
+                missingNodeTypes: []
+             };
+          }
+
+          logger.info('--- AI TOOL CALLS ---', { count: toolCalls.length });
+
+          const functionTools = toolCalls.filter(t => t.type === 'function');
+          
+          // Process each tool call using the registry
+          for (const tool of functionTools) {
+              const toolName = tool.function.name;
+              const handler = toolRegistry.get(toolName);
+
+              if (!handler) {
+                  logger.warn(`Unknown tool called: ${toolName}`);
+                  continue;
+              }
+
+              const args = JSON.parse(tool.function.arguments);
+              logger.info(`Executing tool: ${toolName}`, { args: Object.keys(args) });
+
+              const result = await handler.execute(args, toolContext);
+
+              // If handler is final, return the result directly
+              if (handler.isFinal) {
+                  return result as GenerateWorkflowResponse;
+              }
+
+              // Otherwise, add tool result to messages and continue loop
+              messages.push({
+                  role: 'tool',
+                  tool_call_id: tool.id,
+                  name: toolName,
+                  content: JSON.stringify((result as any).data || result)
+              });
+          }
+
+          turns++;
+      }
+      
+      // Max turns reached
+      return {
+          workflow: request.currentWorkflow || { nodes: [], connections: [] } as any,
+          message: "I needed to perform too many steps and timed out. Please try a more specific request.",
+          missingNodeTypes: []
+      };
 
     } catch (error) {
       logger.error('AI Workflow generation failed', { error });
@@ -149,13 +217,12 @@ export class AIService {
   private async selectRelevantNodes(client: OpenAI, prompt: string): Promise<string[]> {
     try {
         const response = await client.chat.completions.create({
-            model: 'gpt-4o', // Use a cheaper model if possible, but 4o is fast
+            model: 'gpt-4o',
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.1, // Low temp for deterministic output
+            temperature: 0.1,
         });
 
         const text = response.choices[0].message.content || "[]";
-        // Attempt to parse JSON
         const match = text.match(/\[.*\]/s);
         if (match) {
             return JSON.parse(match[0]);
@@ -163,11 +230,6 @@ export class AIService {
         return [];
     } catch (e) {
         logger.warn("Failed to select nodes, falling back to full context", { error: e });
-        // Fallback: Return all node IDs (conceptually, or let context builder handle empty list if we want full fallback)
-        // For now, let's return a safe list or re-throw. 
-        // Better strategy: If selection fails, maybe we just proceed with a default set? 
-        // Let's rely on the context builder to handle specific IDs.
-        // If empty, user might get a generic workflow.
         return [];
     }
   }
@@ -182,7 +244,7 @@ export class AIService {
             lastError = error;
             logger.warn(`AI Operation failed (attempt ${i + 1}/${retries})`, { error });
             if (i < retries - 1) {
-                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // Exponential backoff
+                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
             }
         }
     }

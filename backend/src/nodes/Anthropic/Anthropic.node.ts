@@ -1,11 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { MemoryManager } from "../../modules/ai/utils/MemoryManager";
 import { AIMessage, ANTHROPIC_MODELS } from "../../types/ai.types";
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
-import { MemoryManager } from "../../utils/ai/MemoryManager";
 
 export const AnthropicNode: NodeDefinition = {
   identifier: "anthropic",

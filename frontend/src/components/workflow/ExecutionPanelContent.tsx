@@ -1,10 +1,12 @@
+import { useWorkflowStore } from '@/stores/workflow'
 import { ExecutionFlowStatus, ExecutionState, NodeExecutionResult, WorkflowExecutionResult } from '@/types'
+import { filterExistingNodeResults, filterExistingNodeResultsMap } from '@/utils/executionResultsFilter'
+import type { ExecutionLogEntry } from '@nodedrop/types'
 import { TabType } from './ExecutionPanelTabs'
 import { LogsTabContent } from './tabs/LogsTabContent'
 import { ProgressTabContent } from './tabs/ProgressTabContent'
 import { ResultsTabContent } from './tabs/ResultsTabContent'
 import { TimelineTabContent } from './tabs/TimelineTabContent'
-import type { ExecutionLogEntry } from '@nodedrop/types'
 
 interface ExecutionPanelContentProps {
   activeTab: TabType
@@ -25,9 +27,12 @@ export function ExecutionPanelContent({
   flowExecutionStatus,
   onClearLogs
 }: ExecutionPanelContentProps) {
-  // Get current and final results for display
-  const currentResults = Array.from(realTimeResults.values())
-  const finalResults = lastExecutionResult?.nodeResults || []
+  const { workflow } = useWorkflowStore()
+  
+  // Get current and final results for display, filtering out deleted nodes
+  const filteredRealTimeResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
+  const currentResults = Array.from(filteredRealTimeResults.values())
+  const finalResults = filterExistingNodeResults(lastExecutionResult?.nodeResults || [], workflow?.nodes)
   const displayResults = executionState.status === 'running' ? currentResults : finalResults
 
   return (
@@ -39,7 +44,7 @@ export function ExecutionPanelContent({
       {activeTab === 'timeline' && (
         <TimelineTabContent 
           flowExecutionStatus={flowExecutionStatus}
-          realTimeResults={realTimeResults}
+          realTimeResults={filteredRealTimeResults}
         />
       )}
       

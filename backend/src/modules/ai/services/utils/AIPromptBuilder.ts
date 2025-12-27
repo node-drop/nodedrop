@@ -62,6 +62,12 @@ ${constraintsSection}
 3. **Parameters**: Fill in "parameters" using the 'n' (name) key from the schema.
 4. **Layout**: Space out nodes in the "position" field so they don't overlap (x+=300 for each step).
 5. **No Hallucinations**: Do not invent node types that are not in the provided list or the marketplace list.
+
+### ERROR HANDLING & LOGS
+1. **Always Check Logs First**: If the user asks about an error, failure, or "what happened", you MUST use the \`get_latest_execution_logs\` tool before suggesting anything.
+2. **No Logs = No Fix**: If \`get_latest_execution_logs\` returns "not_found" or empty logs, DO NOT attempt to "fix" the workflow by regenerating it. You cannot fix what you cannot see.
+3. **Be Honest**: If no logs are found, simply tell the user: "I couldn't find any execution logs for this workflow. Please run the workflow again so I can analyze the error."
+4. **Do Not Hallucinate Fixes**: Never guess the error. If you don't have the logs, you don't know the error.
 `;
   }
 
@@ -84,7 +90,7 @@ ${nodeIndex}
 `;
   }
 
-  buildUserPrompt(prompt: string, currentWorkflow?: any, chatHistory?: { role: string, content: string }[]): string {
+  buildUserPrompt(prompt: string, currentWorkflow?: any, chatHistory?: { role: string, content: string }[], executionContext?: any): string {
     let content = "";
 
     // Add Chat History if available
@@ -96,6 +102,10 @@ ${nodeIndex}
       content += `\n`;
     }
 
+    if (executionContext) {
+       content += this.buildExecutionContext(executionContext);
+    }
+
     content += `### CURRENT REQUEST\nUser Request: "${prompt}"\n`;
     
     if (currentWorkflow) {
@@ -105,5 +115,26 @@ ${nodeIndex}
     }
     
     return content;
+  }
+
+  buildExecutionContext(context?: any): string {
+      if (!context) return "";
+      
+      let text = `### LAST EXECUTION CONTEXT\n`;
+      text += `Status: ${context.lastRunStatus || 'Unknown'}\n`;
+      
+      if (context.errors && context.errors.length > 0) {
+          text += `Errors:\n${context.errors.map((e: any) => `- Node ${e.nodeId}: ${e.error}`).join('\n')}\n`;
+      }
+      
+      if (context.logs && context.logs.length > 0) {
+          text += `Recent Logs:\n${context.logs.slice(-5).join('\n')}\n`;
+      } 
+      else if (context.lastRunStatus === 'error' && (!context.errors || context.errors.length === 0)) {
+          text += `(No specific error logs found. You can use 'get_latest_execution_logs' to investigate deeply.)\n`;
+      }
+      
+      text += `\n`;
+      return text;
   }
 }

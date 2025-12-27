@@ -17,13 +17,13 @@
  */
 
 import OpenAI from "openai";
+import { MemoryManager } from "../../modules/ai/utils/MemoryManager";
 import { AIMessage, OPENAI_MODELS } from "../../types/ai.types";
 import {
-  NodeDefinition,
-  NodeInputData,
-  NodeOutputData,
+    NodeDefinition,
+    NodeInputData,
+    NodeOutputData,
 } from "../../types/node.types";
-import { MemoryManager } from "../../utils/ai/MemoryManager";
 
 /**
  * OpenAI Node Definition

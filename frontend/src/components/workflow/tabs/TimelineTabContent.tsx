@@ -1,15 +1,16 @@
-import { ExecutionFlowStatus, NodeExecutionResult } from '@/types'
-import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Clock, Activity, CheckCircle2, XCircle, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflow'
+import { ExecutionFlowStatus, NodeExecutionResult } from '@/types'
+import { filterExistingNodeResultsMap } from '@/utils/executionResultsFilter'
+import { Activity, AlertCircle, CheckCircle2, Clock, XCircle, ZoomIn, ZoomOut } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 interface TimelineTabContentProps {
   flowExecutionStatus?: ExecutionFlowStatus | null
@@ -39,7 +40,9 @@ export function TimelineTabContent({
   const { workflow } = useWorkflowStore()
 
   const timelineData = useMemo(() => {
-    const nodeResults = Array.from(realTimeResults.entries())
+    // Filter out deleted nodes before processing
+    const filteredResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
+    const nodeResults = Array.from(filteredResults.entries())
     if (nodeResults.length === 0) return null
 
     const now = Date.now()

@@ -1,4 +1,6 @@
+import { useWorkflowStore } from '@/stores/workflow'
 import { ExecutionFlowStatus, ExecutionLogEntry, ExecutionState, NodeExecutionResult, WorkflowExecutionResult } from '@/types'
+import { filterExistingNodeResults, filterExistingNodeResultsMap } from '@/utils/executionResultsFilter'
 import { useState } from 'react'
 import { ExecutionPanelContent } from './ExecutionPanelContent'
 import { ExecutionPanelHeader } from './ExecutionPanelHeader'
@@ -28,10 +30,12 @@ export function ExecutionPanel({
   onClearLogs
 }: ExecutionPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('progress')
+  const { workflow } = useWorkflowStore()
 
-  // Get display data for tabs
-  const currentResults = Array.from(realTimeResults.values())
-  const finalResults = lastExecutionResult?.nodeResults || []
+  // Get display data for tabs, filtering out deleted nodes
+  const filteredRealTimeResults = filterExistingNodeResultsMap(realTimeResults, workflow?.nodes)
+  const currentResults = Array.from(filteredRealTimeResults.values())
+  const finalResults = filterExistingNodeResults(lastExecutionResult?.nodeResults || [], workflow?.nodes)
   const displayResults = executionState.status === 'running' ? currentResults : finalResults
 
   const handleToggle = () => {

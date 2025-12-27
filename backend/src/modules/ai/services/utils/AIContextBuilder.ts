@@ -131,7 +131,8 @@ export class AIContextBuilder {
             type,
             name,
             parameters: truncatedParams,
-            // Omit: position, icon, color, credentials, disabled, settings, etc.
+            position: node.position, // Include position for context
+            // Omit: icon, color, credentials, disabled, settings, etc.
         };
     });
 

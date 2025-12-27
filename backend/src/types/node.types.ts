@@ -8,59 +8,43 @@ import { NodeSettingsConfig } from "./settings.types";
 // =============================================================================
 export {
   // Built-in node types enum
-  BuiltInNodeTypes,
+  BuiltInNodeTypes
 } from "@nodedrop/types";
 
 // Re-export type-only exports
 export type {
-  // Node category and capability types
-  NodeCategory,
-  ExecutionCapability,
-  
-  // Node property types
-  NodePropertyType,
-  NodeDisplayOptions,
-  NodeTypeOptions,
-  NodePropertyOption,
-  NodeProperty,
-  
-  // Credential types
-  CredentialSelectorConfig,
   CredentialAuthentication,
   CredentialDefinition,
-  
-  // Node input/output configuration types
-  NodeInputConfig,
-  ServiceInput,
-  
+  // Credential types
+  CredentialSelectorConfig, ExecutionCapability,
+  // Node category and capability types
+  NodeCategory, NodeDisplayOptions,
   // Node definition types (excluding execute function - backend adds that)
   NodeHooks,
-  NodeSettings,
-  NodeSchema,
-  NodeTypeInfo,
-  
+  // Node input/output configuration types
+  NodeInputConfig, NodeProperty, NodePropertyOption,
+  // Node property types
+  NodePropertyType,
+  // Node registration types
+  NodeRegistrationResult, NodeSchema, NodeSettings, NodeTypeInfo, NodeTypeOptions,
   // Node validation types
   NodeValidationError,
-  NodeValidationResult,
-  
-  // Node registration types
-  NodeRegistrationResult,
-  
+  NodeValidationResult, ServiceInput,
   // Re-export TriggerType from workflow types
-  TriggerType,
+  TriggerType
 } from "@nodedrop/types";
 
 // Import types we need to extend
 import type {
-  NodeProperty,
-  NodeHooks,
-  NodeSettings,
   CredentialDefinition,
   CredentialSelectorConfig,
-  NodeInputConfig,
-  ServiceInput,
-  NodeCategory,
   ExecutionCapability,
+  NodeCategory,
+  NodeHooks,
+  NodeInputConfig,
+  NodeProperty,
+  NodeSettings,
+  ServiceInput,
   TriggerType,
 } from "@nodedrop/types";
 
@@ -234,4 +218,6 @@ export interface NodeDefinition {
   >;
   /** Custom settings specific to this node type */
   settings?: NodeSettings;
+  /** Keywords for search and classification */
+  keywords?: string[];
 }

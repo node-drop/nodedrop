@@ -136,6 +136,10 @@ export const NodePropertySchema = z.object({
   componentProps: z.record(z.any()).optional(),
   /** For credential type - array of credential type names that can be selected */
   allowedTypes: z.array(z.string()).optional(),
+  /** Keywords for AI semantic understanding of this property */
+  keywords: z.array(z.string()).optional(),
+  /** Example value for AI reference when generating defaults */
+  exampleValue: z.any().optional(),
 });
 
 // Override the inferred type to ensure options uses the correct NodePropertyOption type
@@ -157,6 +161,10 @@ export interface NodeProperty {
   componentProps?: Record<string, any>;
   /** For credential type - array of credential type names that can be selected */
   allowedTypes?: string[];
+  /** Keywords for AI semantic understanding of this property */
+  keywords?: string[];
+  /** Example value for AI reference when generating defaults */
+  exampleValue?: any;
 }
 
 // =============================================================================
@@ -313,6 +321,8 @@ export const NodeTypeInfoSchema = z.object({
   executionCapability: ExecutionCapabilitySchema.optional(),
   canExecuteIndividually: z.boolean().optional(),
   canBeDisabled: z.boolean().optional(),
+  /** Keywords for AI semantic search and understanding */
+  keywords: z.array(z.string()).optional(),
 });
 export type NodeTypeInfo = z.infer<typeof NodeTypeInfoSchema>;
 
@@ -330,6 +340,8 @@ export const NodeSchemaSchema = z.object({
   group: z.array(z.string()),
   version: z.number(),
   description: z.string(),
+  /** Keywords for AI semantic search and understanding */
+  keywords: z.array(z.string()).optional(),
   defaults: z.record(z.any()),
   inputs: z.array(z.string()),
   outputs: z.array(z.string()),

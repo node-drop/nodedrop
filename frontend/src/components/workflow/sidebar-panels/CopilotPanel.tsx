@@ -6,6 +6,7 @@ import { useExecutionControls } from '@/hooks/workflow';
 import { apiClient } from "@/services/api";
 import { useNodeTypesStore } from "@/stores/nodeTypes";
 import { useWorkflowStore } from "@/stores/workflow";
+import { filterExistingNodeResults } from '@/utils/executionResultsFilter';
 import { validateWorkflowDetailed } from '@/utils/workflowValidation';
 import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
@@ -577,9 +578,8 @@ function ExecutionReport({ result, logs = [] }: { result: any, logs?: any[] }) {
     const workflow = useWorkflowStore(state => state.workflow);
     const nodeTypes = useNodeTypesStore(state => state.nodeTypes);
 
-    // Get nodes in order of execution if possible, or just list them
-    // Assuming result.nodeResults is sorted by execution time usually
-    const nodes = result.nodeResults || [];
+    // Get nodes in order of execution, filtering out deleted nodes using shared utility
+    const nodes = filterExistingNodeResults(result.nodeResults || [], workflow?.nodes);
 
     return (
         <div className="border rounded-md bg-card overflow-hidden text-sm">
