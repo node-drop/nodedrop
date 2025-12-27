@@ -68,21 +68,65 @@ export const buildWorkflowHandler: ToolHandler = {
       });
     }
 
-    // --- CRITICAL POSITION FIX ---
-    // Merge AI nodes with existing workflow to PRESERVE positions
-    if (currentWorkflow && currentWorkflow.nodes && workflow.nodes) {
-      const existingNodesMap = new Map(currentWorkflow.nodes.map(n => [n.id, n]));
+    // --- SMART NODE POSITIONING ---
+    // Merge AI nodes with existing workflow to PRESERVE positions and intelligently place new nodes
+    if (workflow.nodes) {
+      const existingNodesMap = currentWorkflow?.nodes 
+        ? new Map(currentWorkflow.nodes.map(n => [n.id, n])) 
+        : new Map();
+      
+      // Calculate base positions from existing nodes
+      const existingPositions = currentWorkflow?.nodes?.map(n => n.position).filter(Boolean) || [];
+      const maxX = existingPositions.length > 0 
+        ? Math.max(...existingPositions.map(p => p?.x || 0)) 
+        : 0;
+      const avgY = existingPositions.length > 0 
+        ? existingPositions.reduce((sum, p) => sum + (p?.y || 0), 0) / existingPositions.length 
+        : 200;
+      
+      // Service node types that should be positioned below their parent
+      const SERVICE_NODE_TYPES = [
+        'openai-model', 'anthropic-model', 'google-model',
+        'buffer-memory', 'window-memory',
+      ];
+      const isServiceNode = (type: string) => 
+        SERVICE_NODE_TYPES.includes(type) || type.endsWith('-tool');
+      
+      let newNodeOffset = 0;
+      let serviceNodeOffset = 0;
       
       workflow.nodes = workflow.nodes.map((n: any) => {
         const existingNode = existingNodesMap.get(n.id);
-        let position = n.position;
-
-        if (existingNode && existingNode.position) {
-          position = existingNode.position;
-        } else if (!position) {
-          position = { x: 100, y: 100 };
+        
+        // 1. Preserve existing node positions
+        if (existingNode?.position) {
+          return { ...n, position: existingNode.position };
         }
-
+        
+        // 2. Use AI-provided position if valid
+        if (n.position?.x !== undefined && n.position?.y !== undefined) {
+          return n;
+        }
+        
+        // 3. Calculate smart position for new nodes
+        let position: { x: number, y: number };
+        
+        if (isServiceNode(n.type)) {
+          // Service nodes go below, spread horizontally
+          position = { 
+            x: maxX + 150 + (serviceNodeOffset * 200), 
+            y: avgY + 200 
+          };
+          serviceNodeOffset++;
+        } else {
+          // Regular nodes go to the right
+          position = { 
+            x: maxX + 300 + (newNodeOffset * 300), 
+            y: avgY 
+          };
+          newNodeOffset++;
+        }
+        
         return { ...n, position };
       });
     }

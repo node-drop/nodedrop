@@ -4,7 +4,7 @@ import { userAiSettings } from '@/db/schema/ai_settings';
 import { AI_TOOLS } from '@/modules/ai/config/tools';
 import { AIContextBuilder } from '@/modules/ai/services/utils/AIContextBuilder';
 import { AIPromptBuilder } from '@/modules/ai/services/utils/AIPromptBuilder';
-import { setNodeService, ToolContext } from '@/modules/ai/tools/handlers';
+import { setNodeService, setValidationNodeService, ToolContext } from '@/modules/ai/tools/handlers';
 import { toolRegistry } from '@/modules/ai/tools/registry';
 import { GenerateWorkflowRequest, GenerateWorkflowResponse } from '@/modules/ai/types';
 import { getCredentialService } from '@/services/CredentialService.factory';
@@ -14,10 +14,11 @@ import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 
 // Register all handlers on module load
-import { adviseUserHandler, buildWorkflowHandler, getExecutionLogsHandler } from '@/modules/ai/tools/handlers';
+import { adviseUserHandler, buildWorkflowHandler, getExecutionLogsHandler, validateWorkflowHandler } from '@/modules/ai/tools/handlers';
 toolRegistry.register(buildWorkflowHandler);
 toolRegistry.register(adviseUserHandler);
 toolRegistry.register(getExecutionLogsHandler);
+toolRegistry.register(validateWorkflowHandler);
 
 export class AIService {
   private nodeService: NodeService;
@@ -32,6 +33,7 @@ export class AIService {
     
     // Inject nodeService into handlers that need it
     setNodeService(nodeService);
+    setValidationNodeService(nodeService);
     
     this.initializeOpenAI();
   }
@@ -44,9 +46,19 @@ export class AIService {
   }
 
   public async generateWorkflow(
-    request: GenerateWorkflowRequest
+    request: GenerateWorkflowRequest,
+    onProgress?: (event: 'status' | 'node-selection' | 'planning' | 'tool-use', data: any) => void
   ): Promise<GenerateWorkflowResponse> {
     
+    // Helper to emit progress safely
+    const emit = (type: 'status' | 'node-selection' | 'planning' | 'tool-use', message: string, details?: any) => {
+        if (onProgress) {
+            onProgress(type, { message, ...details });
+        }
+    };
+
+    emit('status', 'Initializing AI agent...');
+
     // 1. Determine Configuration (Key & Model)
     let apiKey = request.openAiKey || process.env.OPENAI_API_KEY;
     let model = request.model || 'gpt-4o';
@@ -83,6 +95,8 @@ export class AIService {
 
     try {
       // --- STEP 1: Smart Node Selection (Embedding-based or LLM fallback) ---
+      emit('status', 'Analyzing request to identify relevant nodes...');
+      
       const embeddingService = (await import('./NodeEmbeddingService')).NodeEmbeddingService.getInstance();
       
       let selectedNodeIds: string[];
@@ -92,22 +106,28 @@ export class AIService {
         logger.info(`Embedding-based selection: ${selectedNodeIds.join(', ')}`);
         
         if (selectedNodeIds.length === 0) {
+          emit('status', 'No indexed nodes found, falling back to general knowledge...');
           logger.warn('No embeddings found, falling back to LLM selection');
           const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
           const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
-          selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
+          selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt, model);
         }
       } else {
+        emit('status', 'Consulting node registry index...');
         const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
         const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
-        selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt);
+        selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt, model);
         logger.info(`LLM-based selection: ${selectedNodeIds.join(', ')}`);
       }
+      
+      emit('node-selection', 'Selected potential nodes', { nodes: selectedNodeIds });
 
       // --- STEP 2: Build Scoped Context ---
+      emit('status', `Loading context for ${selectedNodeIds.length} nodes...`);
       const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
 
       // --- STEP 3: Generate Workflow with Agentic Loop ---
+      emit('status', 'Planning workflow logic...');
       const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
       
       const contextWorkflow = request.currentWorkflow 
@@ -140,6 +160,7 @@ export class AIService {
 
       while (turns < MAX_TURNS) {
           logger.info(`AI Turn ${turns + 1}/${MAX_TURNS}`);
+          if (turns > 0) emit('status', 'Refining workflow...');
           
           const completion = await this.retryOperation(async () => {
             return await client!.chat.completions.create({
@@ -158,6 +179,7 @@ export class AIService {
 
           if (!toolCalls || toolCalls.length === 0) {
              // No tools called - treat as fallback advice
+             emit('status', 'Finalizing response...');
              return {
                 workflow: null as any,
                 message: message.content || "I couldn't process your request.",
@@ -181,11 +203,13 @@ export class AIService {
 
               const args = JSON.parse(tool.function.arguments);
               logger.info(`Executing tool: ${toolName}`, { args: Object.keys(args) });
+              emit('tool-use', `Executing ${toolName}...`, { tool: toolName });
 
               const result = await handler.execute(args, toolContext);
 
               // If handler is final, return the result directly
               if (handler.isFinal) {
+                  emit('status', 'Workflow generated successfully!');
                   return result as GenerateWorkflowResponse;
               }
 
@@ -202,6 +226,7 @@ export class AIService {
       }
       
       // Max turns reached
+      emit('status', 'Timeout: exceeded maximum thinking steps.');
       return {
           workflow: request.currentWorkflow || { nodes: [], connections: [] } as any,
           message: "I needed to perform too many steps and timed out. Please try a more specific request.",
@@ -214,10 +239,10 @@ export class AIService {
     }
   }
 
-  private async selectRelevantNodes(client: OpenAI, prompt: string): Promise<string[]> {
+  private async selectRelevantNodes(client: OpenAI, prompt: string, model: string): Promise<string[]> {
     try {
         const response = await client.chat.completions.create({
-            model: 'gpt-4o',
+            model: model,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.1,
         });

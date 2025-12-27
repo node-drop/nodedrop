@@ -21,6 +21,14 @@ export class AIController {
         return res.status(500).json({ error: 'System not ready' });
       }
 
+      // Initialize SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no' // For Nginx
+      });
+
       const aiService = new AIService(nodeService);
       const chatService = new AIChatService();
       
@@ -41,6 +49,7 @@ export class AIController {
         }
       }
 
+      // Stream progress
       const result = await aiService.generateWorkflow({
         prompt,
         currentWorkflow,
@@ -50,6 +59,8 @@ export class AIController {
         userId,
         model,
         executionContext
+      }, (event, data) => {
+        res.write(`data: ${JSON.stringify({ type: event, ...data })}\n\n`);
       });
 
       // Save Assistant Message if session exists
@@ -60,14 +71,21 @@ export class AIController {
         });
       }
 
-      return res.json(result);
+      // Send final result
+      res.write(`data: ${JSON.stringify({ type: 'result', result })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
 
     } catch (error) {
       logger.error('Error generating workflow', { error });
-      return res.status(500).json({ 
-        error: 'Failed to generate workflow',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // If headers already sent, we can only send an error event
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      if (!res.headersSent) {
+          return res.status(500).json({ error: 'Failed to generate workflow', details: errorMsg });
+      } else {
+          res.write(`data: ${JSON.stringify({ type: 'error', error: errorMsg })}\n\n`);
+          res.end();
+      }
     }
   }
 

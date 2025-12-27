@@ -1,7 +1,7 @@
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { env } from "@/config/env";
 import { useExecutionControls } from '@/hooks/workflow';
 import { apiClient } from "@/services/api";
 import { useNodeTypesStore } from "@/stores/nodeTypes";
@@ -10,10 +10,11 @@ import { filterExistingNodeResults } from '@/utils/executionResultsFilter';
 import { validateWorkflowDetailed } from '@/utils/workflowValidation';
 import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Play, Plus, Settings, Sparkles, StopCircle, Trash2, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Plus, Settings, Sparkles, Trash2, XCircle } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AISettingsForm } from './AISettingsForm';
+import { AgentEvent, ThinkingProcess } from './ThinkingProcess';
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -22,6 +23,7 @@ interface Message {
   metadata?: any
   executionResult?: any // Store full execution result for strict visual rendering
   executionLogs?: any[] // Snapshot of logs for this execution
+  thinkingEvents?: AgentEvent[] // Store thinking process for this message
 }
 
 interface ChatSession {
@@ -37,6 +39,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false)
+  const [currentThinkingEvents, setCurrentThinkingEvents] = useState<AgentEvent[]>([])
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { fitView } = useReactFlow();
@@ -64,7 +67,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, isLoading, currentThinkingEvents]) // Scroll on events too
 
   // Monitor execution results for errors
   useEffect(() => {
@@ -125,6 +128,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const selectSession = async (sessionId: string) => {
       setIsLoading(true);
       setShowHistory(false);
+      setCurrentThinkingEvents([]); 
       try {
           const res = await apiClient.get<any[]>(`/ai/sessions/${sessionId}/messages`);
           // Map DB messages to UI messages
@@ -133,7 +137,9 @@ export const CopilotPanel = memo(function CopilotPanel() {
               role: m.role as 'user' | 'assistant',
               content: m.content,
               workflow: m.metadata?.workflow,
-              missingNodes: m.metadata?.missingNodeTypes
+              missingNodes: m.metadata?.missingNodeTypes,
+              // Restore thinking events if possibly stored in metadata (future proofing)
+              thinkingEvents: m.metadata?.thinkingEvents 
           })) : [];
           
           setMessages(mappedMessages);
@@ -161,6 +167,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
           setActiveSessionId(newSession.id);
           setMessages([{ role: 'assistant', content: 'Hi! I can help you build workflows. Describe what you want to achieve.' }]);
           setShowHistory(false);
+          setCurrentThinkingEvents([]);
       } catch (err) {
           toast.error("Failed to create new chat");
       }
@@ -218,6 +225,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
     // Add user message to UI (or system observation)
     setMessages(prev => [...prev, { role: 'user', content: content }]);
     setIsLoading(true);
+    setCurrentThinkingEvents([]); // Reset thinking events
 
     try {
       // Get current workflow for context
@@ -226,30 +234,101 @@ export const CopilotPanel = memo(function CopilotPanel() {
         connections: workflow.connections
       } : undefined;
 
-      const response = await apiClient.post<{ workflow: any; message: string; missingNodeTypes: string[] }>("/ai/generate-workflow", {
-        prompt: content,
-        sessionId: currentSessionId, // Pass session ID to persist
-        workflowId: workflow?.id,
-        currentWorkflow: currentWorkflow
-          ? {
-              nodes: currentWorkflow.nodes,
-              connections: currentWorkflow.connections,
-            }
-          : undefined,
+      const token = localStorage.getItem("auth_token");
+      
+      // Get workspace ID similarly to apiClient
+      let workspaceId = null;
+      try {
+        const workspaceStorage = localStorage.getItem("workspace-storage");
+        if (workspaceStorage) {
+            const parsed = JSON.parse(workspaceStorage);
+            workspaceId = parsed.state?.currentWorkspaceId || null;
+        }
+      } catch (e) {
+        // Ignore
+      }
+
+      // Use fetch for streaming support
+      const response = await fetch(`${env.API_BASE_URL}/ai/generate-workflow`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(workspaceId ? { 'x-workspace-id': workspaceId } : {})
+        },
+        credentials: 'include', // Important for cookie-based sessions
+        body: JSON.stringify({
+            prompt: content,
+            sessionId: currentSessionId, // Pass session ID to persist
+            workflowId: workflow?.id,
+            currentWorkflow: currentWorkflow
+            ? {
+                nodes: currentWorkflow.nodes,
+                connections: currentWorkflow.connections,
+                }
+            : undefined,
+        })
       });
 
-      const data = response as unknown as { workflow: any; message: string; missingNodeTypes: string[] };
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.message,
-        workflow: data.workflow,
-        missingNodes: data.missingNodeTypes
-      }])
-      
-      // Update session title in list if it's new
-      if (currentSessionId) {
-          loadSessions(workflow!.id); // Refresh list to update timestamps/Sort
+      if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+          throw new Error('No response body');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          
+          // Process fully formed lines
+          buffer = lines.pop() || ''; // Keep the incomplete remaining part
+          
+          for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                  const dataStr = line.replace('data: ', '').trim();
+                  if (dataStr === '[DONE]') continue;
+                  
+                  try {
+                      const event = JSON.parse(dataStr);
+                      if (event.type === 'result') {
+                          // Final result
+                          const result = event.result;
+                          
+                          // Auto-apply the workflow immediately
+                          if (result.workflow) {
+                            handleApplyWorkflow(result.workflow);
+                          }
+
+                          setMessages(prev => [...prev, { 
+                            role: 'assistant', 
+                            content: result.message,
+                            // specific workflow data removed from UI state as it is auto-applied
+                            missingNodes: result.missingNodeTypes,
+                            thinkingEvents: [...currentThinkingEvents] // Save final thinking state
+                          }]);
+                          
+                          // Refresh sessions
+                          if (currentSessionId) loadSessions(workflow!.id);
+                      } else if (event.type === 'error') {
+                          throw new Error(event.error);
+                      } else {
+                          // Agent event (status, node-selection, etc.)
+                          setCurrentThinkingEvents(prev => [...prev, event]);
+                      }
+                  } catch (e) {
+                      console.error("Failed to parse SSE event", e);
+                  }
+              }
+          }
       }
 
     } catch (error) {
@@ -272,7 +351,9 @@ export const CopilotPanel = memo(function CopilotPanel() {
             connections: workflowData.connections || []
         });
 
-        toast.success("Workflow updated successfully!");
+        toast.success("Workflow updated successfully!", {
+          position: 'top-center'
+        });
         
         // Fit view after 100ms to allow React Flow to render new nodes
         setTimeout(() => {
@@ -443,65 +524,15 @@ export const CopilotPanel = memo(function CopilotPanel() {
                     {msg.content}
                 </div>
                 
-                {msg.workflow && (
-                    <div className="mt-2 p-3 border rounded-md bg-card w-full text-xs">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="font-semibold">Generated Workflow</span>
-                            <span className="text-muted-foreground">{msg.workflow.nodes?.length || 0} nodes</span>
-                        </div>
-                        
-                        {msg.missingNodes && msg.missingNodes.length > 0 && (
-                            <Alert variant="destructive" className="mb-2 py-2">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Missing Nodes</AlertTitle>
-                                <AlertDescription>
-                                    {msg.missingNodes.join(', ')}
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="w-full mt-2 h-6 text-xs"
-                                        onClick={() => handleInstallNodes(msg.missingNodes!)}
-                                    >
-                                        Install Missing
-                                    </Button>
-                                </AlertDescription>
-                            </Alert>
-                        )}
-
-                        <div className="flex gap-2">
-                            <Button 
-                                size="sm" 
-                                className="flex-1 gap-2"
-                                variant="outline"
-                                onClick={() => handleApplyWorkflow(msg.workflow)}
-                            >
-                                <Plus className="h-3 w-3" />
-                                Apply
-                            </Button>
-                            
-                            {isExecuting ? (
-                                <Button 
-                                    size="sm" 
-                                    variant="destructive"
-                                    className="flex-1 gap-2" 
-                                    onClick={() => stopExecution()}
-                                >
-                                    <StopCircle className="h-3 w-3" />
-                                    Stop
-                                </Button>
-                            ) : (
-                                <Button 
-                                    size="sm" 
-                                    className="flex-1 gap-2" 
-                                    onClick={() => handleRunWorkflow(msg.workflow)}
-                                >
-                                    <Play className="h-3 w-3" />
-                                    Run
-                                </Button>
-                            )}
-                        </div>
+                {/* Visual Thinking Process for historical messages (if saved) */}
+                {msg.thinkingEvents && msg.thinkingEvents.length > 0 && (
+                    <div className="mt-2 w-full max-w-[90%]">
+                        <ThinkingProcess events={msg.thinkingEvents} isComplete={true} />
                     </div>
                 )}
+
+
+                {/* Generated Workflow Button Widget REMOVED */}
                 
                 {/* Execution Report Widget */}
                 {msg.executionResult && (
@@ -511,6 +542,22 @@ export const CopilotPanel = memo(function CopilotPanel() {
                 )}
                 </div>
             ))}
+            
+            {/* Active Thinking Process (Live) */}
+            {isLoading && (
+                <div className="w-full max-w-[90%] fade-in">
+                    {(currentThinkingEvents.some(e => 
+                        (e.type === 'node-selection' && e.nodes && e.nodes.length > 0) || 
+                        (e.type === 'tool-use' && e.tool !== 'advise_user') || 
+                        e.type === 'planning'
+                    )) ? (
+                        <ThinkingProcess events={currentThinkingEvents} isComplete={false} />
+                    ) : (
+                        <ThinkingLoader />
+                    )}
+                </div>
+            )}
+            
             <div ref={messagesEndRef} />
             </div>
         </div>
@@ -668,3 +715,18 @@ function ExecutionReport({ result, logs = [] }: { result: any, logs?: any[] }) {
 
 
 
+
+
+
+// Simple 3-dot typing animation for "chat" mode
+function ThinkingLoader() {
+    return (
+        <div className="flex flex-col items-start animate-in fade-in zoom-in-95 duration-200 mb-4">
+            <div className="rounded-lg p-3 bg-muted text-foreground flex items-center gap-1 h-[40px]">
+                <div className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <div className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <div className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce" />
+            </div>
+        </div>
+    );
+}

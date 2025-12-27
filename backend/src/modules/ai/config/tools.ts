@@ -91,5 +91,22 @@ export const AI_TOOLS: ChatCompletionTool[] = [
                 required: []
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "validate_workflow",
+            description: "Validates a workflow for errors before finalizing. Use this when creating complex workflows (especially with AI agents) to catch connection errors or missing parameters. Returns errors/warnings for self-correction.",
+            parameters: {
+                type: "object",
+                properties: {
+                    workflow: {
+                        type: "object",
+                        description: "The workflow object to validate before finalizing"
+                    }
+                },
+                required: ["workflow"]
+            }
+        }
     }
 ];

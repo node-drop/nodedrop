@@ -9,7 +9,8 @@ import { logger } from '@/utils/logger';
 import {
   adviseUserHandler,
   buildWorkflowHandler,
-  getExecutionLogsHandler
+  getExecutionLogsHandler,
+  validateWorkflowHandler
 } from './handlers';
 import { ToolHandler } from './handlers/types';
 
@@ -65,4 +66,5 @@ export function registerAllHandlers(): void {
   toolRegistry.register(buildWorkflowHandler);
   toolRegistry.register(adviseUserHandler);
   toolRegistry.register(getExecutionLogsHandler);
+  toolRegistry.register(validateWorkflowHandler);
 }

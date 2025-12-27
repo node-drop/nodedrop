@@ -54,12 +54,44 @@ export class AIContextBuilder {
   }
 
   private minifyNodes(nodes: any[]): string {
-    const simplifiedSchemas = nodes.map(node => ({
-        id: node.identifier, 
-        name: node.displayName,
-        in: node.inputs ? (node.inputs as any[]).map((i: any) => typeof i === 'string' ? i : i.name) : ['main'], 
-        out: node.outputs ? (node.outputs as any[]).map((o: any) => typeof o === 'string' ? o : o.name) : ['main'],
-        props: (node.properties || [])
+    const simplifiedSchemas = nodes.map(node => {
+        const schema: any = {
+            id: node.identifier, 
+            name: node.displayName,
+            in: node.inputs ? (node.inputs as any[]).map((i: any) => typeof i === 'string' ? i : i.name) : ['main'], 
+            out: node.outputs ? (node.outputs as any[]).map((o: any) => typeof o === 'string' ? o : o.name) : ['main'],
+        };
+
+        // Include service inputs (for ai-agent, model, memory, tool nodes)
+        if (node.serviceInputs && node.serviceInputs.length > 0) {
+            schema.svc = node.serviceInputs.map((si: any) => ({
+                n: si.name,
+                t: si.type,
+                req: si.required || false
+            }));
+        }
+
+        // Include inputsConfig for nodes with special service inputs (like ai-agent)
+        // This tells the AI which inputs accept service connections
+        if (node.inputsConfig) {
+            const serviceInputs: any[] = [];
+            for (const [inputName, config] of Object.entries(node.inputsConfig)) {
+                const cfg = config as any;
+                if (cfg.position === 'bottom') {
+                    serviceInputs.push({
+                        n: inputName,
+                        label: cfg.displayName || inputName,
+                        req: cfg.required || false,
+                        multi: cfg.multiple || false
+                    });
+                }
+            }
+            if (serviceInputs.length > 0) {
+                schema.svcIn = serviceInputs;
+            }
+        }
+
+        schema.props = (node.properties || [])
             .filter((p: any) => !p.typeOptions?.password && p.type !== 'hidden') 
             .map((p: any) => {
                 const minProp: any = { 
@@ -98,8 +130,10 @@ export class AIContextBuilder {
                 }
                 
                 return minProp;
-            })
-    }));
+            });
+
+        return schema;
+    });
 
     return JSON.stringify(simplifiedSchemas);
   }
