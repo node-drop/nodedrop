@@ -39,7 +39,7 @@ export class AIChatService {
     const [message] = await db.insert(aiChatMessages).values({
       sessionId,
       role,
-      content,
+      content: content || "",
       metadata,
     }).returning();
 

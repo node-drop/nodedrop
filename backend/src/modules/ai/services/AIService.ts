@@ -63,6 +63,7 @@ export class AIService {
     // 1. Determine Configuration (Key & Model)
     let apiKey = request.openAiKey || process.env.OPENAI_API_KEY;
     let model = request.model || 'gpt-4o';
+    let baseURL: string | undefined;
 
     // If userId present, check settings table
     if (request.userId) {
@@ -77,9 +78,24 @@ export class AIService {
             if (settings.credentialId) {
                const credentialService = getCredentialService();
                const cred = await credentialService.getCredential(settings.credentialId, request.userId);
-               if (cred && cred.data && cred.data.apiKey) {
-                  apiKey = cred.data.apiKey;
+               
+               if (cred && cred.data) {
+                  // Standard API Key
+                  if (cred.data.apiKey) {
+                     apiKey = cred.data.apiKey;
+                  }
+                  
+                  // Custom Base URL (for Ollama/LocalAI)
+                  if (cred.data.baseUrl) {
+                      baseURL = cred.data.baseUrl;
+                  }
                }
+            }
+            
+            // Special handling for Ollama/Local providers
+            if (settings.provider === 'ollama') {
+                if (!apiKey) apiKey = 'ollama'; // Dummy key required for client init
+                if (!baseURL) baseURL = 'http://localhost:11434/v1'; // Default Ollama URL
             }
          }
        } catch (err) {
@@ -91,7 +107,10 @@ export class AIService {
       throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY env var or provide it in settings.');
     }
 
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({ 
+        apiKey,
+        baseURL 
+    });
 
 
     try {
@@ -164,15 +183,44 @@ export class AIService {
           if (turns > 0) emit('status', 'Refining workflow...');
           
           // Use streaming for real-time thinking display
-          const stream = await this.retryOperation(async () => {
-            return await client!.chat.completions.create({
-              model: model,
-              messages: messages,
-              tools: AI_TOOLS,
-              tool_choice: 'auto',
-              temperature: 0.7,
-              stream: true,
-            });
+          const stream = await this.retryOperation(async (attempt, lastError) => {
+             try {
+                // If previous attempt failed due to tools, disable them for this attempt
+                const disableTools = lastError?.message?.includes('does not support tools') || lastError?.status === 400;
+                
+                if (disableTools) {
+                    logger.info("Retrying without tools (JSON Mode fallback)...");
+                    // Append JSON instruction if not already present
+                    const hasJsonInstruction = messages.some(m => m.content?.includes('respond with a JSON object'));
+                    if (!hasJsonInstruction) {
+                        messages.push({
+                            role: 'system', 
+                            content: `CRITICAL: You do not support tools. You MUST respond with a valid JSON object matching this schema: { "name": "build_workflow", "arguments": { "nodes": [...], "connections": [...] } }. Do not wrap in markdown.`
+                        });
+                    }
+                    
+                    return await client!.chat.completions.create({
+                        model: model,
+                        messages: messages,
+                        // tools: undefined, // Explicitly remove tools
+                        stream: true,
+                        temperature: 0.1, // Lower temp for JSON
+                        response_format: { type: "json_object" } // Enforce JSON if supported
+                    });
+                }
+
+                return await client!.chat.completions.create({
+                  model: model,
+                  messages: messages,
+                  tools: AI_TOOLS,
+                  tool_choice: 'auto',
+                  temperature: 0.7,
+                  stream: true,
+                });
+             } catch (e: any) {
+                 // Re-throw to trigger retry loop
+                 throw e;
+             }
           });
 
           // Accumulate streamed response
@@ -228,6 +276,33 @@ export class AIService {
           const toolCalls = message.tool_calls;
 
           if (!toolCalls || toolCalls.length === 0) {
+             // CHECK FOR JSON FALLBACK: If content contains JSON that looks like a tool call
+             const content = message.content || "";
+             if (content.trim().startsWith('{') && content.includes('"nodes"')) {
+                 try {
+                     const json = JSON.parse(content);
+                     // Simulate a tool call structure
+                     const simulatedToolCall = {
+                         id: 'call_fallback_' + Date.now(),
+                         type: 'function',
+                         function: {
+                             name: json.name || 'build_workflow', // Default to build_workflow
+                             arguments: JSON.stringify(json.arguments || json)
+                         }
+                     };
+                     
+                     // Inject into processing array
+                     message.tool_calls = [simulatedToolCall];
+                     // Recursively process (continue loop logic below)
+                 } catch (e) {
+                     logger.warn("Failed to parse fallback JSON", e as unknown as Record<string, any>);
+                 }
+             }
+          }
+
+          const finalToolCalls = message.tool_calls || [];
+
+          if (finalToolCalls.length === 0) {
              // No tools called - treat as fallback advice
              emit('status', 'Finalizing response...');
              return {
@@ -237,9 +312,9 @@ export class AIService {
              };
           }
 
-          logger.info('--- AI TOOL CALLS ---', { count: toolCalls.length });
+          logger.info('--- AI TOOL CALLS ---', { count: finalToolCalls.length });
 
-          const functionTools = toolCalls.filter((t: any) => t.type === 'function');
+          const functionTools = finalToolCalls.filter((t: any) => t.type === 'function');
           
           // Process each tool call using the registry
           for (const tool of functionTools) {
@@ -309,12 +384,12 @@ export class AIService {
     }
   }
 
-  private async retryOperation<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+    private async retryOperation<T>(operation: (attempt: number, lastError?: any) => Promise<T>, retries = 3, delay = 1000): Promise<T> {
     let lastError: any;
     
     for (let i = 0; i < retries; i++) {
         try {
-            return await operation();
+            return await operation(i, lastError);
         } catch (error) {
             lastError = error;
             logger.warn(`AI Operation failed (attempt ${i + 1}/${retries})`, { error });

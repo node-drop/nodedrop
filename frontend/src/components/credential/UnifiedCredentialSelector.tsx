@@ -201,11 +201,27 @@ export function UnifiedCredentialSelector({
 
         {/* Create New with Type Selection - for multiple allowed types */}
         {!disabled && allowedTypes.length > 1 && (
-          <div className="relative group">
+          <div className="relative">
             <button
               type="button"
               disabled={isFetchingTypes}
-              className="h-9 w-9 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                // Toggle dropdown logic here or use a UI library Popover/DropdownMenu
+                // For simplicity, let's use a native select-like behavior or just a list if strictly limited
+                // But since we are inside a form, let's use a simpler approach:
+                // Just cycle through them? No, that's bad.
+                // Let's use a standard Select for the type? 
+                // Or just render a small menu below.
+                
+                // HACK: For this specific use case (AISettings), we have 'apiKey' and 'custom'.
+                // The current hover implementation is flaky. 
+                // Let's make it CLICK based.
+                const menu = document.getElementById('cred-type-menu');
+                if (menu) {
+                   menu.classList.toggle('hidden');
+                }
+              }}
+              className="h-9 w-9 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed peer"
               title={isFetchingTypes ? "Loading credential types..." : "Create new credential"}
             >
               <Plus className="w-4 h-4" />
@@ -213,7 +229,11 @@ export function UnifiedCredentialSelector({
             
             {/* Dropdown menu for selecting credential type */}
             {isCredentialTypesReady && (
-              <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-300 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <div 
+                id="cred-type-menu"
+                className="hidden absolute right-0 mt-1 w-56 bg-white border border-gray-300 rounded-md shadow-lg z-50 peer-focus:block hover:block"
+                style={{top: '100%'}}
+              >
                 <div className="py-1">
                   <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b">
                     Select credential type
@@ -224,7 +244,8 @@ export function UnifiedCredentialSelector({
                       <button
                         key={typeName}
                         type="button"
-                        onClick={async () => {
+                        onMouseDown={async (e) => {
+                          e.preventDefault(); // Prevent blur from closing before click
                           // Ensure credential types are loaded
                           if (!isCredentialTypesReady) {
                             setIsFetchingTypes(true)
@@ -233,11 +254,14 @@ export function UnifiedCredentialSelector({
                           }
                           setSelectedCredentialType(typeName)
                           setShowCreateModal(true)
+                          
+                          const menu = document.getElementById('cred-type-menu');
+                          if (menu) menu.classList.add('hidden');
                         }}
                         className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Key className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm">{credType?.displayName || typeName}</span>
+                        <span className="text-sm">{credType?.displayName || (typeName === 'custom_ai_api' ? 'Custom AI Configuration' : typeName)}</span>
                       </button>
                     )
                   })}

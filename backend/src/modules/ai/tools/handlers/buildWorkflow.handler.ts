@@ -39,7 +39,9 @@ export const buildWorkflowHandler: ToolHandler = {
   isFinal: true,
 
   async execute(args: any, context: ToolContext): Promise<GenerateWorkflowResponse> {
-    const workflow = args.workflow;
+    // Robust arg handling: check if 'workflow' property exists, otherwise treat args as workflow
+    // This handles both OpenAI tool calls (nested) and JSON fallback (possibly flat)
+    const workflow = args.workflow || (args.nodes ? args : { nodes: [], connections: [] });
     const currentWorkflow = context.currentWorkflow;
     
     // Post-process workflow to ensure defaults
