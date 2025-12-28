@@ -10,15 +10,13 @@ import {
     ResizablePanel,
     ResizablePanelGroup,
 } from '@/components/ui/resizable'
-import { useExecutionAwareEdges } from '@/hooks/workflow'
 import {
-    useCopyPaste,
-    useExecutionControls,
+    useCopyPaste, useExecutionAwareEdges, useExecutionControls,
     useExecutionPanelData,
     useKeyboardShortcuts,
     useReactFlowInteractions,
     useSelectedNodes,
-    useWorkflowOperations,
+    useWorkflowOperations
 } from '@/hooks/workflow'
 import { useReactFlowUIStore, useWorkflowStore, useWorkflowToolbarStore } from '@/stores'
 import { useNodeTypes } from '@/stores/nodeTypes'
@@ -26,11 +24,11 @@ import { NodeType } from '@/types'
 import { RightSidebar } from './RightSidebar'
 
 import { ChatDialog } from './ChatDialog'
-import { TemplateVariableDialog } from './TemplateVariableDialog'
 import { CustomNode } from './CustomNode'
 import { ExecutionPanel } from './ExecutionPanel'
 import { NodeConfigDialog } from './NodeConfigDialog'
 import { AnnotationNode, ChatInterfaceNode, DataPreviewNode, FormGeneratorNode, GroupNode, ImagePreviewNode, NodeSelectorNode } from './nodes'
+import { TemplateVariableDialog } from './TemplateVariableDialog'
 import { WorkflowCanvas } from './WorkflowCanvas'
 import { WorkflowErrorBoundary } from './WorkflowErrorBoundary'
 import {

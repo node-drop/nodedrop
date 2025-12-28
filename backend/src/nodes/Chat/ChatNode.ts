@@ -1,24 +1,27 @@
 import {
-    NodeDefinition,
-    NodeInputData,
-    NodeOutputData,
+  NodeDefinition,
+  NodeInputData,
+  NodeOutputData,
 } from "../../types/node.types";
 
 export const ChatNode: NodeDefinition = {
   identifier: "chat",
   displayName: "Chat",
   name: "chat",
-  group: ["communication", "ai"],
+  nodeCategory: "trigger",
+  group: ["communication", "ai","chat","trigger"],
   description: "Interactive chat interface - Send messages and trigger workflows. Can be used as a trigger or accept input from other nodes.",
   version: 2,
   ai: {
-    description: "An AI Chat Interface. Use this to build chatbots or conversational agents. Can use OpenAI or Anthropic models.",
+    description: "An AI Chat Interface is a chat trigger node. Use this to build chatbots or conversational agents.",
     useCases: [
+      "Ai-agnet node can use it as input for chat message",
+      "Can be use when building chat bot provide webhook url",
       "Customer support chatbot",
       "Interactive data query assistant",
       "Human-in-the-loop approval workflow"
     ],
-    tags: ["chat", "ai", "bot", "interface", "conversation"],
+    tags: ["chat", "ai", "bot", "interface", "conversation","trigger"],
     rules: [
       "Set 'AI Service' to 'None' if you want to handle the response logic yourself (e.g. via Chain of Thought)",
       "Enable 'Accept Input' to use context from previous nodes"

@@ -1,9 +1,9 @@
 
 import { cn } from "@/lib/utils";
-import { BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, LayoutTemplate, Loader2, PenTool, Search } from "lucide-react";
+import { BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, LayoutTemplate, Loader2, MessageSquareText, PenTool, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export type AgentStepType = 'status' | 'node-selection' | 'planning' | 'tool-use';
+export type AgentStepType = 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking';
 
 export interface AgentEvent {
     type: AgentStepType;
@@ -117,6 +117,8 @@ function StepIcon({ type, isLast }: { type: AgentStepType, isLast: boolean }) {
             return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-purple-500"><LayoutTemplate className="h-4 w-4" /></div>;
         case 'tool-use':
             return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-orange-500"><PenTool className="h-4 w-4" /></div>;
+        case 'thinking':
+            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-cyan-500"><MessageSquareText className="h-4 w-4" /></div>;
         case 'status':
         default:
             return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-green-500"><CheckCircle2 className="h-4 w-4" /></div>;

@@ -9,4 +9,5 @@ export const AI_CONNECTION_RULES = [
 export const AI_GENERATION_CONSTRAINTS = [
     "Do not hallucinate parameters that are not in the provided schema.",
     "Prefer simple, linear flows unless parallel processing is explicitly requested.",
+    "**Expression Syntax**: When referencing data from previous nodes, ALWAYS prefix with '=' (e.g., '={{message}}', '={{data.id}}', '={{response.body}}'). Never use '{{variable}}' without the '=' prefix.",
 ];

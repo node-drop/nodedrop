@@ -10,36 +10,44 @@ export class AIPromptBuilder {
     return `
 You are an expert automation engineer for Node-Drop. Your goal is to help users by either creating/modifying workflows OR providing advice.
 
+### TOOL SELECTION RULE (CRITICAL)
+**BEFORE responding, ask yourself**: Is the user asking me to BUILD/CREATE/MODIFY/FIX the workflow, or are they asking a QUESTION?
+- **Questions/Explanations** → Use \`advise_user\`. Examples: "Can you explain?", "What does this do?", "How does X work?", "Why did it fail?"
+- **Build/Modify requests** → Use \`build_workflow\`. Examples: "Create a workflow that...", "Add a node...", "Connect X to Y", "Fix the workflow"
+
+If the user is NOT explicitly asking you to change the workflow structure, use \`advise_user\`.
+
 ### AVAILABLE TOOLS
 You have access to the following tools:
-1. **build_workflow**: Use this when the user explicitly asks to create, modify, fix, or add to a workflow.
+1. **build_workflow**: Use this ONLY when the user explicitly asks to create, modify, fix, or add to a workflow.
 2. **advise_user**: Use this for:
    - Answering general questions or explaining concepts
-   - **Asking clarifying questions** when you need more information before building
    - Debugging help without structural changes
    - Explaining what a workflow does
-3. **validate_workflow**: Use this BEFORE build_workflow when:
-   - Creating complex workflows with AI agents (5+ nodes)
-   - You're unsure if service connections are correct
-   - The workflow has multiple service nodes (model, memory, tools)
-   This returns errors/warnings so you can self-correct before finalizing.
-4. **get_latest_execution_logs**: Fetches execution logs when the user asks about errors or failures.
+3. **enhance_prompt**: Use when the request is vague. Keep responses SHORT.
+   - Ask MAX 2-3 questions only
+   - Suggest specific nodes from AVAILABLE NODES as options
+   - Format as quick choices, not long explanations
+4. **validate_workflow**: Use BEFORE build_workflow for complex workflows (5+ nodes, AI agents).
+5. **get_latest_execution_logs**: Fetches execution logs when the user asks about errors.
 
-### WHEN TO ASK CLARIFYING QUESTIONS
-Before building a workflow, use **advise_user** to ask questions if:
-- The request is ambiguous (e.g., "connect to database" - which database? what operation?)
-- Critical parameters are missing (e.g., API endpoints, authentication method, specific fields)
-- Multiple approaches exist and user preference matters (e.g., "Should I use a scheduled trigger or webhook?")
-- You need credentials or API keys the user hasn't mentioned
-- The service requires specific configuration you're unsure about
+### ENHANCE_PROMPT FORMAT (CRITICAL - KEEP IT SHORT)
+When using enhance_prompt, format the response like this:
 
-**Response Format**: Keep questions SHORT and in simple bullet points. No long paragraphs.
+**Good example (SHORT):**
+enhanced_prompt: "Save AI agent responses to Supabase database"
+assumptions: ["Using Supabase node", "Saving after AI agent output"]
+questions: ["Which node to use for database: **supabase** or **http-request** to Supabase API?"]
+confidence: 0.7
 
-Example - If user says "Get leads from LinkedIn", respond:
-"I need a few details:
-• LinkedIn API access or web scraping?
-• What fields? (name/email/company)
-• Output destination? (database/email/sheet)"
+**Bad example (TOO LONG - DON'T DO THIS):**
+questions: ["What data do you want to save?", "Which table?", "What columns?", "What format?", "Authentication method?"]
+
+**RULES for enhance_prompt:**
+- MAX 2-3 bullet questions, suggest nodes as options (e.g., "Use **slack** or **email**?")
+- Reference AVAILABLE NODES by name as hints
+- Do NOT call build_workflow in the same response
+- Keep enhanced_prompt under 20 words
 
 
 ### AVAILABLE NODES
@@ -103,13 +111,13 @@ When creating an 'ai-agent' node, you MUST create and connect these service node
 \`\`\`json
 {
   "nodes": [
-    {"id": "trigger_1", "type": "manual-trigger", ...},
+    {"id": "chat_1", "type": "chat", "parameters": {}},
     {"id": "model_1", "type": "openai-model", "parameters": {"model": "gpt-4o-mini"}},
     {"id": "memory_1", "type": "buffer-memory", "parameters": {"sessionId": "default"}},
-    {"id": "agent_1", "type": "ai-agent", "parameters": {"systemPrompt": "...", "userMessage": "..."}}
+    {"id": "agent_1", "type": "ai-agent", "parameters": {"systemPrompt": "You are a helpful assistant.", "userMessage": "={{message}}"}}
   ],
   "connections": [
-    {"sourceNodeId": "trigger_1", "sourceOutput": "main", "targetNodeId": "agent_1", "targetInput": "main"},
+    {"sourceNodeId": "chat_1", "sourceOutput": "main", "targetNodeId": "agent_1", "targetInput": "main"},
     {"sourceNodeId": "model_1", "sourceOutput": "modelService", "targetNodeId": "agent_1", "targetInput": "modelService"},
     {"sourceNodeId": "memory_1", "sourceOutput": "memoryService", "targetNodeId": "agent_1", "targetInput": "memoryService"}
   ]
@@ -129,6 +137,7 @@ When creating complex workflows, think step by step:
 2. For 'options' type, use ONLY values from 'o' array. Do not invent values.
 3. Use 'd' (default) or 'ex' (example) as reference for expected format.
 4. If a parameter seems needed based on user intent but has no default, make a reasonable choice and explain it.
+5. **Expressions**: When referencing data from previous nodes, use the format \`={{variableName}}\`. Always prefix expressions with \`=\` (e.g., \`={{message}}\`, \`={{data.id}}\`, \`={{response.body}}\`).
 
 ### BEST PRACTICES & LOGIC RULES
 ${rulesSection}

@@ -5,7 +5,7 @@ export const AI_TOOLS: ChatCompletionTool[] = [
         type: "function",
         function: {
             name: "build_workflow",
-            description: "Constructs, modifies, or completely replaces the automation workflow based on user specifications. Use this when the user asks to create, change, add, or fix something in the workflow structure.",
+            description: "Constructs, modifies, or completely replaces the automation workflow based on user specifications. ONLY use this when the user EXPLICITLY asks to create, build, add nodes, change, or fix the workflow structure. Do NOT use for questions, explanations, or advice - use advise_user instead.",
             parameters: {
                 type: "object",
                 properties: {
@@ -62,7 +62,7 @@ export const AI_TOOLS: ChatCompletionTool[] = [
         type: "function",
         function: {
             name: "advise_user",
-            description: "Provides textual advice, answers questions, or explains concepts without modifying the workflow. Use this for general questions, 'how-to' queries, or debugging advice where no structural change is requested.",
+            description: "DEFAULT TOOL for conversations. Provides textual advice, answers questions, or explains concepts. Use this for: questions like 'Can you explain?', 'What does this do?', 'How does X work?', general advice, debugging tips without structural changes, and ANY request where the user is NOT explicitly asking to build/modify/create workflow nodes.",
             parameters: {
                 type: "object",
                 properties: {
@@ -106,6 +106,37 @@ export const AI_TOOLS: ChatCompletionTool[] = [
                     }
                 },
                 required: ["workflow"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "enhance_prompt",
+            description: "Use this when the user's request is vague or ambiguous and needs clarification before building. Returns an enhanced, more specific version of their prompt along with clarifying questions. Use BEFORE build_workflow when the request lacks critical details like: specific API endpoints, data fields, trigger conditions, or output destinations.",
+            parameters: {
+                type: "object",
+                properties: {
+                    enhanced_prompt: {
+                        type: "string",
+                        description: "A more specific, actionable version of the user's original request with assumptions filled in."
+                    },
+                    assumptions: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "List of assumptions made while enhancing the prompt."
+                    },
+                    questions: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Clarifying questions to ask the user if assumptions are wrong."
+                    },
+                    confidence: {
+                        type: "number",
+                        description: "Confidence score 0-1 that the enhanced prompt matches user intent."
+                    }
+                },
+                required: ["enhanced_prompt", "assumptions", "questions", "confidence"]
             }
         }
     }

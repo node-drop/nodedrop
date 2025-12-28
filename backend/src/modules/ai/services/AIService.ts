@@ -14,11 +14,12 @@ import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 
 // Register all handlers on module load
-import { adviseUserHandler, buildWorkflowHandler, getExecutionLogsHandler, validateWorkflowHandler } from '@/modules/ai/tools/handlers';
+import { adviseUserHandler, buildWorkflowHandler, enhancePromptHandler, getExecutionLogsHandler, validateWorkflowHandler } from '@/modules/ai/tools/handlers';
 toolRegistry.register(buildWorkflowHandler);
 toolRegistry.register(adviseUserHandler);
 toolRegistry.register(getExecutionLogsHandler);
 toolRegistry.register(validateWorkflowHandler);
+toolRegistry.register(enhancePromptHandler);
 
 export class AIService {
   private nodeService: NodeService;
@@ -47,11 +48,11 @@ export class AIService {
 
   public async generateWorkflow(
     request: GenerateWorkflowRequest,
-    onProgress?: (event: 'status' | 'node-selection' | 'planning' | 'tool-use', data: any) => void
+    onProgress?: (event: 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking', data: any) => void
   ): Promise<GenerateWorkflowResponse> {
     
     // Helper to emit progress safely
-    const emit = (type: 'status' | 'node-selection' | 'planning' | 'tool-use', message: string, details?: any) => {
+    const emit = (type: 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking', message: string, details?: any) => {
         if (onProgress) {
             onProgress(type, { message, ...details });
         }
@@ -162,17 +163,66 @@ export class AIService {
           logger.info(`AI Turn ${turns + 1}/${MAX_TURNS}`);
           if (turns > 0) emit('status', 'Refining workflow...');
           
-          const completion = await this.retryOperation(async () => {
+          // Use streaming for real-time thinking display
+          const stream = await this.retryOperation(async () => {
             return await client!.chat.completions.create({
               model: model,
               messages: messages,
               tools: AI_TOOLS,
               tool_choice: 'auto',
               temperature: 0.7,
+              stream: true,
             });
           });
 
-          const message = completion.choices[0].message;
+          // Accumulate streamed response
+          let accumulatedContent = '';
+          let accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+          let finishReason: string | null = null;
+
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta;
+            finishReason = chunk.choices[0]?.finish_reason || finishReason;
+
+            // Stream content (thinking) to UI
+            if (delta?.content) {
+              accumulatedContent += delta.content;
+              emit('thinking', delta.content, { partial: true });
+            }
+
+            // Accumulate tool calls
+            if (delta?.tool_calls) {
+              for (const toolCallDelta of delta.tool_calls) {
+                const index = toolCallDelta.index;
+                const existing = accumulatedToolCalls.get(index) || { id: '', name: '', arguments: '' };
+                
+                if (toolCallDelta.id) existing.id = toolCallDelta.id;
+                if (toolCallDelta.function?.name) existing.name = toolCallDelta.function.name;
+                if (toolCallDelta.function?.arguments) existing.arguments += toolCallDelta.function.arguments;
+                
+                accumulatedToolCalls.set(index, existing);
+              }
+            }
+          }
+
+          // Build the complete message from accumulated stream
+          const toolCallsArray = Array.from(accumulatedToolCalls.values())
+            .filter(tc => tc.id && tc.name)
+            .map(tc => ({
+              id: tc.id,
+              type: 'function' as const,
+              function: { name: tc.name, arguments: tc.arguments }
+            }));
+
+          const message: any = {
+            role: 'assistant',
+            content: accumulatedContent || null,
+          };
+          
+          if (toolCallsArray.length > 0) {
+            message.tool_calls = toolCallsArray;
+          }
+
           messages.push(message);
           
           const toolCalls = message.tool_calls;
@@ -189,7 +239,7 @@ export class AIService {
 
           logger.info('--- AI TOOL CALLS ---', { count: toolCalls.length });
 
-          const functionTools = toolCalls.filter(t => t.type === 'function');
+          const functionTools = toolCalls.filter((t: any) => t.type === 'function');
           
           // Process each tool call using the registry
           for (const tool of functionTools) {

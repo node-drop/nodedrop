@@ -2,23 +2,23 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { nodeTypes } from '../../db/schema/nodes';
 import {
-  NodeDefinition,
-  NodeExecutionResult,
-  NodeInputData,
-  NodeOutputData,
-  NodeProperty,
-  NodeRegistrationResult,
-  NodeSchema,
-  NodeTypeInfo,
-  NodeValidationError,
-  NodeValidationResult,
-  StandardizedNodeOutput
+    NodeDefinition,
+    NodeExecutionResult,
+    NodeInputData,
+    NodeOutputData,
+    NodeProperty,
+    NodeRegistrationResult,
+    NodeSchema,
+    NodeTypeInfo,
+    NodeValidationError,
+    NodeValidationResult,
+    StandardizedNodeOutput
 } from '../../types/node.types';
 import { NodeSettingsConfig } from '../../types/settings.types';
 import { logger } from '../../utils/logger';
 import {
-  SecureExecutionOptions,
-  SecureExecutionService,
+    SecureExecutionOptions,
+    SecureExecutionService,
 } from '../execution/SecureExecutionService';
 
 /**
@@ -747,13 +747,20 @@ export class NodeService {
       context._serviceNodeId = options?.nodeId;
 
       try {
-        const { injectLoggingMethods } = require('../../custom-nodes/utils/serviceLogger');
+        // Fix path to point to backend/custom-nodes/utils/serviceLogger
+        // NodeService is in src/services/nodes, so we need to go up 3 levels to reach backend root
+        const { injectLoggingMethods } = require('../../../custom-nodes/utils/serviceLogger');
         injectLoggingMethods(context);
       } catch (error) {
-        logger.warn('Failed to inject logging methods into node context', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          nodeType,
-        });
+        // Only log if it's not a missing module error, as custom-nodes might not exist in all environments
+        if ((error as any).code !== 'MODULE_NOT_FOUND') {
+          logger.warn('Failed to inject logging methods into node context', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            nodeType,
+          });
+        } else {
+             logger.debug('serviceLogger not found, moving on', { nodeType });
+        }
       }
 
       const result = await nodeDefinition.execute.call(

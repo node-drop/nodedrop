@@ -12,6 +12,7 @@ import { useReactFlow } from '@xyflow/react';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, History, Loader2, Plus, Settings, Sparkles, Trash2, XCircle } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { AISettingsForm } from './AISettingsForm';
 import { AgentEvent, ThinkingProcess } from './ThinkingProcess';
@@ -320,6 +321,20 @@ export const CopilotPanel = memo(function CopilotPanel() {
                           if (currentSessionId) loadSessions(workflow!.id);
                       } else if (event.type === 'error') {
                           throw new Error(event.error);
+                      } else if (event.type === 'thinking') {
+                          // Accumulate thinking content into a single event
+                          setCurrentThinkingEvents(prev => {
+                              const lastEvent = prev[prev.length - 1];
+                              if (lastEvent?.type === 'thinking') {
+                                  // Append to existing thinking event
+                                  return [
+                                      ...prev.slice(0, -1),
+                                      { ...lastEvent, message: lastEvent.message + event.message }
+                                  ];
+                              }
+                              // Create new thinking event
+                              return [...prev, { type: 'thinking', message: event.message }];
+                          });
                       } else {
                           // Agent event (status, node-selection, etc.)
                           setCurrentThinkingEvents(prev => [...prev, event]);
@@ -521,7 +536,20 @@ export const CopilotPanel = memo(function CopilotPanel() {
                     ? 'bg-primary text-primary-foreground' 
                     : 'bg-muted text-foreground'
                 }`}>
-                    {msg.content}
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          p: ({node, ref, ...props}: any) => <p className="my-1" {...props} />,
+                          ul: ({node, ref, ...props}: any) => <ul className="list-disc list-inside my-1" {...props} />,
+                          ol: ({node, ref, ...props}: any) => <ol className="list-decimal list-inside my-1" {...props} />,
+                          li: ({node, ref, ...props}: any) => <li className="my-0.5" {...props} />,
+                          strong: ({node, ref, ...props}: any) => <strong className="font-semibold" {...props} />,
+                          code: ({node, ref, ...props}: any) => <code className="bg-background/50 px-1 rounded text-xs" {...props} />,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                 </div>
                 
                 {/* Visual Thinking Process for historical messages (if saved) */}
@@ -543,18 +571,10 @@ export const CopilotPanel = memo(function CopilotPanel() {
                 </div>
             ))}
             
-            {/* Active Thinking Process (Live) */}
+            {/* Active Thinking Process (Live) - Hidden for now */}
             {isLoading && (
                 <div className="w-full max-w-[90%] fade-in">
-                    {(currentThinkingEvents.some(e => 
-                        (e.type === 'node-selection' && e.nodes && e.nodes.length > 0) || 
-                        (e.type === 'tool-use' && e.tool !== 'advise_user') || 
-                        e.type === 'planning'
-                    )) ? (
-                        <ThinkingProcess events={currentThinkingEvents} isComplete={false} />
-                    ) : (
-                        <ThinkingLoader />
-                    )}
+                    <ThinkingLoader />
                 </div>
             )}
             

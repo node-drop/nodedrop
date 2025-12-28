@@ -3,11 +3,11 @@ import { useReactFlowStyles } from '@/hooks/useReactFlowStyles'
 import { useReactFlowUIStore } from '@/stores'
 import { Background, BackgroundVariant, Edge, EdgeTypes, MiniMap, Node, NodeTypes, ReactFlow, SelectionMode } from '@xyflow/react'
 import { useMemo, useRef } from 'react'
+import { ConnectionLine } from './ConnectionLine'
+import { EditableEdgeComponent } from './EditableEdge'
+import './reactflow-theme.css'
 import { WorkflowCanvasContextMenu } from './WorkflowCanvasContextMenu'
 import { WorkflowControls } from './WorkflowControls'
-import { EditableEdgeComponent } from './EditableEdge'
-import { ConnectionLine } from './ConnectionLine'
-import './reactflow-theme.css'
 
 // Define edge types once outside component to prevent re-creation
 const edgeTypes: EdgeTypes = {
@@ -236,8 +236,8 @@ export function WorkflowCanvas({
                     multiSelectionKeyCode="Shift"
                     selectionMode={SelectionMode.Partial}
                     fitView
-                    fitViewOptions={{ padding: 0.3, maxZoom: 1.5 }}
-                    defaultViewport={{ x: 0, y: 0, zoom: 1.5 }}
+                    fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                     minZoom={0.8}
                     maxZoom={2}
                     defaultEdgeOptions={defaultEdgeOptions}
