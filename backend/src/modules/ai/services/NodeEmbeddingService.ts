@@ -1,8 +1,14 @@
 /**
  * Node Embedding Service
  * 
- * Provides semantic search capabilities for node selection using OpenAI embeddings
- * and PostgreSQL pgvector for storage and similarity search.
+ * Provides semantic search capabilities for node selection using local embeddings
+ * (gte-small via Transformers.js) and PostgreSQL pgvector for storage and similarity search.
+ * 
+ * Benefits of gte-small:
+ * - Free (no API costs)
+ * - Fast (local inference)
+ * - 384 dimensions (smaller storage, faster search)
+ * - Good quality for short keyword-rich texts
  */
 
 import { db } from '@/db/client';
@@ -10,7 +16,9 @@ import { nodeTypes } from '@/db/schema/nodes';
 import { NodeAIMetadata, NodeProperty } from '@/types/node.types';
 import { logger } from '@/utils/logger';
 import { eq, sql } from 'drizzle-orm';
-import OpenAI from 'openai';
+
+// Transformers.js - using any for dynamic import
+let embeddingPipeline: any = null;
 
 interface NodeForEmbedding {
   id: string;
@@ -25,12 +33,15 @@ interface NodeForEmbedding {
 
 export class NodeEmbeddingService {
   private static instance: NodeEmbeddingService;
-  private openai: OpenAI | null = null;
-  private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
-  private readonly EMBEDDING_DIMENSIONS = 1536;
+  private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
+  
+  // gte-small produces 384-dimensional embeddings
+  public readonly EMBEDDING_DIMENSIONS = 384;
+  private readonly MODEL_NAME = 'Supabase/gte-small';
 
   private constructor() {
-    this.initializeOpenAI();
+    // Initialization is lazy - happens on first use
   }
 
   static getInstance(): NodeEmbeddingService {
@@ -40,13 +51,39 @@ export class NodeEmbeddingService {
     return NodeEmbeddingService.instance;
   }
 
-  private initializeOpenAI() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
-    } else {
-      logger.warn('NodeEmbeddingService: OpenAI API key not configured. Embeddings will be disabled.');
+  /**
+   * Initialize the embedding pipeline (lazy loading)
+   */
+  private async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
+    if (this.initPromise) {
+      await this.initPromise;
+      return;
     }
+
+    this.initPromise = (async () => {
+      try {
+        logger.info('Initializing gte-small embedding model...');
+        
+        // Dynamic import of transformers.js
+        // @ts-ignore - transformers.js doesn't have official types
+        const { pipeline } = await import('@xenova/transformers');
+        
+        // Load the embedding pipeline
+        embeddingPipeline = await pipeline('feature-extraction', this.MODEL_NAME, {
+          quantized: true, // Use quantized model for faster inference
+        });
+        
+        this.initialized = true;
+        logger.info('gte-small embedding model initialized successfully');
+      } catch (error) {
+        logger.error('Failed to initialize embedding model', { error });
+        throw error;
+      }
+    })();
+
+    await this.initPromise;
   }
 
   /**
@@ -102,33 +139,31 @@ export class NodeEmbeddingService {
   }
 
   /**
-   * Generate embedding vector for text using OpenAI
+   * Generate embedding vector for text using gte-small
    */
   async generateEmbedding(text: string): Promise<number[] | null> {
-    if (!this.openai) {
-      logger.warn('Cannot generate embedding: OpenAI not configured');
-      return null;
-    }
-
     try {
-      const response = await this.openai.embeddings.create({
-        model: this.EMBEDDING_MODEL,
-        input: text,
-        dimensions: this.EMBEDDING_DIMENSIONS,
+      await this.initialize();
+      
+      if (!embeddingPipeline) {
+        logger.warn('Embedding pipeline not available');
+        return null;
+      }
+
+      // Generate embedding using gte-small
+      const output = await embeddingPipeline(text, {
+        pooling: 'mean',
+        normalize: true,
       });
 
-      return response.data[0].embedding;
+      // Convert to regular array
+      const embedding = Array.from(output.data) as number[];
+      
+      return embedding;
     } catch (error) {
       logger.error('Failed to generate embedding', { error, text: text.substring(0, 100) });
       return null;
     }
-  }
-
-  /**
-   * Convert embedding array to PostgreSQL vector string format
-   */
-  private embeddingToVectorString(embedding: number[]): string {
-    return `[${embedding.join(',')}]`;
   }
 
   /**
@@ -232,17 +267,15 @@ export class NodeEmbeddingService {
 
     logger.info(`Starting reindex of ${nodes.length} nodes`);
 
+    // Initialize once before batch processing
+    await this.initialize();
+
     for (const node of nodes) {
       const result = await this.indexNode(node);
       if (result) {
         success++;
       } else {
         failed++;
-      }
-
-      // Rate limiting: OpenAI has limits on embedding requests
-      if ((success + failed) % 10 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
@@ -251,10 +284,11 @@ export class NodeEmbeddingService {
   }
 
   /**
-   * Check if embeddings are available (OpenAI configured)
+   * Check if embeddings are available
    */
   isEnabled(): boolean {
-    return this.openai !== null;
+    // Always enabled - gte-small runs locally without API keys
+    return true;
   }
 
   /**

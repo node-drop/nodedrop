@@ -342,6 +342,7 @@ CREATE TABLE IF NOT EXISTS "nodes" (
 	"template_data" json,
 	"node_category" text,
 	"workspace_id" text,
+	"embedding" vector(384),
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
 	CONSTRAINT "nodes_identifier_unique" UNIQUE("identifier")
@@ -457,6 +458,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "variables_user_key_workflow_unique" ON "varia
 CREATE UNIQUE INDEX IF NOT EXISTS "nodes_identifier_unique" ON "nodes" ("identifier");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "nodes_workspace_id_idx" ON "nodes" ("workspace_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "nodes_is_core_idx" ON "nodes" ("is_core");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "nodes_embedding_idx" ON "nodes" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_workflow_id_idx" ON "trigger_jobs" ("workflow_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_workspace_id_idx" ON "trigger_jobs" ("workspace_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "trigger_jobs_active_idx" ON "trigger_jobs" ("active");--> statement-breakpoint

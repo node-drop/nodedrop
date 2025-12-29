@@ -63,7 +63,8 @@ export const nodeTypes = pgTable(
     workspaceId: text('workspace_id'),
     
     // AI Embedding for semantic search (pgvector)
-    embedding: vector('embedding', { dimensions: 1536 }),
+    // Using 384 dimensions for gte-small model (local, free, fast)
+    embedding: vector('embedding', { dimensions: 384 }),
 
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),

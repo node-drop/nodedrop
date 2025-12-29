@@ -369,51 +369,35 @@ export class NodeService {
       // Store in memory registry
       this.nodeRegistry.set(nodeDefinition.identifier, nodeDefinition);
 
-      // Auto-index node logic
-      // DISABLED: User requested to stop auto-embedding on server start.
-      // Use `npm run ai:index-nodes` to manually update embeddings.
-      /*
-      let shouldIndex = true;
-      
-      if (existingNode) {
-        const descriptionChanged = existingNode.description !== nodeDefinition.description;
-        const nameChanged = existingNode.displayName !== nodeDefinition.displayName;
-        const groupChanged = JSON.stringify(existingNode.group || []) !== JSON.stringify(nodeDefinition.group || []);
-        const versionChanged = existingNode.version !== nodeDefinition.version;
-        // Check if embedding exists (using any cast as type might not fully reflect schema update in this context execution)
-        const hasEmbedding = (existingNode as any).embedding != null;
-        
-        if (!descriptionChanged && !nameChanged && !groupChanged && !versionChanged && hasEmbedding) {
-          shouldIndex = false;
-        }
-      }
+      // Auto-index NEW nodes for AI search
+      // Only index if: 1) It's a new node, OR 2) Existing node has no embedding
+      const shouldIndex = !existingNode || (existingNode as any).embedding == null;
 
       if (shouldIndex) {
-        try {
-          const embeddingService = (await import('../../modules/ai/services/NodeEmbeddingService')).NodeEmbeddingService.getInstance();
-          if (embeddingService.isEnabled()) {
-            embeddingService.indexNode({
-              id: nodeDefinition.identifier,
-              identifier: nodeDefinition.identifier,
-              displayName: nodeDefinition.displayName,
-              description: nodeDefinition.description,
-              group: nodeDefinition.group,
-              ai: nodeDefinition.ai,
-              properties: resolvedProperties,
-            }).catch(err => {
-              logger.warn('Failed to auto-index node during registration', {
-                identifier: nodeIdentifier,
-                error: err instanceof Error ? err.message : String(err)
+        // Fire and forget - don't block registration
+        (async () => {
+          try {
+            const embeddingService = (await import('../../modules/ai/services/NodeEmbeddingService')).NodeEmbeddingService.getInstance();
+            if (embeddingService.isEnabled()) {
+              await embeddingService.indexNode({
+                id: nodeDefinition.identifier,
+                identifier: nodeDefinition.identifier,
+                displayName: nodeDefinition.displayName,
+                description: nodeDefinition.description,
+                group: nodeDefinition.group,
+                ai: nodeDefinition.ai,
+                properties: resolvedProperties,
               });
+              logger.info('Auto-indexed new node for AI search', { identifier: nodeIdentifier });
+            }
+          } catch (err) {
+            logger.warn('Failed to auto-index node during registration', {
+              identifier: nodeIdentifier,
+              error: err instanceof Error ? err.message : String(err)
             });
           }
-        } catch (importError) {
-          logger.warn('Failed to import NodeEmbeddingService for auto-indexing', { 
-             error: importError 
-          });
-        }
+        })();
       }
-      */
 
       return {
         success: true,
