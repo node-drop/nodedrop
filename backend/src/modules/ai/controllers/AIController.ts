@@ -67,7 +67,9 @@ export class AIController {
       if (sessionId) {
         await chatService.addMessage(sessionId, 'assistant', result.message, { 
              workflow: result.workflow,
-             missingNodeTypes: result.missingNodeTypes 
+             missingNodeTypes: result.missingNodeTypes,
+             thinkingEvents: result.thinkingEvents,
+             thinkingDuration: result.thinkingDuration
         });
       }
 

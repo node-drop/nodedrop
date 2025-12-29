@@ -43,7 +43,7 @@ export const enhancePromptHandler: ToolHandler = {
     }
 
     return {
-      workflow: context.currentWorkflow || null as any,
+      workflow: context.currentWorkflow || null,
       message: message,
       missingNodeTypes: []
     };

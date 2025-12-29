@@ -24,7 +24,7 @@ export * from "./WorkflowCalled";
 export * from "./WorkflowTrigger";
 
 // AI Nodes
-export * from "./Anthropic";
+// Note: Anthropic node moved to custom-nodes/anthropic
 export * from "./OpenAI";
 
 // Preview Nodes

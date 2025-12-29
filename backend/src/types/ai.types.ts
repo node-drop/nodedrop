@@ -36,11 +36,10 @@ export interface OpenAIModels {
 }
 
 export interface AnthropicModels {
-  "claude-3-5-sonnet-20241022": string;
+  "claude-sonnet-4-20250514": string;
+  "claude-opus-4-20250514": string;
+  "claude-3-7-sonnet-20250219": string;
   "claude-3-5-haiku-20241022": string;
-  "claude-3-opus-20240229": string;
-  "claude-3-sonnet-20240229": string;
-  "claude-3-haiku-20240307": string;
 }
 
 export const OPENAI_MODELS: Record<
@@ -93,8 +92,20 @@ export const ANTHROPIC_MODELS: Record<
     costPer1kOutput: number;
   }
 > = {
-  "claude-3-5-sonnet-20241022": {
-    name: "Claude 3.5 Sonnet",
+  "claude-sonnet-4-20250514": {
+    name: "Claude Sonnet 4",
+    contextWindow: 200000,
+    costPer1kInput: 0.003,
+    costPer1kOutput: 0.015,
+  },
+  "claude-opus-4-20250514": {
+    name: "Claude Opus 4",
+    contextWindow: 200000,
+    costPer1kInput: 0.015,
+    costPer1kOutput: 0.075,
+  },
+  "claude-3-7-sonnet-20250219": {
+    name: "Claude 3.7 Sonnet",
     contextWindow: 200000,
     costPer1kInput: 0.003,
     costPer1kOutput: 0.015,
@@ -104,23 +115,5 @@ export const ANTHROPIC_MODELS: Record<
     contextWindow: 200000,
     costPer1kInput: 0.0008,
     costPer1kOutput: 0.004,
-  },
-  "claude-3-opus-20240229": {
-    name: "Claude 3 Opus",
-    contextWindow: 200000,
-    costPer1kInput: 0.015,
-    costPer1kOutput: 0.075,
-  },
-  "claude-3-sonnet-20240229": {
-    name: "Claude 3 Sonnet",
-    contextWindow: 200000,
-    costPer1kInput: 0.003,
-    costPer1kOutput: 0.015,
-  },
-  "claude-3-haiku-20240307": {
-    name: "Claude 3 Haiku",
-    contextWindow: 200000,
-    costPer1kInput: 0.00025,
-    costPer1kOutput: 0.00125,
   },
 };

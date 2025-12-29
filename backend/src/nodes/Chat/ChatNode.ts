@@ -337,29 +337,12 @@ export const ChatNode: NodeDefinition = {
               aiResponse = response.choices[0]?.message?.content || "No response generated";
 
             } else if (aiService === "anthropic") {
-              // Get Anthropic credentials
-              const credentials = await this.getCredentials("anthropicApi");
-              if (!credentials || !credentials.apiKey) {
-                throw new Error("Anthropic API key is required. Please configure credentials.");
-              }
-
-              // Import Anthropic dynamically
-              const Anthropic = require("@anthropic-ai/sdk");
-              const anthropic = new Anthropic({
-                apiKey: credentials.apiKey as string,
-              });
-
-              const response = await anthropic.messages.create({
-                model: aiModel,
-                max_tokens: maxTokens,
-                temperature: temperature,
-                system: systemPrompt,
-                messages: [
-                  { role: "user", content: userMessage }
-                ],
-              });
-
-              aiResponse = response.content[0]?.text || "No response generated";
+              // Anthropic direct SDK removed - use ai-agent with anthropic-model node instead
+              throw new Error(
+                "Direct Anthropic integration has been removed from Chat node. " +
+                "Please use the AI Agent node with an Anthropic Model node connected, " +
+                "or set AI Service to 'None' and connect to an AI Agent workflow."
+              );
             } else {
               throw new Error(`Unsupported AI service: ${aiService}`);
             }

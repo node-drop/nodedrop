@@ -1,49 +1,30 @@
-
 import { db } from '@/db/client';
 import { userAiSettings } from '@/db/schema/ai_settings';
-import { AI_TOOLS } from '@/modules/ai/config/tools';
 import { AIContextBuilder } from '@/modules/ai/services/utils/AIContextBuilder';
 import { AIPromptBuilder } from '@/modules/ai/services/utils/AIPromptBuilder';
 import { setNodeService, setValidationNodeService, ToolContext } from '@/modules/ai/tools/handlers';
-import { toolRegistry } from '@/modules/ai/tools/registry';
 import { GenerateWorkflowRequest, GenerateWorkflowResponse } from '@/modules/ai/types';
 import { getCredentialService } from '@/services/CredentialService.factory';
 import { NodeService } from '@/services/nodes/NodeService';
 import { logger } from '@/utils/logger';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText, streamText } from 'ai';
 import { eq } from 'drizzle-orm';
-import OpenAI from 'openai';
 
-// Register all handlers on module load
-import { adviseUserHandler, buildWorkflowHandler, enhancePromptHandler, getExecutionLogsHandler, validateWorkflowHandler } from '@/modules/ai/tools/handlers';
-toolRegistry.register(buildWorkflowHandler);
-toolRegistry.register(adviseUserHandler);
-toolRegistry.register(getExecutionLogsHandler);
-toolRegistry.register(validateWorkflowHandler);
-toolRegistry.register(enhancePromptHandler);
+type AIProvider = ReturnType<typeof createOpenAI> | ReturnType<typeof createAnthropic>;
 
 export class AIService {
-  private nodeService: NodeService;
-  private openai: OpenAI | null = null;
   private contextBuilder: AIContextBuilder;
   private promptBuilder: AIPromptBuilder;
 
   constructor(nodeService: NodeService) {
-    this.nodeService = nodeService;
     this.contextBuilder = new AIContextBuilder(nodeService);
     this.promptBuilder = new AIPromptBuilder();
     
-    // Inject nodeService into handlers that need it
+    // Set node service for handlers that need it
     setNodeService(nodeService);
     setValidationNodeService(nodeService);
-    
-    this.initializeOpenAI();
-  }
-
-  private initializeOpenAI() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
-    }
   }
 
   public async generateWorkflow(
@@ -51,8 +32,15 @@ export class AIService {
     onProgress?: (event: 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking', data: any) => void
   ): Promise<GenerateWorkflowResponse> {
     
-    // Helper to emit progress safely
+    // Collect events for persistence
+    const collectedEvents: { type: 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking', message: string, nodes?: string[], tool?: string }[] = [];
+    const startTime = Date.now();
+    
     const emit = (type: 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking', message: string, details?: any) => {
+        // Collect non-status events for history
+        if (type !== 'status') {
+            collectedEvents.push({ type, message, ...details });
+        }
         if (onProgress) {
             onProgress(type, { message, ...details });
         }
@@ -60,11 +48,14 @@ export class AIService {
 
     emit('status', 'Initializing AI agent...');
 
-    // 1. Determine Configuration (Key & Model)
-    let apiKey = request.openAiKey || process.env.OPENAI_API_KEY;
+    let provider: 'openai' | 'anthropic' = (request.provider as any) || 'openai';
+    let apiKey = process.env.OPENAI_API_KEY;
     let model = request.model || 'gpt-4o';
 
-    // If userId present, check settings table
+    if (provider === 'anthropic' && (!request.model || request.model === 'gpt-4o')) {
+      model = 'claude-sonnet-4-20250514';
+    }
+
     if (request.userId) {
        try {
          const settings = await db.query.userAiSettings.findFirst({
@@ -72,6 +63,7 @@ export class AIService {
          });
 
          if (settings) {
+            if (settings.provider) provider = settings.provider as 'openai' | 'anthropic';
             if (settings.model) model = settings.model;
 
             if (settings.credentialId) {
@@ -88,22 +80,23 @@ export class AIService {
     }
 
     if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY env var or provide it in settings.');
+      const envVar = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+      throw new Error(`${provider} API key not configured. Please set ${envVar} env var or provide it in settings.`);
     }
 
-    const client = new OpenAI({ apiKey });
-
+    const aiProvider = this.getProvider(provider, apiKey);
 
     try {
-      // --- STEP 1: Smart Node Selection (Embedding-based or LLM fallback) ---
       emit('status', 'Analyzing request to identify relevant nodes...');
       
       const embeddingService = (await import('./NodeEmbeddingService')).NodeEmbeddingService.getInstance();
       
-      let selectedNodeIds: string[];
+      let selectedNodeIds: string[] = [];
       
       if (embeddingService.isEnabled()) {
-        selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, 10);
+        // Use similarity threshold of 0.6 to filter out irrelevant nodes
+        // Lower threshold = stricter matching (only highly relevant nodes)
+        selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, 10, 0.6);
         logger.info(`Embedding-based selection: ${selectedNodeIds.join(', ')}`);
         
         if (selectedNodeIds.length === 0) {
@@ -111,23 +104,21 @@ export class AIService {
           logger.warn('No embeddings found, falling back to LLM selection');
           const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
           const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
-          selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt, model);
+          selectedNodeIds = await this.selectRelevantNodes(aiProvider, selectionPrompt, model);
         }
       } else {
         emit('status', 'Consulting node registry index...');
         const lightweightIndex = await this.contextBuilder.buildLightweightNodeIndex();
         const selectionPrompt = this.promptBuilder.buildNodeSelectionPrompt(request.prompt, lightweightIndex);
-        selectedNodeIds = await this.selectRelevantNodes(client, selectionPrompt, model);
+        selectedNodeIds = await this.selectRelevantNodes(aiProvider, selectionPrompt, model);
         logger.info(`LLM-based selection: ${selectedNodeIds.join(', ')}`);
       }
       
       emit('node-selection', 'Selected potential nodes', { nodes: selectedNodeIds });
 
-      // --- STEP 2: Build Scoped Context ---
       emit('status', `Loading context for ${selectedNodeIds.length} nodes...`);
       const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
 
-      // --- STEP 3: Generate Workflow with Agentic Loop ---
       emit('status', 'Planning workflow logic...');
       const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
       
@@ -149,138 +140,203 @@ export class AIService {
         { role: 'user', content: userPrompt },
       ];
 
-      // Tool context for handlers
       const toolContext: ToolContext = {
         request,
         currentWorkflow: request.currentWorkflow,
         db
       };
 
-      let turns = 0;
-      const MAX_TURNS = 5;
+      const { createTools } = await import('@/modules/ai/config/tools');
+      const tools = createTools(toolContext);
 
-      while (turns < MAX_TURNS) {
-          logger.info(`AI Turn ${turns + 1}/${MAX_TURNS}`);
-          if (turns > 0) emit('status', 'Refining workflow...');
-          
-          // Use streaming for real-time thinking display
-          const stream = await this.retryOperation(async () => {
-            return await client!.chat.completions.create({
-              model: model,
-              messages: messages,
-              tools: AI_TOOLS,
-              tool_choice: 'auto',
-              temperature: 0.7,
-              stream: true,
-            });
-          });
-
-          // Accumulate streamed response
-          let accumulatedContent = '';
-          let accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-          let finishReason: string | null = null;
-
-          for await (const chunk of stream) {
-            const delta = chunk.choices[0]?.delta;
-            finishReason = chunk.choices[0]?.finish_reason || finishReason;
-
-            // Stream content (thinking) to UI
-            if (delta?.content) {
-              accumulatedContent += delta.content;
-              emit('thinking', delta.content, { partial: true });
-            }
-
-            // Accumulate tool calls
-            if (delta?.tool_calls) {
-              for (const toolCallDelta of delta.tool_calls) {
-                const index = toolCallDelta.index;
-                const existing = accumulatedToolCalls.get(index) || { id: '', name: '', arguments: '' };
-                
-                if (toolCallDelta.id) existing.id = toolCallDelta.id;
-                if (toolCallDelta.function?.name) existing.name = toolCallDelta.function.name;
-                if (toolCallDelta.function?.arguments) existing.arguments += toolCallDelta.function.arguments;
-                
-                accumulatedToolCalls.set(index, existing);
-              }
-            }
-          }
-
-          // Build the complete message from accumulated stream
-          const toolCallsArray = Array.from(accumulatedToolCalls.values())
-            .filter(tc => tc.id && tc.name)
-            .map(tc => ({
-              id: tc.id,
-              type: 'function' as const,
-              function: { name: tc.name, arguments: tc.arguments }
-            }));
-
-          const message: any = {
-            role: 'assistant',
-            content: accumulatedContent || null,
-          };
-          
-          if (toolCallsArray.length > 0) {
-            message.tool_calls = toolCallsArray;
-          }
-
-          messages.push(message);
-          
-          const toolCalls = message.tool_calls;
-
-          if (!toolCalls || toolCalls.length === 0) {
-             // No tools called - treat as fallback advice
-             emit('status', 'Finalizing response...');
-             return {
-                workflow: null as any,
-                message: message.content || "I couldn't process your request.",
-                missingNodeTypes: []
-             };
-          }
-
-          logger.info('--- AI TOOL CALLS ---', { count: toolCalls.length });
-
-          const functionTools = toolCalls.filter((t: any) => t.type === 'function');
-          
-          // Process each tool call using the registry
-          for (const tool of functionTools) {
-              const toolName = tool.function.name;
-              const handler = toolRegistry.get(toolName);
-
-              if (!handler) {
-                  logger.warn(`Unknown tool called: ${toolName}`);
-                  continue;
-              }
-
-              const args = JSON.parse(tool.function.arguments);
-              logger.info(`Executing tool: ${toolName}`, { args: Object.keys(args) });
-              emit('tool-use', `Executing ${toolName}...`, { tool: toolName });
-
-              const result = await handler.execute(args, toolContext);
-
-              // If handler is final, return the result directly
-              if (handler.isFinal) {
-                  emit('status', 'Workflow generated successfully!');
-                  return result as GenerateWorkflowResponse;
-              }
-
-              // Otherwise, add tool result to messages and continue loop
-              messages.push({
-                  role: 'tool',
-                  tool_call_id: tool.id,
-                  name: toolName,
-                  content: JSON.stringify((result as any).data || result)
-              });
-          }
-
-          turns++;
-      }
+      // Store tool results as they complete
+      const collectedToolResults: any[] = [];
       
-      // Max turns reached
-      emit('status', 'Timeout: exceeded maximum thinking steps.');
+      // Store token usage
+      let tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+
+      logger.info(`AI Execution [${provider}]`);
+      emit('status', 'Generating workflow...');
+
+      // Import stopWhen helper from AI SDK
+      const { stepCountIs } = await import('ai');
+
+      // streamText returns a StreamTextResult
+      const result = streamText({
+        model: aiProvider(model),
+        messages,
+        tools,
+        stopWhen: stepCountIs(5),  // Allow up to 5 tool calls in sequence
+        temperature: 0.7,
+        onChunk: ({ chunk }) => {
+          if (chunk.type === 'text-delta') {
+            emit('thinking', chunk.text, { partial: true });
+          }
+        },
+        onStepFinish: (step) => {
+          logger.debug('Step finished', { 
+            hasToolResults: !!step.toolResults?.length,
+            hasToolCalls: !!step.toolCalls?.length,
+            finishReason: step.finishReason
+          });
+          
+          // Collect tool results - in AI SDK v6, result is in `output`
+          if (step.toolResults && step.toolResults.length > 0) {
+            for (const toolResult of step.toolResults) {
+              const output = (toolResult as any).output;
+              
+              logger.info(`Tool executed: ${toolResult.toolName}`, { 
+                hasOutput: !!output,
+                outputKeys: output ? Object.keys(output) : []
+              });
+              
+              collectedToolResults.push({
+                toolName: toolResult.toolName,
+                result: output,
+                args: (toolResult as any).args
+              });
+            }
+          }
+          
+          // Log tool calls for progress tracking
+          if (step.toolCalls && step.toolCalls.length > 0) {
+            for (const toolCall of step.toolCalls) {
+              logger.info(`AI calling tool: ${toolCall.toolName}`);
+              emit('tool-use', `Executing ${toolCall.toolName}...`, { tool: toolCall.toolName });
+            }
+          }
+        }
+      });
+
+      // Consume the stream and get final results
+      const text = await result.text;
+      const steps = await result.steps;
+      const totalUsage = await result.totalUsage;
+
+      // Extract token usage from totalUsage (accumulated across all steps)
+      if (totalUsage) {
+        tokenUsage = {
+          promptTokens: totalUsage.inputTokens || 0,
+          completionTokens: totalUsage.outputTokens || 0,
+          totalTokens: totalUsage.totalTokens || ((totalUsage.inputTokens || 0) + (totalUsage.outputTokens || 0))
+        };
+      }
+
+      logger.info('--- AI EXECUTION FINISHED ---', { 
+        textLength: text?.length || 0, 
+        stepsCount: steps?.length || 0, 
+        collectedResults: collectedToolResults.length,
+        tokenUsage
+      });
+
+      // Log collected results summary
+      logger.info('Collected tool results', { 
+        count: collectedToolResults.length, 
+        tools: collectedToolResults.map(r => ({
+          name: r.toolName,
+          hasWorkflow: !!r.result?.workflow,
+          hasMessage: !!r.result?.message
+        }))
+      });
+
+      // Consolidate thinking events - merge all partial thinking chunks into one event
+      const consolidatedEvents = collectedEvents.reduce((acc, event) => {
+        if (event.type === 'thinking') {
+          const lastEvent = acc[acc.length - 1];
+          if (lastEvent?.type === 'thinking') {
+            // Append to existing thinking event
+            lastEvent.message += event.message;
+          } else {
+            // Start new thinking event
+            acc.push({ ...event });
+          }
+        } else {
+          acc.push(event);
+        }
+        return acc;
+      }, [] as typeof collectedEvents);
+
+      // Find the LAST final tool result (build_workflow, advise_user, or enhance_prompt)
+      const finalTools = ['build_workflow', 'advise_user', 'enhance_prompt'];
+      const finalToolResult = [...collectedToolResults]
+        .reverse()
+        .find(r => finalTools.includes(r.toolName));
+
+      if (finalToolResult?.result) {
+        const resultData = finalToolResult.result;
+        logger.info('Final tool result found', { 
+          toolName: finalToolResult.toolName, 
+          hasWorkflow: !!resultData?.workflow,
+          hasMessage: !!resultData?.message
+        });
+        
+        if (finalToolResult.toolName === 'build_workflow' && resultData.workflow) {
+           emit('status', 'Workflow generated successfully!');
+           return {
+             workflow: resultData.workflow,
+             message: resultData.message || 'Workflow updated.',
+             missingNodeTypes: resultData.missingNodeTypes || [],
+             thinkingEvents: consolidatedEvents,
+             thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+             tokenUsage
+           };
+        }
+        
+        // For advise_user or enhance_prompt
+        return {
+          workflow: request.currentWorkflow || null,
+          message: resultData.message || resultData.enhanced_prompt || text || 'No response generated.',
+          missingNodeTypes: resultData.missingNodeTypes || [],
+          thinkingEvents: consolidatedEvents,
+          thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+          tokenUsage
+        };
+      }
+
+      // Fallback: check steps directly if onStepFinish didn't capture results
+      logger.warn('No final tool result in collected results, checking steps directly');
+      
+      if (steps && steps.length > 0) {
+        for (const step of [...steps].reverse()) {
+          if (step.toolResults && step.toolResults.length > 0) {
+            for (const tr of step.toolResults) {
+              const output = (tr as any).output;
+              if (finalTools.includes(tr.toolName) && output) {
+                logger.info('Found tool result in steps fallback', { toolName: tr.toolName });
+                if (tr.toolName === 'build_workflow' && output.workflow) {
+                  emit('status', 'Workflow generated successfully!');
+                  return {
+                    workflow: output.workflow,
+                    message: output.message || 'Workflow updated.',
+                    missingNodeTypes: output.missingNodeTypes || [],
+                    thinkingEvents: consolidatedEvents,
+                    thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+                    tokenUsage
+                  };
+                }
+                return {
+                  workflow: request.currentWorkflow || null,
+                  message: output.message || output.enhanced_prompt || text || 'No response generated.',
+                  missingNodeTypes: output.missingNodeTypes || [],
+                  thinkingEvents: consolidatedEvents,
+                  thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+                  tokenUsage
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // Final fallback: return text response
+      emit('status', 'Finalizing response...');
       return {
-          workflow: request.currentWorkflow || { nodes: [], connections: [] } as any,
-          message: "I needed to perform too many steps and timed out. Please try a more specific request.",
-          missingNodeTypes: []
+        workflow: request.currentWorkflow || null,
+        message: text || "I couldn't process your request. Please try again.",
+        missingNodeTypes: [],
+        thinkingEvents: consolidatedEvents,
+        thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+        tokenUsage
       };
 
     } catch (error) {
@@ -289,40 +345,29 @@ export class AIService {
     }
   }
 
-  private async selectRelevantNodes(client: OpenAI, prompt: string, model: string): Promise<string[]> {
-    try {
-        const response = await client.chat.completions.create({
-            model: model,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.1,
-        });
-
-        const text = response.choices[0].message.content || "[]";
-        const match = text.match(/\[.*\]/s);
-        if (match) {
-            return JSON.parse(match[0]);
-        }
-        return [];
-    } catch (e) {
-        logger.warn("Failed to select nodes, falling back to full context", { error: e });
-        return [];
+  private getProvider(provider: 'openai' | 'anthropic', apiKey: string): AIProvider {
+    if (provider === 'anthropic') {
+      return createAnthropic({ apiKey });
     }
+    return createOpenAI({ apiKey });
   }
 
-  private async retryOperation<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-    let lastError: any;
-    
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await operation();
-        } catch (error) {
-            lastError = error;
-            logger.warn(`AI Operation failed (attempt ${i + 1}/${retries})`, { error });
-            if (i < retries - 1) {
-                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
-            }
-        }
+  private async selectRelevantNodes(provider: AIProvider, prompt: string, model: string): Promise<string[]> {
+    try {
+      const { text } = await generateText({
+        model: provider(model),
+        prompt,
+        temperature: 0.1,
+      });
+
+      const match = text.match(/\[.*\]/s);
+      if (match) {
+        return JSON.parse(match[0]);
+      }
+      return [];
+    } catch (e) {
+      logger.warn("Failed to select nodes, falling back to full context", { error: e });
+      return [];
     }
-    throw lastError;
   }
 }

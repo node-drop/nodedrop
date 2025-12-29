@@ -33,13 +33,16 @@
     "compose:logs": "docker-compose logs -f"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.65.0",
+    "@ai-sdk/anthropic": "^3.0.1",
+    "@ai-sdk/openai": "^3.0.1",
     "@nodedrop/types": "*",
     "@nodedrop/utils": "*",
     "@socket.io/redis-adapter": "^8.3.0",
+    "@toon-format/toon": "^2.1.0",
     "@types/multer": "^2.0.0",
     "abort-controller": "^3.0.0",
     "adm-zip": "^0.5.16",
+    "ai": "^6.0.3",
     "axios": "^1.12.2",
     "bcryptjs": "^2.4.3",
     "better-auth": "^1.4.6",

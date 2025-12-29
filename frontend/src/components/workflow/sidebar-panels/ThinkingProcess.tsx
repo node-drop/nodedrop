@@ -1,7 +1,7 @@
-
 import { cn } from "@/lib/utils";
-import { BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, LayoutTemplate, Loader2, MessageSquareText, PenTool, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import * as Collapsible from "@radix-ui/react-collapsible";
+import { BrainCircuit, CheckCircle2, ChevronRight, Loader2, PenTool, Search } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export type AgentStepType = 'status' | 'node-selection' | 'planning' | 'tool-use' | 'thinking';
 
@@ -17,110 +17,155 @@ interface ThinkingProcessProps {
     events: AgentEvent[];
     isComplete: boolean;
     className?: string;
+    startTime?: number;
 }
 
-export function ThinkingProcess({ events, isComplete, className }: ThinkingProcessProps) {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-
-    // Auto-scroll to bottom as events come in
+export function ThinkingProcess({ events, isComplete, className, startTime }: ThinkingProcessProps) {
+    const [elapsedTime, setElapsedTime] = useState(0);
+    
+    // Track elapsed time while thinking
     useEffect(() => {
-        if (scrollRef.current && !isCollapsed) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (isComplete) {
+            // For completed, calculate from startTime if provided
+            if (startTime) {
+                setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+            }
+            return;
         }
-    }, [events, isCollapsed]);
+        
+        if (!startTime) return;
+        
+        const interval = setInterval(() => {
+            setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+        }, 1000);
+        
+        return () => clearInterval(interval);
+    }, [isComplete, startTime]);
+
+    // Group events for display
+    const thinkingEvent = events.find(e => e.type === 'thinking');
+    const toolEvents = events.filter(e => e.type === 'tool-use');
+    const nodeSelectionEvent = events.find(e => e.type === 'node-selection');
+
+    const formatTime = (seconds: number) => {
+        if (seconds < 60) return `${seconds}s`;
+        return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    };
 
     return (
-        <div className={cn("flex flex-col gap-2 p-3 bg-muted/30 rounded-lg border text-sm font-sans mb-4 transition-all duration-200", className)}>
-            <div 
-                className="flex items-center justify-between pb-2 border-b border-muted/20 text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-                <div className="flex items-center gap-2">
-                    <BrainCircuit className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-xs uppercase tracking-wider">AI Thinking Process</span>
-                </div>
-                <button className="text-muted-foreground hover:text-foreground">
-                    {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-            </div>
-
-            {!isCollapsed && (
-                <div className="mt-2 space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar animate-in slide-in-from-top-2 duration-200" ref={scrollRef}>
-                    {events.map((event, idx) => (
-                        <div
-                            key={idx}
-                            className="flex items-start gap-3 overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-300"
-                        >
-                            <StepIcon type={event.type} isLast={idx === events.length - 1 && !isComplete} />
-                            
-                            <div className="flex-1 space-y-1">
-                                <div className="text-sm text-foreground/90 leading-tight">
-                                    {event.message}
-                                </div>
-                                
-                                {event.nodes && event.nodes.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {event.nodes.map(node => (
-                                            <span 
-                                                key={node} 
-                                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20"
-                                            >
-                                                {node}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                                
-                                {event.tool && (
-                                    <div className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                                        <PenTool className="h-3 w-3" />
-                                        <span className="font-mono">{event.tool}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    
-                    {!isComplete && (
-                        <div 
-                            className="flex items-center gap-3 pt-1 animate-in fade-in duration-500"
-                        >
-                            <div className="w-5 flex justify-center">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                                </span>
-                            </div>
-                            <span className="text-xs text-muted-foreground animate-pulse">Working...</span>
+        <div className={cn("w-full text-sm space-y-0.5", className)}>
+            {/* Thinking/Reasoning - always first if exists */}
+            {(thinkingEvent || !isComplete) && (
+                <TimelineItem
+                    icon={<BrainCircuit className="h-4 w-4" />}
+                    label={isComplete ? `Thought for ${formatTime(elapsedTime)}` : `Thinking${elapsedTime > 0 ? ` (${formatTime(elapsedTime)})` : '...'}`}
+                    isLoading={!isComplete}
+                    expandable={!!thinkingEvent?.message}
+                >
+                    {thinkingEvent?.message && (
+                        <div className="text-xs text-muted-foreground whitespace-pre-wrap pl-6 py-2 max-h-[200px] overflow-y-auto">
+                            {thinkingEvent.message}
                         </div>
                     )}
-                </div>
+                </TimelineItem>
+            )}
+
+            {/* Node Selection */}
+            {nodeSelectionEvent && (
+                <TimelineItem
+                    icon={<Search className="h-4 w-4" />}
+                    label={`Found ${nodeSelectionEvent.nodes?.length || 0} relevant nodes`}
+                    expandable={!!nodeSelectionEvent.nodes?.length}
+                >
+                    {nodeSelectionEvent.nodes && (
+                        <div className="flex flex-wrap gap-1 pl-6 py-2">
+                            {nodeSelectionEvent.nodes.map(node => (
+                                <span 
+                                    key={node} 
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20"
+                                >
+                                    {node}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </TimelineItem>
+            )}
+
+            {/* Tool Uses */}
+            {toolEvents.map((event, idx) => (
+                <TimelineItem
+                    key={`tool-${idx}`}
+                    icon={<PenTool className="h-4 w-4" />}
+                    label={event.tool || event.message}
+                    highlight={event.tool === 'build_workflow'}
+                />
+            ))}
+
+            {/* Completion status */}
+            {isComplete && (
+                <TimelineItem
+                    icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    label="Completed"
+                />
             )}
         </div>
     );
 }
 
-function StepIcon({ type, isLast }: { type: AgentStepType, isLast: boolean }) {
-    if (isLast) {
-        return (
-            <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-primary">
-                 <Loader2 className="h-4 w-4 animate-spin" />
-            </div>
-        )
+interface TimelineItemProps {
+    icon: React.ReactNode;
+    label: string;
+    isLoading?: boolean;
+    expandable?: boolean;
+    highlight?: boolean;
+    children?: React.ReactNode;
+}
+
+function TimelineItem({ icon, label, isLoading, expandable, highlight, children }: TimelineItemProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const content = (
+        <div className={cn(
+            "flex items-center gap-2 py-1 px-2 rounded-md transition-colors min-h-[28px]",
+            highlight && "bg-primary/5 border border-primary/20",
+            expandable && "hover:bg-muted/50 cursor-pointer",
+            !expandable && !highlight && "text-muted-foreground"
+        )}>
+            <span className={cn(
+                "shrink-0 text-muted-foreground",
+                highlight && "text-primary",
+                isLoading && "text-primary"
+            )}>
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+            </span>
+            <span className={cn(
+                "flex-1 truncate text-[13px]",
+                highlight && "font-medium text-foreground"
+            )}>
+                {label}
+            </span>
+            {expandable && (
+                <ChevronRight className={cn(
+                    "h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                    isOpen && "rotate-90"
+                )} />
+            )}
+        </div>
+    );
+
+    if (!expandable) {
+        return <div>{content}</div>;
     }
 
-    switch (type) {
-        case 'node-selection':
-            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-blue-500"><Search className="h-4 w-4" /></div>;
-        case 'planning':
-            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-purple-500"><LayoutTemplate className="h-4 w-4" /></div>;
-        case 'tool-use':
-            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-orange-500"><PenTool className="h-4 w-4" /></div>;
-        case 'thinking':
-            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-cyan-500"><MessageSquareText className="h-4 w-4" /></div>;
-        case 'status':
-        default:
-            return <div className="mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 text-green-500"><CheckCircle2 className="h-4 w-4" /></div>;
-    }
+    return (
+        <Collapsible.Root open={isOpen} onOpenChange={setIsOpen}>
+            <Collapsible.Trigger asChild>
+                {content}
+            </Collapsible.Trigger>
+            <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+                {children}
+            </Collapsible.Content>
+        </Collapsible.Root>
+    );
 }

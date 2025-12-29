@@ -18,6 +18,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.1",
+    "@ai-sdk/openai": "^3.0.1",
     "@dagrejs/dagre": "^1.1.5",
     "@fontsource/inter": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
@@ -49,6 +51,7 @@
     "@types/uuid": "^10.0.0",
     "@xyflow/react": "^12.9.3",
     "adm-zip": "^0.5.16",
+    "ai": "^6.0.3",
     "axios": "^1.7.9",
     "better-auth": "^1.4.6",
     "class-variance-authority": "^0.7.1",

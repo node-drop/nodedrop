@@ -1,5 +1,7 @@
 
 import { NodeService } from '@/services/nodes/NodeService';
+import { NODE_CONNECTION_PATTERNS } from '@/modules/ai/config/rules';
+import { encodeNodesToToon, shouldUseToon } from './toonEncoder';
 
 export class AIContextBuilder {
   private nodeService: NodeService;
@@ -53,6 +55,52 @@ export class AIContextBuilder {
     return AIContextBuilder.cachedNodeContext;
   }
 
+  /**
+   * Determine the node's role based on its identifier and outputs
+   */
+  private getNodeRole(node: any): string | null {
+    const id = node.identifier;
+    
+    // Check if it's a trigger node
+    if (NODE_CONNECTION_PATTERNS.triggers.includes(id) || 
+        id.includes('trigger') || 
+        (node.group && node.group.includes('trigger'))) {
+      return 'trigger';
+    }
+    
+    // Check if it's a response node
+    if (NODE_CONNECTION_PATTERNS.responses.includes(id) || 
+        id.includes('response')) {
+      return 'response';
+    }
+    
+    // Check if it's a model service node
+    if (NODE_CONNECTION_PATTERNS.agentServices.model.includes(id) ||
+        (node.outputs && node.outputs.includes('modelService'))) {
+      return 'model-service';
+    }
+    
+    // Check if it's a memory service node
+    if (NODE_CONNECTION_PATTERNS.agentServices.memory.includes(id) ||
+        (node.outputs && node.outputs.includes('memoryService'))) {
+      return 'memory-service';
+    }
+    
+    // Check if it's a tool service node
+    if (NODE_CONNECTION_PATTERNS.agentServices.tools.includes(id) ||
+        id.endsWith('-tool') ||
+        (node.outputs && node.outputs.includes('toolService'))) {
+      return 'tool-service';
+    }
+    
+    // Check if it's an agent node
+    if (id === 'ai-agent' || (node.group && node.group.includes('agent'))) {
+      return 'agent';
+    }
+    
+    return null;
+  }
+
   private minifyNodes(nodes: any[]): string {
     const simplifiedSchemas = nodes.map(node => {
         const schema: any = {
@@ -61,6 +109,12 @@ export class AIContextBuilder {
             in: node.inputs ? (node.inputs as any[]).map((i: any) => typeof i === 'string' ? i : i.name) : ['main'], 
             out: node.outputs ? (node.outputs as any[]).map((o: any) => typeof o === 'string' ? o : o.name) : ['main'],
         };
+
+        // Add node role for connection guidance
+        const role = this.getNodeRole(node);
+        if (role) {
+            schema.role = role;
+        }
 
         // Include service inputs (for ai-agent, model, memory, tool nodes)
         if (node.serviceInputs && node.serviceInputs.length > 0) {
@@ -89,6 +143,28 @@ export class AIContextBuilder {
             if (serviceInputs.length > 0) {
                 schema.svcIn = serviceInputs;
             }
+        }
+
+        // Include AI metadata recommendations if available
+        if (node.ai?.recommendations) {
+            schema.rec = {};
+            if (node.ai.recommendations.connectsAfter) {
+                schema.rec.after = node.ai.recommendations.connectsAfter;
+            }
+            if (node.ai.recommendations.connectsBefore) {
+                schema.rec.before = node.ai.recommendations.connectsBefore;
+            }
+            if (node.ai.recommendations.neverConnectTo) {
+                schema.rec.never = node.ai.recommendations.neverConnectTo;
+            }
+            if (node.ai.recommendations.inputs) {
+                schema.rec.inputs = node.ai.recommendations.inputs;
+            }
+        }
+
+        // Include AI rules if available (node-specific connection rules)
+        if (node.ai?.rules && node.ai.rules.length > 0) {
+            schema.rules = node.ai.rules;
         }
 
         schema.props = (node.properties || [])
@@ -135,6 +211,12 @@ export class AIContextBuilder {
         return schema;
     });
 
+    // Use TOON format if beneficial (uniform structure, multiple nodes)
+    if (shouldUseToon(simplifiedSchemas)) {
+        return encodeNodesToToon(simplifiedSchemas);
+    }
+
+    // Fallback to JSON for non-uniform or small datasets
     return JSON.stringify(simplifiedSchemas);
   }
 

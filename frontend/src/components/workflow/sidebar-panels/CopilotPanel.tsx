@@ -25,6 +25,12 @@ interface Message {
   executionResult?: any // Store full execution result for strict visual rendering
   executionLogs?: any[] // Snapshot of logs for this execution
   thinkingEvents?: AgentEvent[] // Store thinking process for this message
+  thinkingDuration?: number // How long the AI thought (in seconds)
+  tokenUsage?: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
 }
 
 interface ChatSession {
@@ -41,6 +47,8 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false)
   const [currentThinkingEvents, setCurrentThinkingEvents] = useState<AgentEvent[]>([])
+  const thinkingEventsRef = useRef<AgentEvent[]>([]);
+  const thinkingStartTimeRef = useRef<number>(0);
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { fitView } = useReactFlow();
@@ -49,7 +57,7 @@ export const CopilotPanel = memo(function CopilotPanel() {
   const updateWorkflow = useWorkflowStore(state => state.updateWorkflow)
   const nodeTypes = useNodeTypesStore(state => state.nodeTypes); // Access node types correctly
 
-  const { executeWorkflow, stopExecution, isExecuting, lastExecutionResult, executionLogs } = useExecutionControls();
+  const { executeWorkflow, lastExecutionResult, executionLogs } = useExecutionControls();
   const [handledExecutionId, setHandledExecutionId] = useState<string | null>(null);
   const shouldMonitorExecution = useRef(false);
 
@@ -133,14 +141,13 @@ export const CopilotPanel = memo(function CopilotPanel() {
       try {
           const res = await apiClient.get<any[]>(`/ai/sessions/${sessionId}/messages`);
           // Map DB messages to UI messages
-          // Assuming DB message has: role, content, metadata
           const mappedMessages: Message[] = Array.isArray(res) ? res.map(m => ({
               role: m.role as 'user' | 'assistant',
               content: m.content,
               workflow: m.metadata?.workflow,
               missingNodes: m.metadata?.missingNodeTypes,
-              // Restore thinking events if possibly stored in metadata (future proofing)
-              thinkingEvents: m.metadata?.thinkingEvents 
+              thinkingEvents: m.metadata?.thinkingEvents,
+              thinkingDuration: m.metadata?.thinkingDuration
           })) : [];
           
           setMessages(mappedMessages);
@@ -227,6 +234,8 @@ export const CopilotPanel = memo(function CopilotPanel() {
     setMessages(prev => [...prev, { role: 'user', content: content }]);
     setIsLoading(true);
     setCurrentThinkingEvents([]); // Reset thinking events
+    thinkingEventsRef.current = []; // Reset ref too
+    thinkingStartTimeRef.current = Date.now(); // Track start time
 
     try {
       // Get current workflow for context
@@ -300,47 +309,82 @@ export const CopilotPanel = memo(function CopilotPanel() {
                   
                   try {
                       const event = JSON.parse(dataStr);
+                      
                       if (event.type === 'result') {
                           // Final result
                           const result = event.result;
                           
-                          // Auto-apply the workflow immediately
-                          if (result.workflow) {
+                          // Auto-apply the workflow immediately if it exists and has nodes
+                          if (result?.workflow?.nodes && result.workflow.nodes.length > 0) {
                             handleApplyWorkflow(result.workflow);
                           }
 
-                          setMessages(prev => [...prev, { 
-                            role: 'assistant', 
-                            content: result.message,
-                            // specific workflow data removed from UI state as it is auto-applied
-                            missingNodes: result.missingNodeTypes,
-                            thinkingEvents: [...currentThinkingEvents] // Save final thinking state
-                          }]);
+                          // Use backend thinkingEvents if available, fallback to frontend-collected
+                          const thinkingEvents = result?.thinkingEvents?.length > 0 
+                            ? result.thinkingEvents 
+                            : [...thinkingEventsRef.current];
+                          const thinkingDuration = result?.thinkingDuration 
+                            ?? Math.floor((Date.now() - thinkingStartTimeRef.current) / 1000);
+
+                          setMessages(prev => {
+                            const newMessages = [...prev, { 
+                              role: 'assistant' as const, 
+                              content: result?.message || 'Response received.',
+                              missingNodes: result?.missingNodeTypes,
+                              thinkingEvents,
+                              thinkingDuration,
+                              tokenUsage: result?.tokenUsage
+                            }];
+                            return newMessages;
+                          });
+                          
+                          // Clear thinking events after completion
+                          setCurrentThinkingEvents([]);
+                          thinkingEventsRef.current = [];
                           
                           // Refresh sessions
                           if (currentSessionId) loadSessions(workflow!.id);
                       } else if (event.type === 'error') {
+                          console.error('[Copilot] Error event:', event.error);
                           throw new Error(event.error);
                       } else if (event.type === 'thinking') {
                           // Accumulate thinking content into a single event
                           setCurrentThinkingEvents(prev => {
                               const lastEvent = prev[prev.length - 1];
+                              let newEvents: AgentEvent[];
                               if (lastEvent?.type === 'thinking') {
                                   // Append to existing thinking event
-                                  return [
+                                  newEvents = [
                                       ...prev.slice(0, -1),
                                       { ...lastEvent, message: lastEvent.message + event.message }
                                   ];
+                              } else {
+                                  // Create new thinking event
+                                  newEvents = [...prev, { type: 'thinking' as const, message: event.message }];
                               }
-                              // Create new thinking event
-                              return [...prev, { type: 'thinking', message: event.message }];
+                              thinkingEventsRef.current = newEvents;
+                              return newEvents;
+                          });
+                      } else if (event.type === 'tool-use') {
+                          setCurrentThinkingEvents(prev => {
+                              const newEvents: AgentEvent[] = [...prev, { 
+                                  type: 'tool-use' as const, 
+                                  message: event.message,
+                                  tool: event.tool 
+                              }];
+                              thinkingEventsRef.current = newEvents;
+                              return newEvents;
                           });
                       } else {
                           // Agent event (status, node-selection, etc.)
-                          setCurrentThinkingEvents(prev => [...prev, event]);
+                          setCurrentThinkingEvents(prev => {
+                              const newEvents: AgentEvent[] = [...prev, event as AgentEvent];
+                              thinkingEventsRef.current = newEvents;
+                              return newEvents;
+                          });
                       }
                   } catch (e) {
-                      console.error("Failed to parse SSE event", e);
+                      console.error("[Copilot] Failed to parse SSE event:", dataStr, e);
                   }
               }
           }
@@ -446,19 +490,6 @@ export const CopilotPanel = memo(function CopilotPanel() {
       await executeWorkflowLogic(workflow.nodes);
   };
 
-  // Run the SNAPSHOT workflow from the message (Triggered by "Run" button)
-  const handleRunWorkflow = async (workflowData: any) => {
-    // 1. Apply the workflow first to ensure state is synced
-    handleApplyWorkflow(workflowData);
-    
-    // 2. Execute
-    await executeWorkflowLogic(workflowData.nodes);
-  };
-
-  const handleInstallNodes = async (nodes: string[]) => {
-      toast.info(`Please install: npm install ${nodes.map(n => `@nodedrop/${n}`).join(' ')}`);
-  }
-
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b bg-muted/20">
@@ -536,6 +567,34 @@ export const CopilotPanel = memo(function CopilotPanel() {
                     ? 'bg-primary text-primary-foreground' 
                     : 'bg-muted text-foreground'
                 }`}>
+                    {/* Thinking Process for assistant messages */}
+                    {msg.role === 'assistant' && msg.thinkingEvents && msg.thinkingEvents.length > 0 && (
+                        <div className="mb-3 pb-3 border-b border-border/50">
+                            <ThinkingProcess 
+                                events={msg.thinkingEvents} 
+                                isComplete={true}
+                                startTime={Date.now() - (msg.thinkingDuration || 0) * 1000}
+                            />
+                        </div>
+                    )}
+                    
+                    {/* Token Usage Display */}
+                    {msg.role === 'assistant' && msg.tokenUsage && (
+                        <div className="mb-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span className="font-mono">
+                                {msg.tokenUsage.totalTokens.toLocaleString()} tokens
+                            </span>
+                            <span className="opacity-50">•</span>
+                            <span className="font-mono">
+                                {msg.tokenUsage.promptTokens.toLocaleString()} in
+                            </span>
+                            <span className="opacity-50">•</span>
+                            <span className="font-mono">
+                                {msg.tokenUsage.completionTokens.toLocaleString()} out
+                            </span>
+                        </div>
+                    )}
+                    
                     <div className="prose prose-sm dark:prose-invert max-w-none">
                       <ReactMarkdown
                         components={{
@@ -552,12 +611,6 @@ export const CopilotPanel = memo(function CopilotPanel() {
                     </div>
                 </div>
                 
-                {/* Visual Thinking Process for historical messages (if saved) */}
-                {msg.thinkingEvents && msg.thinkingEvents.length > 0 && (
-                    <div className="mt-2 w-full max-w-[90%]">
-                        <ThinkingProcess events={msg.thinkingEvents} isComplete={true} />
-                    </div>
-                )}
 
 
                 {/* Generated Workflow Button Widget REMOVED */}
@@ -571,10 +624,20 @@ export const CopilotPanel = memo(function CopilotPanel() {
                 </div>
             ))}
             
-            {/* Active Thinking Process (Live) - Hidden for now */}
+            {/* Active Thinking Process (Live) */}
             {isLoading && (
                 <div className="w-full max-w-[90%] fade-in">
-                    <ThinkingLoader />
+                    {currentThinkingEvents.length > 0 ? (
+                        <div className="rounded-lg p-3 bg-muted text-foreground">
+                            <ThinkingProcess 
+                                events={currentThinkingEvents} 
+                                isComplete={false}
+                                startTime={thinkingStartTimeRef.current}
+                            />
+                        </div>
+                    ) : (
+                        <ThinkingLoader />
+                    )}
                 </div>
             )}
             

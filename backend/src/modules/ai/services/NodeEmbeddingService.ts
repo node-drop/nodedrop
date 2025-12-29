@@ -173,8 +173,13 @@ export class NodeEmbeddingService {
   /**
    * Find nodes most similar to the query text
    * Uses Drizzle's cosineDistance helper for pgvector
+   * 
+   * @param query - The search query text
+   * @param topK - Maximum number of results to return (default: 10)
+   * @param similarityThreshold - Maximum cosine distance to consider relevant (default: 0.7)
+   *                              Lower values = stricter matching (0 = exact match, 1 = orthogonal)
    */
-  async findSimilarNodes(query: string, topK: number = 10): Promise<string[]> {
+  async findSimilarNodes(query: string, topK: number = 10, similarityThreshold: number = 0.7): Promise<string[]> {
     const queryEmbedding = await this.generateEmbedding(query);
 
     if (!queryEmbedding) {
@@ -185,7 +190,7 @@ export class NodeEmbeddingService {
     try {
       // Use Drizzle's cosineDistance helper for clean syntax
       const { cosineDistance } = await import('drizzle-orm');
-      const { isNotNull, and, eq, asc } = await import('drizzle-orm');
+      const { isNotNull, and, eq, asc, lte } = await import('drizzle-orm');
       
       const similarity = cosineDistance(nodeTypes.embedding, queryEmbedding);
       
@@ -198,15 +203,18 @@ export class NodeEmbeddingService {
         .from(nodeTypes)
         .where(and(
           isNotNull(nodeTypes.embedding),
-          eq(nodeTypes.active, true)
+          eq(nodeTypes.active, true),
+          lte(similarity, similarityThreshold) // Only include nodes within threshold
         ))
         .orderBy(asc(similarity))
         .limit(topK);
 
       const nodeIds = results.map(row => row.identifier);
-      logger.info(`Found ${nodeIds.length} similar nodes for query`, { 
+      
+      // Log with distance scores for debugging
+      logger.info(`Found ${nodeIds.length} similar nodes for query (threshold: ${similarityThreshold})`, { 
         query: query.substring(0, 50), 
-        results: nodeIds 
+        results: results.map(r => ({ id: r.identifier, distance: typeof r.distance === 'number' ? r.distance.toFixed(3) : r.distance }))
       });
 
       return nodeIds;

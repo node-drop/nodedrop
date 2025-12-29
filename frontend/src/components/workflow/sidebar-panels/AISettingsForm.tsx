@@ -26,6 +26,26 @@ export function AISettingsForm({ onClose }: AISettingsFormProps) {
         model: 'gpt-4o',
         hasKey: false
     });
+
+    const modelsByProvider = {
+        openai: [
+            { value: 'gpt-4o', label: 'GPT-4o (Recommended)' },
+            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+            { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Fastest)' }
+        ],
+        anthropic: [
+            { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4 (Recommended)' },
+            { value: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' },
+            { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+            { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (Fastest)' }
+        ]
+    };
+
+    const handleProviderChange = (provider: string) => {
+        const models = modelsByProvider[provider as keyof typeof modelsByProvider];
+        const defaultModel = models[0].value;
+        setSettings(prev => ({ ...prev, provider, model: defaultModel }));
+    };
     const [selectedCredentialId, setSelectedCredentialId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
@@ -76,6 +96,25 @@ export function AISettingsForm({ onClose }: AISettingsFormProps) {
             <div className="flex-1 space-y-6">
                  <div className="space-y-4">
                     <div className="space-y-2">
+                        <Label>Provider</Label>
+                        <Select 
+                            value={settings.provider} 
+                            onValueChange={handleProviderChange}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select Provider" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            Choose your AI provider for workflow generation and chat.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
                         <Label>AI Model</Label>
                         <Select 
                             value={settings.model} 
@@ -85,9 +124,9 @@ export function AISettingsForm({ onClose }: AISettingsFormProps) {
                                 <SelectValue placeholder="Select Model" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="gpt-4o">GPT-4o (Recommended)</SelectItem>
-                                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo (Fastest)</SelectItem>
+                                {modelsByProvider[settings.provider as keyof typeof modelsByProvider]?.map(model => (
+                                    <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
@@ -96,9 +135,9 @@ export function AISettingsForm({ onClose }: AISettingsFormProps) {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>OpenAI API Key</Label>
+                        <Label>API Key</Label>
                         <UnifiedCredentialSelector
-                            allowedTypes={['apiKey']}
+                            allowedTypes={['apiKey','anthropicApi']}
                             value={selectedCredentialId}
                             onChange={setSelectedCredentialId}
                             placeholder="Select or create an API Key..."

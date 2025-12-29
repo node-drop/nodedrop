@@ -25,7 +25,7 @@ export const adviseUserHandler: ToolHandler = {
     logger.info('advise_user handler executed');
 
     return {
-      workflow: null as any, // Null signals to frontend: do NOT show workflow widget
+      workflow: null, // Null signals to frontend: do NOT show workflow widget
       message: fullMessage,
       missingNodeTypes: []
     };
