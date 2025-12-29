@@ -1,5 +1,6 @@
 
 import { AI_CONNECTION_RULES, AI_GENERATION_CONSTRAINTS } from '@/modules/ai/config/rules';
+import { encodeChatHistoryToToon, encodeExecutionContextToToon } from './toonEncoder';
 
 export class AIPromptBuilder {
   
@@ -63,6 +64,8 @@ The following nodes are installed and available for use.
 - Tabular format for arrays: \`nodes[N]{field1,field2,...}:\` followed by tab-separated values
 - Example: \`nodes[3]{id,name,role}:\` then each row is \`id\tname\trole\`
 
+**Workflow data** may also be TOON-encoded when provided. The format is the same - look for \`nodes[N]{...}:\` and \`connections[N]{...}:\` headers.
+
 ${nodeContext}
 
 ### MARKETPLACE NODES
@@ -75,6 +78,31 @@ If the user asks for functionality not covered by the installed nodes, you MAY s
 - google-sheets: Read/Write Google Sheets
 - cron: Schedule workflows
 - webhook: Trigger via HTTP
+
+### CRITICAL: IDENTIFY ALL WORKFLOW COMPONENTS
+Before building any workflow, you MUST identify ALL components:
+
+1. **TRIGGER** (Required): What starts this workflow?
+   - Default to 'manual-trigger' if not specified
+   - Look for: "when", "every", "schedule", "on", "webhook"
+
+2. **DATA SOURCES**: Where does data come FROM?
+   - APIs (use 'http-request' or 'http-request-tool')
+   - Databases (use appropriate db node)
+   - Files, webhooks, etc.
+
+3. **PROCESSING**: What happens to the data?
+   - AI analysis (use 'ai-agent' + model + memory)
+   - Transform (use 'code' or 'set')
+   - Conditions (use 'if-else' or 'switch')
+
+4. **DESTINATIONS** (Critical - Don't Miss!): Where does data GO?
+   - Look for phrases: "send to", "write to", "save to", "export to", "append to", "store in", "push to", "post to", "upload to", "log to", "insert into", "add to"
+   - If user says "send to Google Sheets" → MUST include 'google-sheets' node
+   - If user says "post to Slack" → MUST include 'slack' node
+   - If user says "save to database" → MUST include appropriate db node
+
+**IMPORTANT**: If the user mentions ANY destination service, you MUST include that node in the workflow. Do NOT skip destination nodes!
 
 ### HANDLING MISSING NODES
 If a dedicated node does not exist for a 3rd party service the user requests:
@@ -183,6 +211,29 @@ When user says "add a delay node" to an existing workflow:
 2. Insert the delay node between them
 3. Update connections: previous → delay → next
 
+**Example 5: AI Agent Fetching Data and Sending to Google Sheets**
+When user says "create an AI agent that gets data from an API and sends it to Google Sheets":
+\`\`\`json
+{
+  "nodes": [
+    {"id": "trigger_1", "type": "manual-trigger", "name": "Manual Trigger", "parameters": {}, "position": {"x": 0, "y": 0}},
+    {"id": "agent_1", "type": "ai-agent", "name": "AI Agent", "parameters": {"systemPrompt": "You are a data assistant. Use the HTTP tool to fetch data from APIs when asked.", "userMessage": "Get todo items from JSONPlaceholder API"}, "position": {"x": 300, "y": 0}},
+    {"id": "model_1", "type": "openai-model", "name": "OpenAI Model", "parameters": {"model": "gpt-4o-mini"}, "position": {"x": 200, "y": 150}},
+    {"id": "memory_1", "type": "buffer-memory", "name": "Memory", "parameters": {}, "position": {"x": 400, "y": 150}},
+    {"id": "http_tool_1", "type": "http-request-tool", "name": "HTTP Tool", "parameters": {}, "position": {"x": 600, "y": 150}},
+    {"id": "sheets_1", "type": "google-sheets", "name": "Google Sheets", "parameters": {"operation": "append", "spreadsheetId": "", "sheetName": "Sheet1"}, "position": {"x": 600, "y": 0}}
+  ],
+  "connections": [
+    {"sourceNodeId": "trigger_1", "sourceOutput": "main", "targetNodeId": "agent_1", "targetInput": "main"},
+    {"sourceNodeId": "model_1", "sourceOutput": "modelService", "targetNodeId": "agent_1", "targetInput": "modelService"},
+    {"sourceNodeId": "memory_1", "sourceOutput": "memoryService", "targetNodeId": "agent_1", "targetInput": "memoryService"},
+    {"sourceNodeId": "http_tool_1", "sourceOutput": "toolService", "targetNodeId": "agent_1", "targetInput": "toolService"},
+    {"sourceNodeId": "agent_1", "sourceOutput": "main", "targetNodeId": "sheets_1", "targetInput": "main"}
+  ]
+}
+\`\`\`
+Note: The AI agent's output flows to Google Sheets node which appends the data to the spreadsheet.
+
 ### SERVICE CONNECTIONS (AI Agents) - CRITICAL
 When creating an 'ai-agent' node, you MUST create and connect these service nodes:
 
@@ -244,7 +295,7 @@ ${constraintsSection}
 
   buildNodeSelectionPrompt(userPrompt: string, nodeIndex: string): string {
     return `
-You are an expert automation architect. Your task is to identify which nodes are required to fulfill the user's request.
+You are an expert automation architect. Your task is to identify ALL nodes required to fulfill the user's request completely.
 
 ### AVAILABLE NODES
 ${nodeIndex}
@@ -252,24 +303,43 @@ ${nodeIndex}
 ### USER REQUEST
 "${userPrompt}"
 
+### ANALYSIS STEPS
+1. **Identify the TRIGGER**: What starts this workflow? (manual, schedule, webhook, chat, etc.)
+2. **Identify DATA SOURCES**: Where does data come FROM? (APIs, databases, files)
+3. **Identify PROCESSING**: What transformations or AI analysis is needed?
+4. **Identify DESTINATIONS**: Where does data GO TO? 
+   - CRITICAL: Look for "send to", "write to", "save to", "export to", "append to", "store in", "push to", "post to"
+   - If user mentions Google Sheets, Slack, email, database, etc. as a destination, INCLUDE that node!
+
 ### INSTRUCTIONS
-1. Analyze the request.
-2. Select 3-8 nodes that are most relevant.
-3. Return a JSON array of node IDs ONLY.
-   Example: ["http-request", "slack", "schedule"]
-4. Do not include any explanations. Just the JSON array.
+1. Analyze the COMPLETE request - don't miss any mentioned services.
+2. Select 5-12 nodes that cover ALL aspects of the request.
+3. ALWAYS include destination nodes if the user mentions sending/writing/saving data somewhere.
+4. Return a JSON array of node IDs ONLY.
+   Example: ["manual-trigger", "http-request", "ai-agent", "openai-model", "google-sheets"]
+5. Do not include any explanations. Just the JSON array.
+
+### COMMON PATTERNS
+- "get data from X and send to Y" → include both X source node AND Y destination node
+- "AI agent with tools" → include ai-agent, model, memory, and tool nodes
+- "send to Google Sheets" → MUST include "google-sheets"
+- "post to Slack" → MUST include "slack"
 `;
   }
 
   buildUserPrompt(prompt: string, currentWorkflow?: any, chatHistory?: { role: string, content: string }[], executionContext?: any): string {
     let content = "";
 
-    // Add Chat History if available
+    // Add Chat History if available - use TOON for 3+ messages
     if (chatHistory && chatHistory.length > 0) {
       content += `### CONVERSATION HISTORY\n`;
-      chatHistory.forEach(msg => {
-        content += `${msg.role.toUpperCase()}: ${msg.content}\n`;
-      });
+      if (chatHistory.length >= 3) {
+        content += encodeChatHistoryToToon(chatHistory);
+      } else {
+        chatHistory.forEach(msg => {
+          content += `${msg.role.toUpperCase()}: ${msg.content}\n`;
+        });
+      }
       content += `\n`;
     }
 
@@ -280,7 +350,11 @@ ${nodeIndex}
     content += `### CURRENT REQUEST\nUser Request: "${prompt}"\n`;
     
     if (currentWorkflow) {
-      content += `\nCURRENT WORKFLOW JSON:\n${JSON.stringify(currentWorkflow)}\n\nINSTRUCTION: Modify the above workflow to satisfy the user request. Preserve existing nodes unless they strictly conflict with the request. Return the FULL updated workflow JSON.`;
+      // currentWorkflow may already be TOON-encoded string from minifyWorkflowForAI
+      const workflowStr = typeof currentWorkflow === 'string' 
+        ? currentWorkflow 
+        : JSON.stringify(currentWorkflow);
+      content += `\nCURRENT WORKFLOW:\n${workflowStr}\n\nINSTRUCTION: Modify the above workflow to satisfy the user request. Preserve existing nodes unless they strictly conflict with the request. Return the FULL updated workflow JSON.`;
     } else {
       content += `\nINSTRUCTION: Create a BRAND NEW workflow from scratch.`;
     }
@@ -291,17 +365,19 @@ ${nodeIndex}
   buildExecutionContext(context?: any): string {
       if (!context) return "";
       
+      // Use TOON encoding if there are errors or logs
+      const hasErrors = context.errors && context.errors.length > 0;
+      const hasLogs = context.logs && context.logs.length > 0;
+      
+      if (hasErrors || hasLogs) {
+          return `### LAST EXECUTION CONTEXT\n${encodeExecutionContextToToon(context)}\n\n`;
+      }
+      
+      // Simple text for minimal context
       let text = `### LAST EXECUTION CONTEXT\n`;
       text += `Status: ${context.lastRunStatus || 'Unknown'}\n`;
       
-      if (context.errors && context.errors.length > 0) {
-          text += `Errors:\n${context.errors.map((e: any) => `- Node ${e.nodeId}: ${e.error}`).join('\n')}\n`;
-      }
-      
-      if (context.logs && context.logs.length > 0) {
-          text += `Recent Logs:\n${context.logs.slice(-5).join('\n')}\n`;
-      } 
-      else if (context.lastRunStatus === 'error' && (!context.errors || context.errors.length === 0)) {
+      if (context.lastRunStatus === 'error') {
           text += `(No specific error logs found. You can use 'get_latest_execution_logs' to investigate deeply.)\n`;
       }
       

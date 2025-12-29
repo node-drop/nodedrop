@@ -74,9 +74,8 @@ export class NodeEmbeddingService {
       parts.push(`Tags: ${node.ai.tags.join(', ')}`);
     }
 
-    if (node.ai?.rules && node.ai.rules.length > 0) {
-      parts.push(`Rules: ${node.ai.rules.join('. ')}`);
-    }
+    // Note: ai.rules are NOT included in embeddings - they're operational guidance,
+    // not search keywords. They're used in the system prompt instead.
 
     // Priority 3: Keywords (legacy/manual)
     if (node.keywords && node.keywords.length > 0) {

@@ -1,7 +1,7 @@
 
 import { NodeService } from '@/services/nodes/NodeService';
 import { NODE_CONNECTION_PATTERNS } from '@/modules/ai/config/rules';
-import { encodeNodesToToon, shouldUseToon } from './toonEncoder';
+import { encodeNodesToToon, encodeWorkflowToToon, shouldUseToon } from './toonEncoder';
 
 export class AIContextBuilder {
   private nodeService: NodeService;
@@ -259,6 +259,11 @@ export class AIContextBuilder {
         target: c.targetNodeId,
         targetInput: c.targetInput
     }));
+
+    // Use TOON encoding for token efficiency if workflow has enough nodes
+    if (simplified.nodes.length >= 3) {
+        return encodeWorkflowToToon(simplified);
+    }
 
     return simplified;
   }

@@ -93,10 +93,17 @@ export class AIService {
       
       let selectedNodeIds: string[] = [];
       
+      // Detect if this is a complex prompt that needs more nodes
+      const isComplexPrompt = this.isComplexPrompt(request.prompt);
+      const nodeLimit = isComplexPrompt ? 15 : 10;
+      // Use more lenient threshold for complex prompts to catch destination nodes
+      const similarityThreshold = isComplexPrompt ? 0.75 : 0.65;
+      
+      logger.info(`Prompt complexity: ${isComplexPrompt ? 'complex' : 'simple'}, nodeLimit: ${nodeLimit}, threshold: ${similarityThreshold}`);
+      
       if (embeddingService.isEnabled()) {
-        // Use similarity threshold of 0.6 to filter out irrelevant nodes
-        // Lower threshold = stricter matching (only highly relevant nodes)
-        selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, 10, 0.6);
+        // Use adaptive threshold based on prompt complexity
+        selectedNodeIds = await embeddingService.findSimilarNodes(request.prompt, nodeLimit, similarityThreshold);
         logger.info(`Embedding-based selection: ${selectedNodeIds.join(', ')}`);
         
         if (selectedNodeIds.length === 0) {
@@ -113,6 +120,8 @@ export class AIService {
         selectedNodeIds = await this.selectRelevantNodes(aiProvider, selectionPrompt, model);
         logger.info(`LLM-based selection: ${selectedNodeIds.join(', ')}`);
       }
+      
+      logger.info(`Final node selection (${selectedNodeIds.length} nodes): ${selectedNodeIds.join(', ')}`);
       
       emit('node-selection', 'Selected potential nodes', { nodes: selectedNodeIds });
 
@@ -369,5 +378,30 @@ export class AIService {
       logger.warn("Failed to select nodes, falling back to full context", { error: e });
       return [];
     }
+  }
+
+  /**
+   * Detect if a prompt is complex and needs more nodes
+   * Complex prompts mention multiple services, have multiple steps, or use destination patterns
+   */
+  private isComplexPrompt(prompt: string): boolean {
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // Check for multiple service mentions
+    const serviceKeywords = ['google', 'slack', 'email', 'api', 'http', 'database', 'sheet', 'drive', 'github', 'discord', 'webhook', 'ai', 'agent', 'openai', 'gpt'];
+    const mentionedServices = serviceKeywords.filter(kw => lowerPrompt.includes(kw));
+    
+    // Check for multi-step indicators
+    const multiStepIndicators = /\b(and then|then|after that|finally|also|next|,\s*and)\b/i;
+    const hasMultipleSteps = multiStepIndicators.test(prompt);
+    
+    // Check for destination patterns (send to, write to, etc.)
+    const destinationPattern = /\b(send|write|save|export|append|store|push|post|upload|log|insert|add)\s+(it\s+)?to\b/i;
+    const hasDestination = destinationPattern.test(prompt);
+    
+    // Check word count
+    const wordCount = prompt.split(/\s+/).length;
+    
+    return mentionedServices.length >= 2 || hasMultipleSteps || hasDestination || wordCount > 25;
   }
 }
