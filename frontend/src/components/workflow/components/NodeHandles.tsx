@@ -351,7 +351,7 @@ const OutputHandle = memo(function OutputHandle({
   // Regular outputs on the right side
   return (
     <div
-      className="absolute flex items-center gap-1.5"
+      className="absolute flex items-center"
       style={{
         top,
         right: '-6px',
@@ -360,13 +360,6 @@ const OutputHandle = memo(function OutputHandle({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Label */}
-      {showLabel && (
-        <span className="text-[9px] font-medium text-muted-foreground bg-background/80 px-1 py-0.5 rounded whitespace-nowrap pointer-events-none select-none">
-          {outputLabel}
-        </span>
-      )}
-
       {/* Handle wrapper for proper plus icon positioning */}
       <div className="relative">
         <Handle
@@ -398,6 +391,21 @@ const OutputHandle = memo(function OutputHandle({
               <Plus className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
             </div>
           </div>
+        )}
+
+        {/* Label - floating outside, no pointer events */}
+        {showLabel && outputLabel !== 'main' && (
+          <span 
+            className="absolute text-[6px] text-muted-foreground/80 whitespace-nowrap select-none"
+            style={{ 
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-100%)',
+              pointerEvents: 'none', 
+            }}
+          >
+            {outputLabel}
+          </span>
         )}
       </div>
     </div>

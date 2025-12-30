@@ -280,8 +280,13 @@ export function WorkflowEditor({
         // Create a key that changes when execution state changes to force edge re-renders
         // This ensures edge buttons become visible after execution completes
         const executionStateKey = `${executionState.status}-${executionState.executionId || 'none'}`
-        return transformWorkflowEdgesToReactFlow(workflow.connections, executionStateKey)
-    }, [workflow?.connections, executionState.status, executionState.executionId])
+        return transformWorkflowEdgesToReactFlow(
+            workflow.connections, 
+            executionStateKey,
+            workflow.nodes,
+            availableNodeTypes
+        )
+    }, [workflow?.connections, workflow?.nodes, availableNodeTypes, executionState.status, executionState.executionId])
 
     // Sync Zustand workflow â†’ React Flow
     // Only sync when workflow ID changes (new workflow loaded) OR when blockSync is false

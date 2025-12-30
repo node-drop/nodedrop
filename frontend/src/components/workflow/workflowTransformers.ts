@@ -294,9 +294,39 @@ export function transformWorkflowNodesToReactFlow(
  */
 export function transformWorkflowEdgesToReactFlow(
   connections: WorkflowConnection[],
-  executionStateKey?: string
+  executionStateKey?: string,
+  workflowNodes?: WorkflowNode[],
+  availableNodeTypes?: NodeType[]
 ) {
+  // Create lookup maps for efficient access
+  const nodeMap = workflowNodes ? new Map(workflowNodes.map(n => [n.id, n])) : null;
+  const nodeTypeMap = availableNodeTypes ? createNodeTypeMap(availableNodeTypes) : null;
+
   return connections.map((conn) => {
+    // Try to get the actual output name from the source node
+    let label: string | undefined = undefined;
+    
+    if (conn.sourceOutput !== "main" && nodeMap && nodeTypeMap) {
+      const sourceNode = nodeMap.get(conn.sourceNodeId);
+      if (sourceNode) {
+        const nodeTypeDefinition = nodeTypeMap.get(sourceNode.type);
+        const outputs = getNodeOutputs(sourceNode, nodeTypeDefinition);
+        const outputNames = getNodeOutputNames(sourceNode, nodeTypeDefinition);
+        
+        // Find the index of this output
+        const outputIndex = outputs.indexOf(conn.sourceOutput);
+        if (outputIndex !== -1 && outputNames && outputNames[outputIndex]) {
+          label = outputNames[outputIndex];
+        } else {
+          // Fallback to the output handle ID
+          label = conn.sourceOutput;
+        }
+      }
+    } else if (conn.sourceOutput !== "main") {
+      // Fallback when node data not available
+      label = conn.sourceOutput;
+    }
+
     return {
       id: conn.id,
       source: conn.sourceNodeId,
@@ -305,7 +335,7 @@ export function transformWorkflowEdgesToReactFlow(
       targetHandle: conn.targetInput,
       type: "editable-edge",
       data: {
-        label: conn.sourceOutput !== "main" ? conn.sourceOutput : undefined,
+        label,
         // Add execution state key to force edge re-render when execution completes
         executionStateKey,
         // Editable edge configuration - use saved algorithm or default to Step
