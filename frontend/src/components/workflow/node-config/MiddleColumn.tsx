@@ -6,20 +6,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useNodeConfigDialogStore, useWorkflowStore } from '@/stores'
 import { NodeType, WorkflowNode } from '@/types'
 import { NodeValidator } from '@/utils/nodeValidation'
 import { isNodeExecutable } from '@/utils/nodeTypeUtils'
 import {
-  Database,
-  FileText,
   MoreVertical,
   Play,
   Settings,
   ToggleLeft,
   ToggleRight,
   Trash2,
+  Database,
+  FileText,
 } from 'lucide-react'
 import { NodeHeader } from '@/components/workflow/shared/NodeHeader'
 import { ConfigTab } from './tabs/ConfigTab'
@@ -55,8 +55,8 @@ export function MiddleColumn({ node, nodeType, onDelete, onExecute, readOnly = f
 
   const nodeExecutionResult = getNodeExecutionResult(node.id)
 
-  // Actions dropdown for the header
-  const headerActions = !readOnly && (
+  // Actions dropdown for the header - includes tab navigation and node actions
+  const headerActions = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -64,25 +64,67 @@ export function MiddleColumn({ node, nodeType, onDelete, onExecute, readOnly = f
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        {/* Tab navigation items */}
         <DropdownMenuItem
-          onClick={() => updateDisabled(!isDisabled)}
-          className="flex items-center space-x-2"
+          onClick={() => setActiveTab('config')}
+          className={`flex items-center space-x-2 ${activeTab === 'config' ? 'bg-accent' : ''}`}
         >
-          {isDisabled ? (
-            <ToggleRight className="w-4 h-4" />
-          ) : (
-            <ToggleLeft className="w-4 h-4" />
-          )}
-          <span>{isDisabled ? 'Enable Node' : 'Disable Node'}</span>
+          <Settings className="w-4 h-4" />
+          <span>Config</span>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={onDelete}
-          className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={() => setActiveTab('settings')}
+          className={`flex items-center space-x-2 ${activeTab === 'settings' ? 'bg-accent' : ''}`}
         >
-          <Trash2 className="w-4 h-4" />
-          <span>Delete Node</span>
+          <Settings className="w-4 h-4" />
+          <span>Settings</span>
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => setActiveTab('test')}
+          className={`flex items-center space-x-2 ${activeTab === 'test' ? 'bg-accent' : ''}`}
+        >
+          <Play className="w-4 h-4" />
+          <span>Test</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => setActiveTab('response')}
+          className={`flex items-center space-x-2 ${activeTab === 'response' ? 'bg-accent' : ''}`}
+        >
+          <Database className="w-4 h-4" />
+          <span>Response</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => setActiveTab('docs')}
+          className={`flex items-center space-x-2 ${activeTab === 'docs' ? 'bg-accent' : ''}`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>Docs</span>
+        </DropdownMenuItem>
+        
+        {!readOnly && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => updateDisabled(!isDisabled)}
+              className="flex items-center space-x-2"
+            >
+              {isDisabled ? (
+                <ToggleRight className="w-4 h-4" />
+              ) : (
+                <ToggleLeft className="w-4 h-4" />
+              )}
+              <span>{isDisabled ? 'Enable Node' : 'Disable Node'}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Node</span>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -103,48 +145,6 @@ export function MiddleColumn({ node, nodeType, onDelete, onExecute, readOnly = f
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="px-4 border-b">
-          <div className="flex space-x-0 -mb-px">
-            <TabsList className="h-auto p-0 bg-transparent grid w-full grid-cols-5 shadow-none">
-              <TabsTrigger
-                value="config"
-                className="flex items-center space-x-1.5 px-3 py-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none bg-transparent shadow-none transition-all duration-200 text-sm"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span className="font-medium">Config</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="flex items-center space-x-1.5 px-3 py-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none bg-transparent shadow-none transition-all duration-200 text-sm"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span className="font-medium">Settings</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="test"
-                className="flex items-center space-x-1.5 px-3 py-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none bg-transparent shadow-none transition-all duration-200 text-sm"
-              >
-                <Play className="w-3.5 h-3.5" />
-                <span className="font-medium">Test</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="response"
-                className="flex items-center space-x-1.5 px-3 py-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none bg-transparent shadow-none transition-all duration-200 text-sm"
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span className="font-medium">Response</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="docs"
-                className="flex items-center space-x-1.5 px-3 py-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none bg-transparent shadow-none transition-all duration-200 text-sm"
-              >
-                <FileText className="w-4 h-4" />
-                <span className="font-medium">Docs</span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-        </div>
-
         <div className="flex-1 overflow-hidden">
           <TabsContent value="config" className="h-full mt-0">
             <ConfigTab node={node} nodeType={nodeType} readOnly={readOnly} />
