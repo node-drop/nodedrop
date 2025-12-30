@@ -16,6 +16,7 @@ NODEDROP_EDITION=community
 - ✅ All 50+ built-in nodes
 - ✅ Unlimited workflows
 - ✅ Unlimited executions
+- ✅ Unlimited credentials
 - ✅ Single workspace
 - ✅ Single user (or basic auth)
 - ✅ All triggers (webhook, cron, manual)

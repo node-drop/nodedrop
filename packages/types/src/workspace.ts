@@ -212,6 +212,18 @@ export const WORKSPACE_PLANS: Record<WorkspacePlanName, WorkspacePlanConfig> = {
 };
 
 /**
+ * Community Edition plan limits (unlimited resources for self-hosted)
+ */
+export const COMMUNITY_EDITION_LIMITS: WorkspacePlanConfig = {
+  name: "Community",
+  maxMembers: 1,
+  maxWorkflows: -1, // unlimited
+  maxExecutionsPerMonth: -1, // unlimited
+  maxCredentials: -1, // unlimited
+  maxWorkspaces: 1,
+};
+
+/**
  * Helper function to get workspace plan config by plan name
  * Returns the free plan config if the plan name is not recognized
  */
@@ -220,6 +232,19 @@ export function getWorkspacePlan(planName: string): WorkspacePlanConfig {
     return WORKSPACE_PLANS[planName];
   }
   return WORKSPACE_PLANS.free;
+}
+
+/**
+ * Get workspace plan config with edition awareness
+ * For Community Edition, returns unlimited limits regardless of plan
+ * @param planName - The plan name (free, pro, enterprise)
+ * @param isCommunityEdition - Whether running in Community Edition
+ */
+export function getWorkspacePlanForEdition(planName: string, isCommunityEdition: boolean): WorkspacePlanConfig {
+  if (isCommunityEdition) {
+    return COMMUNITY_EDITION_LIMITS;
+  }
+  return getWorkspacePlan(planName);
 }
 
 /**

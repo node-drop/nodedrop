@@ -165,6 +165,7 @@ export const requireWorkspaceRole = (roles: any[]) => {
 
 /**
  * Middleware to check workspace resource limits before creation
+ * In Community Edition, limits are not enforced (planLimits feature is disabled)
  */
 export const checkWorkspaceLimit = (resourceType: "workflow" | "credential" | "member") => {
   return async (
@@ -173,6 +174,14 @@ export const checkWorkspaceLimit = (resourceType: "workflow" | "credential" | "m
     next: NextFunction
   ): Promise<void> => {
     try {
+      // Import edition config to check if limits should be enforced
+      const { isFeatureEnabled } = await import("../config/edition");
+      
+      // In Community Edition, planLimits is false - skip all limit checks
+      if (!isFeatureEnabled('planLimits')) {
+        return next();
+      }
+
       if (!req.workspace) {
         return next(new AppError("Workspace context required", 400, "WORKSPACE_REQUIRED"));
       }

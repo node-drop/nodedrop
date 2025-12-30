@@ -14,6 +14,8 @@ import { db } from "../db/client";
 import * as schema from "../db/schema/auth";
 import { workspaces, workspaceMembers } from "../db/schema/workspace";
 import { eq } from "drizzle-orm";
+import { isCommunity } from "./edition";
+import { COMMUNITY_EDITION_LIMITS, WORKSPACE_PLANS } from "@nodedrop/types";
 
 /**
  * Generate a URL-friendly slug from a string
@@ -42,16 +44,19 @@ async function createDefaultWorkspace(userId: string, userName: string | null, u
       slug = `${slug}-${Math.random().toString(36).substring(2, 8)}`;
     }
 
+    // Use community edition limits (unlimited) or cloud free plan limits
+    const planLimits = isCommunity() ? COMMUNITY_EDITION_LIMITS : WORKSPACE_PLANS.free;
+
     // Create workspace
     const workspaceResult = await db.insert(workspaces).values({
       name: workspaceName,
       slug,
       ownerId: userId,
       plan: "free",
-      maxMembers: 1,
-      maxWorkflows: 5,
-      maxExecutionsPerMonth: 1000,
-      maxCredentials: 10,
+      maxMembers: planLimits.maxMembers,
+      maxWorkflows: planLimits.maxWorkflows,
+      maxExecutionsPerMonth: planLimits.maxExecutionsPerMonth,
+      maxCredentials: planLimits.maxCredentials,
     }).returning();
 
     const workspace = workspaceResult[0];

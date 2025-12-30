@@ -37,7 +37,9 @@ export {
   WorkspaceContextSchema,
   // Constants and helpers
   WORKSPACE_PLANS,
+  COMMUNITY_EDITION_LIMITS,
   getWorkspacePlan,
+  getWorkspacePlanForEdition,
   isWorkspacePlanName,
 } from "@nodedrop/types";
 

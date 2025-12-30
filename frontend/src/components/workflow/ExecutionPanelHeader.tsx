@@ -4,7 +4,7 @@ import { useWorkflowOperations } from '@/hooks/workflow/useWorkflowOperations'
 import { useSelectedNodes } from '@/hooks/workflow'
 import { useReactFlowUIStore } from '@/stores'
 import { ExecutionState } from '@/types'
-import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight, Activity, GitBranch } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, PackagePlus, PanelRight, Activity, GitBranch, Bot } from 'lucide-react'
 
 interface ExecutionPanelHeaderProps {
   executionState: ExecutionState
@@ -79,6 +79,21 @@ export function ExecutionPanelHeader({
           </TooltipTrigger>
           <TooltipContent>
             <p>Git version control</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => openRightSidebar('copilot')}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <Bot className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Copilot AI assistant</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>

@@ -11,9 +11,11 @@ import {
   WorkspaceResponse,
   WorkspaceUsage,
   WorkspaceWithRole,
+  getWorkspacePlanForEdition,
   getWorkspacePlan,
 } from '../types/workspace.types';
 import { randomBytes } from 'crypto';
+import { isCommunity } from '../config/edition';
 
 /**
  * WorkspaceService with Drizzle ORM
@@ -90,7 +92,7 @@ export class WorkspaceServiceDrizzle {
         throw new AppError('Workspace slug already exists', 400, 'SLUG_EXISTS');
       }
 
-      const newWorkspacePlanLimits = getWorkspacePlan('free');
+      const newWorkspacePlanLimits = getWorkspacePlanForEdition('free', isCommunity());
 
       const newWorkspace = await db
         .insert(workspaces)
