@@ -167,16 +167,24 @@ export class AIContextBuilder {
             schema.rules = node.ai.rules;
         }
 
-        // Include parameter examples for complex parameters (helps AI understand structure)
-        if (node.ai?.parameterExamples) {
+        // Only include detailed examples for complex nodes (complexityScore >= 2)
+        // Simple nodes (score 1) don't need examples - their props are self-explanatory
+        const isComplexNode = (node.ai?.complexityScore || 1) >= 2;
+        
+        // Include parameter examples only for complex nodes
+        if (isComplexNode && node.ai?.parameterExamples) {
             schema.paramExamples = node.ai.parameterExamples;
         }
 
-        // Include JSON example for direct copy-paste (most effective for LLMs)
-        if (node.ai?.jsonExample) {
-            // Join multiple examples with " OR " if it's an array
+        // Include JSON example only for complex nodes OR nodes with collection/nested params
+        const hasComplexParams = (node.properties || []).some((p: any) => 
+            p.type === 'collection' || p.type === 'json' || p.type === 'conditionRow'
+        );
+        
+        if ((isComplexNode || hasComplexParams) && node.ai?.jsonExample) {
+            // For arrays, only include first example to save tokens
             schema.example = Array.isArray(node.ai.jsonExample) 
-                ? node.ai.jsonExample.join(' | ') 
+                ? node.ai.jsonExample[0] 
                 : node.ai.jsonExample;
         }
 
@@ -193,28 +201,34 @@ export class AIContextBuilder {
                     minProp.req = true;
                 }
                 
-                // Include description for non-obvious parameters (helps AI understand what to set)
-                if (p.description && p.description.length < 100) {
+                // Skip descriptions for self-explanatory types when we have jsonExample
+                const selfExplanatoryTypes = ['boolean', 'number', 'string'];
+                const hasExample = !!node.ai?.jsonExample;
+                const needsDescription = !hasExample || !selfExplanatoryTypes.includes(p.type);
+                
+                if (needsDescription && p.description && p.description.length < 80) {
                     minProp.desc = p.description;
                 }
                 
-                // Include ALL options for enum-like types (not just 5)
+                // Include options for enum-like types (cap at 8 to save tokens)
                 if (p.options && p.options.length > 0) {
-                    // Show all options if 10 or fewer, otherwise show first 10 with indicator
-                    if (p.options.length <= 10) {
+                    if (p.options.length <= 8) {
                         minProp.o = p.options.map((o: any) => o.value);
                     } else {
-                        minProp.o = [...p.options.slice(0, 10).map((o: any) => o.value), `...+${p.options.length - 10} more`];
+                        minProp.o = [...p.options.slice(0, 6).map((o: any) => o.value), `+${p.options.length - 6}`];
                     }
                 }
                 
-                // Include default value
-                if (p.default !== undefined && String(p.default).length < 50) {
-                    minProp.d = p.default;
+                // Include default only if not obvious (skip empty strings, false, 0)
+                if (p.default !== undefined && p.default !== '' && p.default !== false && p.default !== 0) {
+                    const defaultStr = String(p.default);
+                    if (defaultStr.length < 30) {
+                        minProp.d = p.default;
+                    }
                 }
 
-                // Include placeholder/example if available
-                if (p.placeholder) {
+                // Skip placeholder if we have jsonExample (redundant)
+                if (!hasExample && p.placeholder) {
                     minProp.ex = p.placeholder;
                 }
                 

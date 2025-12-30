@@ -1,35 +1,15 @@
+// Connection rules - these are now mostly covered by nodeSchema.ts
+// Keeping only the most critical reminders that aren't in the schema reference
 export const AI_CONNECTION_RULES = [
-    // Trigger Node Rules
-    "**Trigger Nodes FIRST**: Nodes like 'manual-trigger', 'webhook', 'cron', 'schedule', 'chat' MUST be the FIRST node in any workflow. Never place them in the middle or end.",
-    
-    // Response Node Rules  
-    "**Response Nodes LAST**: Nodes like 'http-response', 'api-response' MUST be the LAST node in webhook-triggered workflows. They send data back to the caller.",
-    
-    // AI Agent Service Node Rules
-    "**Model Nodes → ai-agent ONLY**: Nodes like 'openai-model', 'anthropic-model' connect ONLY to ai-agent's 'modelService' input. They output 'modelService', not 'main'.",
-    "**Memory Nodes → ai-agent ONLY**: Nodes like 'buffer-memory', 'window-memory' connect ONLY to ai-agent's 'memoryService' input. They output 'memoryService', not 'main'.",
-    "**Tool Nodes → ai-agent ONLY**: Nodes ending in '-tool' (e.g., 'slack-tool', 'http-request-tool', 'calculator-tool') connect ONLY to ai-agent's 'toolService' input. They output 'toolService', not 'main'.",
-    "**Agent Configuration**: When using 'ai-agent', you MUST connect: 1) A model node (required), 2) A memory node (recommended), 3) Tool nodes (optional, based on user needs).",
-    
-    // Data Flow Rules
-    "**Delay Node Placement**: 'delay' node goes BETWEEN action nodes for rate limiting or waiting. Never as first node. Common pattern: http-request → delay → http-request.",
-    "**Transform Before Use**: If data needs reshaping, use 'code' or 'transform' node between the source and destination nodes.",
-    "**Loop Node**: 'loop' node iterates over arrays. Connect data source → loop → action inside loop.",
-    
-    // Standalone vs Agent Pattern
-    "**Standalone Services**: Regular action nodes (e.g., 'slack', 'gmail', 'http-request') connect via 'main' output to 'main' input in sequence.",
-    "**Agent-Tool Pattern**: If user wants AI to decide when to use a service, use the '-tool' variant connected to ai-agent's toolService.",
-    
-    // Type Compatibility
-    "**Type Compatibility**: Service outputs (modelService, memoryService, toolService) connect ONLY to matching service inputs. 'main' outputs connect to 'main' inputs.",
+    "**Delay Node**: Goes BETWEEN action nodes for rate limiting. Pattern: http-request → delay → http-request.",
+    "**Transform Before Use**: If data needs reshaping, use 'code' or 'set' node between source and destination.",
+    "**Standalone vs Agent-Tool**: Regular nodes (slack, gmail) use main→main. For AI-controlled services, use '-tool' variant with ai-agent.",
 ];
 
 export const AI_GENERATION_CONSTRAINTS = [
-    "Do not hallucinate parameters that are not in the provided schema.",
+    "Do not hallucinate parameters not in the schema.",
     "Prefer simple, linear flows unless parallel processing is explicitly requested.",
-    "**Expression Syntax**: When referencing data from previous nodes, ALWAYS prefix with '=' (e.g., '={{message}}', '={{data.id}}', '={{response.body}}'). Never use '{{variable}}' without the '=' prefix.",
-    "**Node Naming**: Use descriptive IDs like 'trigger_1', 'delay_1', 'http_request_1' - not generic names.",
-    "**Minimal Nodes**: Use the fewest nodes necessary. Don't add unnecessary transforms or delays unless requested.",
+    "Use the fewest nodes necessary. Don't add unnecessary transforms or delays.",
 ];
 
 // Node connection recommendations - used by AIContextBuilder

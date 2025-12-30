@@ -7,6 +7,7 @@
  */
 
 import { encode } from '@toon-format/toon';
+import { PROMPT_LIMITS } from '@/modules/ai/config/promptLimits';
 
 /**
  * Encode node schemas to TOON format
@@ -69,16 +70,22 @@ export function encodeWorkflowToToon(workflow: any): string {
 /**
  * Encode chat history to TOON format
  * @param history Array of chat messages
+ * @param maxLength Optional max length for message content (defaults to config)
  * @returns TOON-formatted string
  */
-export function encodeChatHistoryToToon(history: { role: string; content: string }[]): string {
+export function encodeChatHistoryToToon(
+  history: { role: string; content: string }[],
+  maxLength: number = PROMPT_LIMITS.chatMessageMaxLength
+): string {
   if (!history || history.length === 0) return '';
   
   try {
     const data = {
       messages: history.map(m => ({
         role: m.role,
-        content: m.content.length > 500 ? m.content.substring(0, 500) + '...' : m.content
+        content: m.content.length > maxLength 
+          ? m.content.substring(0, maxLength) + '...' 
+          : m.content
       }))
     };
     return encode(data, { delimiter: '\t' });
@@ -104,12 +111,14 @@ export function encodeExecutionContextToToon(context: any): string {
     if (context.errors && context.errors.length > 0) {
       data.errors = context.errors.map((e: any) => ({
         nodeId: e.nodeId,
-        error: e.error
+        error: typeof e.error === 'string' && e.error.length > PROMPT_LIMITS.errorMessageMaxLength
+          ? e.error.substring(0, PROMPT_LIMITS.errorMessageMaxLength) + '...'
+          : e.error
       }));
     }
     
     if (context.logs && context.logs.length > 0) {
-      data.logs = context.logs.slice(-5);
+      data.logs = context.logs.slice(-PROMPT_LIMITS.executionLogsToKeep);
     }
     
     return encode(data, { delimiter: '\t' });

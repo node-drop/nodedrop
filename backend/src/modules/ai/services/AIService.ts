@@ -2,6 +2,7 @@ import { db } from '@/db/client';
 import { userAiSettings } from '@/db/schema/ai_settings';
 import { AIContextBuilder } from '@/modules/ai/services/utils/AIContextBuilder';
 import { AIPromptBuilder } from '@/modules/ai/services/utils/AIPromptBuilder';
+import { WorkflowValidator } from '@/modules/ai/services/utils/WorkflowValidator';
 import { setNodeService, setValidationNodeService, ToolContext } from '@/modules/ai/tools/handlers';
 import { GenerateWorkflowRequest, GenerateWorkflowResponse } from '@/modules/ai/types';
 import { getCredentialService } from '@/services/CredentialService.factory';
@@ -17,10 +18,12 @@ type AIProvider = ReturnType<typeof createOpenAI> | ReturnType<typeof createAnth
 export class AIService {
   private contextBuilder: AIContextBuilder;
   private promptBuilder: AIPromptBuilder;
+  private workflowValidator: WorkflowValidator;
 
   constructor(nodeService: NodeService) {
     this.contextBuilder = new AIContextBuilder(nodeService);
     this.promptBuilder = new AIPromptBuilder();
+    this.workflowValidator = new WorkflowValidator();
     
     // Set node service for handlers that need it
     setNodeService(nodeService);
@@ -129,7 +132,13 @@ export class AIService {
       const nodeContext = await this.contextBuilder.buildScopedNodeContext(selectedNodeIds);
 
       emit('status', 'Planning workflow logic...');
-      const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext);
+      
+      // Detect if prompt involves AI agents to include agent-specific patterns
+      const hasAgentIntent = /\b(ai[\s-]?agent|gpt|llm|chat[\s-]?bot|assistant|model|anthropic|openai)\b/i.test(request.prompt);
+      const systemPrompt = this.promptBuilder.buildSystemPrompt(nodeContext, {
+        includeAgentPatterns: hasAgentIntent,
+        debug: process.env.NODE_ENV === 'development'
+      });
       
       const contextWorkflow = request.currentWorkflow 
         ? this.contextBuilder.minifyWorkflowForAI(request.currentWorkflow) 
@@ -280,10 +289,35 @@ export class AIService {
         });
         
         if (finalToolResult.toolName === 'build_workflow' && resultData.workflow) {
+           emit('status', 'Validating workflow...');
+           
+           // Validate and auto-fix common AI mistakes
+           const validation = this.workflowValidator.validate(resultData.workflow, true);
+           
+           if (validation.warnings.length > 0) {
+             logger.info('Workflow validation warnings', { warnings: validation.warnings });
+           }
+           
+           if (!validation.valid) {
+             logger.warn('Workflow validation errors (after auto-fix attempt)', { errors: validation.errors });
+             // Still return the workflow but include validation errors in message
+             const errorSummary = validation.errors.slice(0, 3).join('; ');
+             return {
+               workflow: validation.workflow,
+               message: `${resultData.message || 'Workflow generated.'} ⚠️ Some parameters may need adjustment: ${errorSummary}`,
+               missingNodeTypes: resultData.missingNodeTypes || [],
+               thinkingEvents: consolidatedEvents,
+               thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
+               tokenUsage
+             };
+           }
+           
            emit('status', 'Workflow generated successfully!');
            return {
-             workflow: resultData.workflow,
-             message: resultData.message || 'Workflow updated.',
+             workflow: validation.workflow,
+             message: validation.fixed 
+               ? `${resultData.message || 'Workflow updated.'} (Auto-corrected some parameters)`
+               : (resultData.message || 'Workflow updated.'),
              missingNodeTypes: resultData.missingNodeTypes || [],
              thinkingEvents: consolidatedEvents,
              thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
@@ -313,10 +347,14 @@ export class AIService {
               if (finalTools.includes(tr.toolName) && output) {
                 logger.info('Found tool result in steps fallback', { toolName: tr.toolName });
                 if (tr.toolName === 'build_workflow' && output.workflow) {
+                  // Validate fallback workflow too
+                  const validation = this.workflowValidator.validate(output.workflow, true);
                   emit('status', 'Workflow generated successfully!');
                   return {
-                    workflow: output.workflow,
-                    message: output.message || 'Workflow updated.',
+                    workflow: validation.workflow,
+                    message: validation.fixed 
+                      ? `${output.message || 'Workflow updated.'} (Auto-corrected some parameters)`
+                      : (output.message || 'Workflow updated.'),
                     missingNodeTypes: output.missingNodeTypes || [],
                     thinkingEvents: consolidatedEvents,
                     thinkingDuration: Math.floor((Date.now() - startTime) / 1000),
