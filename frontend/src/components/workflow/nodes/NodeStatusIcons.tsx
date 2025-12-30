@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, XCircle, Check, LucideIcon } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, XCircle, Check, Pin, LucideIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface NodeStatusIconsProps {
@@ -9,29 +9,55 @@ interface NodeStatusIconsProps {
     hasSuccess: boolean
   }
   hasNodeConfig?: boolean
+  hasPinnedData?: boolean
 }
 
-type StatusType = 'validation' | 'error' | 'success'
+type StatusType = 'validation' | 'error' | 'success' | 'pinned'
 
 interface StatusConfig {
   type: StatusType
   bgColor: string
   Icon: LucideIcon
   tooltip?: React.ReactNode
+  position?: 'top-right' | 'top-left' | 'bottom-right'
 }
 
-const BASE_CLASSES = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full shadow-md z-10'
-const ICON_CLASSES = 'w-2.5 h-2.5'
+const BASE_CLASSES = 'absolute flex items-center justify-center w-3 h-3 rounded-full shadow-sm z-10'
+const ICON_CLASSES = 'w-1.5 h-1.5'
 
 /**
  * StatusIcon - Renders a single status icon with tooltip
  */
-function StatusIcon({ bgColor, Icon, tooltip }: Omit<StatusConfig, 'type'>) {
+function StatusIcon({ bgColor, Icon, tooltip, position = 'top-right', type }: StatusConfig) {
+  const positionClasses = position === 'top-right' 
+    ? '-top-1 -right-1' 
+    : position === 'bottom-right'
+    ? 'bottom-2 right-3'
+    : '-top-1 -left-1'
+  
+  // Pinned icon is just the icon with color, no background
+  if (type === 'pinned') {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`absolute ${positionClasses} z-10 cursor-help`}>
+              <Icon className="w-2.5 h-2.5 text-muted-foreground rotate-45" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-xs">
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+  
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className={`${BASE_CLASSES} ${bgColor} text-white cursor-help`}>
+          <div className={`${BASE_CLASSES} ${positionClasses} ${bgColor} text-white cursor-help`}>
             <Icon className={ICON_CLASSES} />
           </div>
         </TooltipTrigger>
@@ -44,18 +70,20 @@ function StatusIcon({ bgColor, Icon, tooltip }: Omit<StatusConfig, 'type'>) {
 }
 
 /**
- * NodeStatusIcons - Displays status icons for validation errors, success, and error states
- * Priority: Validation errors > Execution errors > Success
+ * NodeStatusIcons - Displays status icons for validation errors, success, error states, and pinned data
+ * Priority: Validation errors > Execution errors > Success (top-right)
+ * Pinned data icon always shows on top-left when data is pinned
  */
 export function NodeStatusIcons({
   errors = [],
   nodeExecutionState,
   hasNodeConfig = false,
+  hasPinnedData = false,
 }: NodeStatusIconsProps) {
   const hasErrors = errors.length > 0
   const { hasError, hasSuccess, isExecuting } = nodeExecutionState
 
-  // Determine which status to show (only one at a time)
+  // Determine which status to show (only one at a time) - top-right position
   const statusConfig: StatusConfig | null = hasErrors
     ? {
         type: 'validation',
@@ -69,6 +97,7 @@ export function NodeStatusIcons({
             ))}
           </div>
         ),
+        position: 'top-right',
       }
     : hasError && !isExecuting
       ? {
@@ -76,6 +105,7 @@ export function NodeStatusIcons({
           bgColor: 'bg-red-500',
           Icon: XCircle,
           tooltip: <p className="text-xs">Execution failed</p>,
+          position: 'top-right',
         }
       : hasSuccess && !isExecuting
         ? {
@@ -83,10 +113,27 @@ export function NodeStatusIcons({
             bgColor: 'bg-green-500',
             Icon: hasNodeConfig ? CheckCircle2 : Check,
             tooltip: <p className="text-xs">Execution successful</p>,
+            position: 'top-right',
           }
         : null
 
-  return statusConfig ? <StatusIcon {...statusConfig} /> : null
+  // Pinned data config - just icon with color, positioned inside node
+  const pinnedConfig: StatusConfig | null = hasPinnedData
+    ? {
+        type: 'pinned',
+        bgColor: '',
+        Icon: Pin,
+        tooltip: <p className="text-xs">Output data is pinned</p>,
+        position: 'bottom-right',
+      }
+    : null
+
+  return (
+    <>
+      {pinnedConfig && <StatusIcon {...pinnedConfig} />}
+      {statusConfig && <StatusIcon {...statusConfig} />}
+    </>
+  )
 }
 
 NodeStatusIcons.displayName = 'NodeStatusIcons'

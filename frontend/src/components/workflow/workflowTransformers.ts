@@ -271,6 +271,9 @@ export function transformWorkflowNodesToReactFlow(
         // Add node type definition and execution capability
         nodeTypeDefinition,
         executionCapability: nodeTypeDefinition?.executionCapability,
+        // Add mock data properties for pin indicator on node
+        mockData: node.mockData,
+        mockDataPinned: node.mockDataPinned,
       },
     };
 

@@ -42,6 +42,8 @@ interface CollapsedNodeContentProps {
     nodeType: string
     disabled: boolean
     status?: 'idle' | 'running' | 'success' | 'error' | 'skipped'
+    mockDataPinned?: boolean
+    mockData?: any
   }
   
   // Visual state
@@ -294,6 +296,7 @@ export function CollapsedNodeContent({
         errors={errors}
         nodeExecutionState={nodeExecutionState}
         hasNodeConfig={!!nodeConfig}
+        hasPinnedData={!!(data.mockDataPinned && data.mockData)}
       />
     </div>
   )

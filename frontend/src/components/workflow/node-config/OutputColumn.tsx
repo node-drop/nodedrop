@@ -2,8 +2,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { JsonEditor } from '@/components/ui/json-editor'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNodeConfigDialogStore, useWorkflowStore } from '@/stores'
 import { useNodeTypesStore } from '@/stores/nodeTypes'
 import { WorkflowNode } from '@/types'
@@ -13,11 +13,11 @@ import {
   Copy,
   Database,
   Download,
-  Edit,
   Pin,
   PinOff,
   Table as TableIcon,
-  ScrollText
+  ScrollText,
+  X
 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -33,13 +33,13 @@ interface OutputColumnProps {
 
 export function OutputColumn({ node }: OutputColumnProps) {
   const [viewMode, setViewMode] = useState<'json' | 'table' | 'logs'>('json')
+  const [isEditingPinData, setIsEditingPinData] = useState(false)
   const { getNodeExecutionResult, executionLogs } = useWorkflowStore()
   const { getNodeTypeById } = useNodeTypesStore()
   const {
     mockData,
     mockDataPinned,
     mockDataEditor,
-    openMockDataEditor,
     closeMockDataEditor,
     updateMockDataContent,
     updateMockData,
@@ -57,21 +57,52 @@ export function OutputColumn({ node }: OutputColumnProps) {
       ? ImagePreviewOutput
       : undefined
 
-  const handleMockDataSave = () => {
+  // Handle pin data save - n8n style: save and pin in one action
+  const handlePinData = () => {
     try {
       const parsed = JSON.parse(mockDataEditor.content)
       updateMockData(parsed)
+      if (!mockDataPinned) {
+        toggleMockDataPinned()
+      }
+      setIsEditingPinData(false)
       closeMockDataEditor()
-      toast.success('Mock data saved successfully')
+      toast.success('Data pinned successfully')
     } catch (error) {
       toast.error('Invalid JSON format. Please check your syntax.')
     }
   }
 
-  const handleMockDataClear = () => {
+  // Handle unpin - removes the pinned data
+  const handleUnpinData = () => {
+    if (mockDataPinned) {
+      toggleMockDataPinned()
+    }
+    toast.success('Data unpinned')
+  }
+
+  // Handle clear pinned data completely
+  const handleClearPinnedData = () => {
     updateMockData(null)
+    if (mockDataPinned) {
+      toggleMockDataPinned()
+    }
+    setIsEditingPinData(false)
     closeMockDataEditor()
-    toast.success('Mock data cleared')
+    toast.success('Pinned data cleared')
+  }
+
+  // Open pin data editor with current output data pre-filled
+  const handleOpenPinEditor = () => {
+    const dataToPin = mockData || extractNodeOutputData(nodeExecutionResult)
+    updateMockDataContent(dataToPin ? JSON.stringify(dataToPin, null, 2) : '{\n  \n}')
+    setIsEditingPinData(true)
+  }
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditingPinData(false)
+    closeMockDataEditor()
   }
 
   // Determine what data to show - mock data if pinned and available, otherwise execution result
@@ -115,84 +146,158 @@ export function OutputColumn({ node }: OutputColumnProps) {
   return (
     <div className="flex w-full h-full border-l flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+      <div className="flex items-center p-4 border-b bg-muted/30">
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-muted-foreground" />
           <h3 className="font-semibold text-sm">Output Data</h3>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Edit Button */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={openMockDataEditor}
-            className="h-7 px-2 text-xs gap-1"
-          >
-            <Edit className="h-3 w-3" />
-            Edit
-          </Button>
+          {/* Action buttons */}
+          <div className="flex items-center gap-1 ml-2">
+            {/* Pin/Unpin Button - n8n style (icon only) */}
+            {mockDataPinned && mockData ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleUnpinData}
+                    className="h-7 w-7 p-0"
+                  >
+                    <PinOff className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Unpin data</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenPinEditor}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Pin className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Pin data</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-          {/* Download Button - Show if data has downloadable content */}
-          {hasDownloadableContent(displayData) && !isBranchingNode && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDownload}
-              className="h-7 px-2 text-xs gap-1"
-            >
-              <Download className="h-3 w-3" />
-              Download
-            </Button>
-          )}
+            {/* Download Button - Show if data has downloadable content */}
+            {hasDownloadableContent(displayData) && !isBranchingNode && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownload}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Download</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-          {/* Copy Button */}
-          {displayData && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const copyData = isBranchingNode ? displayData.branches : displayData;
-                navigator.clipboard.writeText(JSON.stringify(copyData, null, 2))
-                toast.success('Copied to clipboard')
-              }}
-              className="h-7 px-2 text-xs gap-1"
-            >
-              <Copy className="h-3 w-3" />
-              Copy
-            </Button>
-          )}
-
-          {/* Pin Mock Data Toggle */}
-          {mockData && (
-            <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-background border">
-              <Switch
-                checked={mockDataPinned}
-                onCheckedChange={toggleMockDataPinned}
-              />
-              <div className="flex items-center gap-1">
-                {mockDataPinned ? (
-                  <Pin className="h-3 w-3 text-orange-600" />
-                ) : (
-                  <PinOff className="h-3 w-3 text-muted-foreground" />
-                )}
-                <span className="text-xs font-medium">
-                  {mockDataPinned ? 'Pinned' : 'Pin Mock'}
-                </span>
-              </div>
-            </div>
-          )}
-
+            {/* Copy Button */}
+            {displayData && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const copyData = isBranchingNode ? displayData.branches : displayData;
+                      navigator.clipboard.writeText(JSON.stringify(copyData, null, 2))
+                      toast.success('Copied to clipboard')
+                    }}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Copy</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {/* Mock Data Editor - Full Width/Height when open */}
-        {mockDataEditor.isOpen ? (
+        {/* Pin Data Editor - Full Width/Height when open */}
+        {isEditingPinData ? (
           <div className="h-full flex flex-col bg-card">
             {/* Editor Header */}
+            <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Pin className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-sm">Edit Pin Data</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelEdit}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
 
+            {/* Editor Content */}
+            <div className="flex-1 flex flex-col min-h-0">
+              <JsonEditor
+                value={mockDataEditor.content}
+                onValueChange={updateMockDataContent}
+                placeholder='{\n  "message": "Hello World",\n  "data": {\n    "success": true\n  }\n}'
+                className="flex-1"
+                required
+              />
+            </div>
 
+            {/* Editor Actions */}
+            <div className="p-4 border-t bg-muted/10">
+              <div className="flex gap-2">
+                <Button
+                  onClick={handlePinData}
+                  size="sm"
+                  className="flex-1 gap-1"
+                >
+                  <Pin className="h-3 w-3" />
+                  Pin Data
+                </Button>
+                {mockData && (
+                  <Button
+                    onClick={handleClearPinnedData}
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Clear Pinned
+                  </Button>
+                )}
+                <Button
+                  onClick={handleCancelEdit}
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : mockDataEditor.isOpen ? (
+          <div className="h-full flex flex-col bg-card">
             {/* Editor Content */}
             <div className="flex-1  flex flex-col min-h-0">
               <JsonEditor
@@ -210,14 +315,14 @@ export function OutputColumn({ node }: OutputColumnProps) {
             <div className="p-4 border-t bg-muted/10">
               <div className="flex gap-2">
                 <Button
-                  onClick={handleMockDataSave}
+                  onClick={handlePinData}
                   size="sm"
                   className="flex-1"
                 >
                   Save Changes
                 </Button>
                 <Button
-                  onClick={handleMockDataClear}
+                  onClick={handleClearPinnedData}
                   size="sm"
                   variant="outline"
                   className="flex-1"
@@ -239,13 +344,6 @@ export function OutputColumn({ node }: OutputColumnProps) {
                     <div className="font-semibold mb-1">Execution Failed</div>
                     <div className="text-xs whitespace-pre-wrap break-words">{nodeExecutionResult.error}</div>
                   </div>
-                </div>
-              )}
-
-              {/* Pin Message at Top */}
-              {isShowingMockData && (
-                <div className="flex items-center justify-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 flex-shrink-0">
-                  <span>💡 This mock data is currently pinned and will be used for connected nodes</span>
                 </div>
               )}
 
@@ -363,7 +461,11 @@ export function OutputColumn({ node }: OutputColumnProps) {
 
                   <TabsContent value="json" className="flex-1 min-h-0 mt-0 p-3">
                     {displayData ? (
-                      <div className="rounded-md border bg-muted/30 p-3 h-full">
+                      <div 
+                        className="rounded-md border bg-muted/30 p-3 h-full cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={handleOpenPinEditor}
+                        title="Click to edit pinned data"
+                      >
                         <ScrollArea className="h-full w-full">
                           <pre className="text-xs font-mono whitespace-pre-wrap break-all">
                             {JSON.stringify(displayData, null, 2)}
@@ -375,16 +477,16 @@ export function OutputColumn({ node }: OutputColumnProps) {
                         <Database className="h-12 w-12 text-muted-foreground/50 mb-4" />
                         <h3 className="font-medium text-sm mb-2">No Output Data</h3>
                         <p className="text-xs text-muted-foreground mb-4 max-w-[200px]">
-                          Execute the workflow or create mock data to see output
+                          Execute the workflow or pin mock data to see output
                         </p>
                         <Button
-                          onClick={openMockDataEditor}
+                          onClick={handleOpenPinEditor}
                           size="sm"
                           variant="outline"
                           className="gap-1"
                         >
-                          <Edit className="h-3 w-3" />
-                          Create Mock Data
+                          <Pin className="h-3 w-3" />
+                          Pin Data
                         </Button>
                       </div>
                     )}

@@ -41,6 +41,9 @@ export interface BaseNodeWrapperProps {
     inputNames?: string[]
     outputNames?: string[]
     executionCapability?: 'trigger' | 'action' | 'transform' | 'condition'
+    // Mock data properties for pin indicator
+    mockData?: any
+    mockDataPinned?: boolean
   }
 
   /** Whether the node is read-only */

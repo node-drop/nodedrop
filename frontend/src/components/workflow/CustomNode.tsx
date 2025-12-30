@@ -39,9 +39,14 @@ interface CustomNodeData extends Record<string, unknown> {
   executionResult?: any
   isExecuting?: boolean
   hasError?: boolean
+  // Mock data properties for pin indicator
+  mockData?: any
+  mockDataPinned?: boolean
 }
 
 type CustomNodeType = Node<CustomNodeData>
+
+export type { CustomNodeData }
 
 export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeProps<CustomNodeType>) {
   // OPTIMIZATION: Use Zustand selector to prevent unnecessary re-renders
