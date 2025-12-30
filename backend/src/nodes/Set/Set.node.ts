@@ -45,18 +45,48 @@ export const SetNode: NodeDefinition = {
     tags: ["set", "update", "modify", "add field", "transform"],
     rules: [
       "Can use dot notation for nested fields (e.g. 'user.address.city')",
-      "Overwrites the field if it already exists"
+      "Overwrites the field if it already exists",
+      "Each value entry MUST have a 'keyValue' object with 'key' and 'value' properties"
     ],
-    complexityScore: 2
+    complexityScore: 2,
+    parameterExamples: {
+      values: [
+        {
+          description: "Set a single field",
+          value: [{ keyValue: { key: "status", value: "active" } }]
+        },
+        {
+          description: "Set multiple fields",
+          value: [
+            { keyValue: { key: "status", value: "active" } },
+            { keyValue: { key: "role", value: "admin" } }
+          ]
+        },
+        {
+          description: "Set nested field using dot notation",
+          value: [{ keyValue: { key: "user.address.city", value: "New York" } }]
+        }
+      ]
+    },
+    jsonExample: '{"includeInputData": true, "values": [{"keyValue": {"key": "fieldName", "value": "fieldValue"}}]}'
   },
   icon: "S",
   color: "#4CAF50",
   defaults: {
     values: [],
+    includeInputData: true,
   },
   inputs: ["main"],
   outputs: ["main"],
   properties: [
+    {
+      displayName: "Include Input Data",
+      name: "includeInputData",
+      type: "boolean",
+      required: false,
+      default: true,
+      description: "When enabled, extends input data with set values. When disabled, outputs only the set values.",
+    },
     {
       displayName: "Values",
       name: "values",
@@ -76,7 +106,7 @@ export const SetNode: NodeDefinition = {
           {
             displayName: "Key Value",
             name: "keyValue",
-            identifier: "keyValueRow",
+            type: "keyValueRow",
             required: true,
             default: {
               key: "",
@@ -106,24 +136,51 @@ export const SetNode: NodeDefinition = {
         value: any;
       };
     }>;
+    const includeInputData = (await this.getNodeParameter("includeInputData")) as boolean;
 
-    // Get items to process
+    // Get items to process - normalize input structure
     let items = inputData.main || [];
 
+    // Flatten nested arrays
     if (items.length === 1 && items[0] && Array.isArray(items[0])) {
       items = items[0];
     }
 
-    // Process items - extract json if wrapped
+    // Process items - extract json data properly
     const processedItems = items.map((item: any) => {
-      if (item && typeof item === "object" && "json" in item) {
+      if (!item || typeof item !== "object") {
+        return {};
+      }
+      // If item has json property, use that
+      if ("json" in item) {
         return item.json;
+      }
+      // If item has numeric keys with json inside (weird structure), extract first json
+      const keys = Object.keys(item);
+      if (keys.length > 0 && keys.some(k => /^\d+$/.test(k))) {
+        const firstNumericKey = keys.find(k => /^\d+$/.test(k));
+        if (firstNumericKey && item[firstNumericKey]?.json) {
+          return item[firstNumericKey].json;
+        }
       }
       return item;
     });
 
-    // If no items, create a single empty item to apply values to
-    const itemsToProcess = processedItems.length > 0 ? processedItems : [{}];
+    // Determine base items
+    let itemsToProcess: any[];
+    if (includeInputData) {
+      // Include input data - use existing items or empty object
+      const hasData = processedItems.some((item: any) => 
+        item && typeof item === "object" && Object.keys(item).length > 0
+      );
+      itemsToProcess = hasData ? processedItems : [{}];
+    } else {
+      // Don't include input data - always start fresh
+      // Create one item per input item, or one if no input
+      itemsToProcess = processedItems.length > 0 
+        ? processedItems.map(() => ({})) 
+        : [{}];
+    }
 
     // Helper function to set nested values
     const setNestedValue = (obj: any, path: string, value: any) => {
@@ -147,7 +204,7 @@ export const SetNode: NodeDefinition = {
 
     // Apply the set values to each item
     const outputItems = itemsToProcess.map((item: any) => {
-      const newItem = { ...item };
+      const newItem = includeInputData ? { ...item } : {};
 
       values.forEach((valueConfig) => {
         // Handle both nested and flat structure

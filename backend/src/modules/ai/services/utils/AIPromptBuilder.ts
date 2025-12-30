@@ -130,6 +130,8 @@ If a dedicated node does not exist for a 3rd party service the user requests:
   - never: Node types this should NEVER connect to
   - inputs: Recommended service inputs (for ai-agent)
 - rules: Node-specific connection rules (follow these!)
+- paramExamples: Example parameter values for complex parameters
+- example: JSON example of the complete "parameters" object - USE THIS EXACT STRUCTURE when configuring this node
 - props: List of parameters
   - n: Name (use this in "parameters" key)
   - t: Type (string, number, boolean, options, json, etc.)
@@ -211,7 +213,35 @@ When user says "add a delay node" to an existing workflow:
 2. Insert the delay node between them
 3. Update connections: previous → delay → next
 
-**Example 5: AI Agent Fetching Data and Sending to Google Sheets**
+**Example 5: Switch Node for Multi-Path Routing**
+When user needs to route data based on conditions (e.g., "route by value field"):
+\`\`\`json
+{
+  "nodes": [
+    {"id": "trigger_1", "type": "manual-trigger", "name": "Manual Trigger", "parameters": {}, "position": {"x": 0, "y": 0}},
+    {"id": "set_1", "type": "set", "name": "Set Input Value", "parameters": {"values": [{"keyValue": {"key": "value", "value": "todo"}}]}, "position": {"x": 150, "y": 0}},
+    {"id": "switch_1", "type": "switch", "name": "Route by Value", "parameters": {
+      "mode": "rules",
+      "outputsCount": 2,
+      "rules": [
+        {"condition": {"key": "value", "expression": "equal", "value": "todo"}},
+        {"condition": {"key": "value", "expression": "equal", "value": "posts"}}
+      ]
+    }, "position": {"x": 300, "y": 0}},
+    {"id": "http_todo", "type": "http-request", "name": "Get Todos", "parameters": {"method": "GET", "url": "https://jsonplaceholder.typicode.com/todos"}, "position": {"x": 600, "y": -100}},
+    {"id": "http_posts", "type": "http-request", "name": "Get Posts", "parameters": {"method": "GET", "url": "https://jsonplaceholder.typicode.com/posts"}, "position": {"x": 600, "y": 100}}
+  ],
+  "connections": [
+    {"sourceNodeId": "trigger_1", "sourceOutput": "main", "targetNodeId": "set_1", "targetInput": "main"},
+    {"sourceNodeId": "set_1", "sourceOutput": "main", "targetNodeId": "switch_1", "targetInput": "main"},
+    {"sourceNodeId": "switch_1", "sourceOutput": "output0", "targetNodeId": "http_todo", "targetInput": "main"},
+    {"sourceNodeId": "switch_1", "sourceOutput": "output1", "targetNodeId": "http_posts", "targetInput": "main"}
+  ]
+}
+\`\`\`
+NOTE: The Switch node's condition "key" is just the field name ("value") - data flows automatically from Set node. The Switch checks the incoming data's "value" field against the condition values.
+
+**Example 6: AI Agent Fetching Data and Sending to Google Sheets**
 When user says "create an AI agent that gets data from an API and sends it to Google Sheets":
 \`\`\`json
 {
@@ -263,6 +293,10 @@ When creating complex workflows, think step by step:
 3. Use 'd' (default) or 'ex' (example) as reference for expected format.
 4. If a parameter seems needed based on user intent but has no default, make a reasonable choice and explain it.
 5. **Expressions**: When referencing data from previous nodes, use the format \`={{variableName}}\`. Always prefix expressions with \`=\` (e.g., \`={{message}}\`, \`={{data.id}}\`, \`={{response.body}}\`).
+6. **Data Flow**: Data flows automatically through connected nodes. When a node needs to check/use data from a previous node:
+   - For node parameters that need dynamic values: use \`={{fieldName}}\` or \`={{$node["Node Name"].json.fieldName}}\`
+   - For Switch/IfElse condition 'key' field: just use the field name directly (e.g., "value", "status") - the node automatically checks incoming data
+   - Example: If Set node outputs \`{value: "todo"}\`, the Switch node's condition key should be \`"value"\` (not an expression)
 
 ### BEST PRACTICES & LOGIC RULES
 ${rulesSection}

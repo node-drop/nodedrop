@@ -31,9 +31,17 @@ export const IfElseNode: NodeDefinition = {
         tags: ["logic", "if", "branch", "condition", "filter"],
         rules: [
             "Use 'Combine' mode if you need multiple conditions (AND/OR)",
-            "Use 'Grouped' mode for complex nested logic like ((A or B) and C)"
+            "Use 'Grouped' mode for complex nested logic like ((A or B) and C)",
+            "CRITICAL for 'simple' mode: condition parameter is {key:'fieldName',expression:'operator',value:'compareValue'}",
+            "CRITICAL for 'combine' mode: conditions is array of {condition:{key:'fieldName',expression:'operator',value:'compareValue'}}",
+            "DO NOT wrap in extra 'values' objects - use flat structure",
+            "Expression must be one of: equal, notEqual, larger, largerEqual, smaller, smallerEqual, contains, notContains, startsWith, endsWith, isEmpty, isNotEmpty, regex"
         ],
-        complexityScore: 2
+        complexityScore: 2,
+        jsonExample: `{
+  "mode": "simple",
+  "condition": {"key": "status", "expression": "equal", "value": "active"}
+}`
     },
     icon: "lucide:milestone",
     color: "#FF6B6B",

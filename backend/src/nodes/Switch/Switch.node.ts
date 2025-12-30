@@ -41,9 +41,19 @@ export const SwitchNode: NodeDefinition = {
         rules: [
             "Data is routed to the FIRST matching rule's output",
             "Unmatched items are discarded unless a 'fallback' rule is created",
-            "Use 'Expression' mode to route dynamically by index number"
+            "Use 'Expression' mode to route dynamically by index number",
+            "CRITICAL: Each rule in the 'rules' array MUST be a simple object with 'condition' directly inside: {condition:{key:'fieldName',expression:'operator',value:'compareValue'}}",
+            "DO NOT nest 'values' inside 'values' - the structure is flat: [{condition:{...}}, {condition:{...}}]",
+            "The 'key' field should reference data from the incoming item - use field names like 'status', 'type', 'value' that exist in the input data",
+            "IMPORTANT: If checking a field from a previous node's output, the data flows automatically - just use the field name directly (e.g., 'value' not '={{$node[...]}}')",
+            "The 'expression' must be one of: equal, notEqual, larger, largerEqual, smaller, smallerEqual, contains, notContains, startsWith, endsWith, isEmpty, isNotEmpty, regex",
+            "Number of rules determines number of outputs (Rule 0 → output0, Rule 1 → output1, etc.)"
         ],
-        complexityScore: 3
+        complexityScore: 3,
+        jsonExample: [
+            `{"mode":"rules","outputsCount":2,"rules":[{"condition":{"key":"value","expression":"equal","value":"todo"}},{"condition":{"key":"value","expression":"equal","value":"posts"}}]}`,
+            `{"mode":"rules","outputsCount":3,"rules":[{"condition":{"key":"status","expression":"equal","value":"pending"}},{"condition":{"key":"status","expression":"equal","value":"completed"}},{"condition":{"key":"status","expression":"equal","value":"cancelled"}}]}`
+        ]
     },
     icon: "fa:random",
     color: "#506782",

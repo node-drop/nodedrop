@@ -167,6 +167,19 @@ export class AIContextBuilder {
             schema.rules = node.ai.rules;
         }
 
+        // Include parameter examples for complex parameters (helps AI understand structure)
+        if (node.ai?.parameterExamples) {
+            schema.paramExamples = node.ai.parameterExamples;
+        }
+
+        // Include JSON example for direct copy-paste (most effective for LLMs)
+        if (node.ai?.jsonExample) {
+            // Join multiple examples with " OR " if it's an array
+            schema.example = Array.isArray(node.ai.jsonExample) 
+                ? node.ai.jsonExample.join(' | ') 
+                : node.ai.jsonExample;
+        }
+
         schema.props = (node.properties || [])
             .filter((p: any) => !p.typeOptions?.password && p.type !== 'hidden') 
             .map((p: any) => {

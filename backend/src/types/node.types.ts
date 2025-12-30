@@ -274,5 +274,22 @@ export interface NodeAIMetadata {
     /** Suggested nodes to connect to specific outputs */
     outputs?: Record<string, string[]>;
   };
+
+  /**
+ * Example parameter values for complex parameters.
+ * Helps the AI understand the exact structure needed for nested/collection parameters.
+ * Key is the parameter name, value is an array of examples with description and value.
+ */
+parameterExamples?: Record<string, Array<{
+  description: string;
+  value: any;
+}>>;
+
+/**
+ * JSON example(s) showing the complete node parameters structure.
+ * This is the most direct way to show the AI exactly how to configure this node.
+ * Can be a single string or array of examples for different use cases.
+ */
+jsonExample?: string | string[];
 }
 
