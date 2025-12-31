@@ -29,6 +29,8 @@ export function getNodeBorderClasses(config: NodeStyleConfig): string {
       return "border-green-500 dark:border-green-400";
     case "error":
       return "border-red-500 dark:border-red-400";
+    case "paused":
+      return "border-yellow-500 dark:border-yellow-400";
     case "skipped":
       return "border-border/50";
     default:

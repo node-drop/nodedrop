@@ -11,6 +11,10 @@ import { buildNodeIdToNameMap } from "@nodedrop/utils";
 import { DependencyResolver } from "../DependencyResolver";
 import ExecutionHistoryService from "./ExecutionHistoryService";
 import { NodeService } from "../nodes/NodeService";
+import { ExecutionPauseError } from "../../errors/ExecutionPauseError";
+import { getWaitJobManager } from "./WaitJobManager";
+import { StoredExecutionState } from "../../db/schema/scheduled-waits";
+import { WaitStateManager } from "./WaitStateManager";
 
 export interface FlowExecutionContext {
   executionId: string;
@@ -26,6 +30,8 @@ export interface FlowExecutionContext {
   startTime: number;
   cancelled: boolean;
   paused: boolean;
+  pausedAtNodeId?: string; // Node ID where execution was paused (for webhook waits)
+  pauseWaitId?: string; // Wait ID if paused for webhook
 }
 
 export interface FlowExecutionOptions {
@@ -48,6 +54,7 @@ export enum FlowNodeStatus {
   FAILED = "failed",
   CANCELLED = "cancelled",
   SKIPPED = "skipped",
+  WAITING = "waiting", // New status for webhook waits
 }
 
 export interface NodeExecutionState {
@@ -67,12 +74,17 @@ export interface NodeExecutionState {
 export interface FlowExecutionResult {
   executionId: string;
   workflowId: string; // Added to support workflow-level socket broadcasts
-  status: "completed" | "failed" | "cancelled" | "partial";
+  status: "completed" | "failed" | "cancelled" | "partial" | "paused";
   executedNodes: string[];
   failedNodes: string[];
   executionPath: string[];
   totalDuration: number;
   nodeResults: Map<string, NodeExecutionResult>;
+  pauseInfo?: {
+    waitId: string;
+    nodeId: string;
+    resumeUrl?: string;
+  };
 }
 
 export interface NodeExecutionResult {
@@ -316,6 +328,161 @@ export class FlowExecutionEngine extends EventEmitter {
 
     logger.info("Execution resumed", { executionId });
     this.emit("executionResumed", { executionId });
+  }
+
+  /**
+   * Resume execution from a webhook wait
+   * This reconstructs the execution context from saved state and continues from the Wait node
+   * Uses shared WaitStateManager for consistent state restoration
+   */
+  async resumeFromWait(
+    waitId: string,
+    executionId: string,
+    workflowId: string,
+    nodeId: string,
+    inputData: any,
+    executionState: StoredExecutionState | null,
+    webhookData?: any
+  ): Promise<FlowExecutionResult> {
+    logger.info("Resuming execution from wait", {
+      waitId,
+      executionId,
+      workflowId,
+      nodeId,
+      hasExecutionState: !!executionState,
+    });
+
+    try {
+      // Load the workflow
+      const workflow = await this.loadWorkflow(workflowId);
+      if (!workflow) {
+        throw new Error(`Workflow ${workflowId} not found`);
+      }
+
+      if (!executionState) {
+        throw new Error(`No execution state found for wait ${waitId}`);
+      }
+
+      // Get the execution record to find userId
+      const executionRecord = await db.query.executions.findFirst({
+        where: eq(schema.executions.id, executionId),
+      });
+
+      if (!executionRecord) {
+        throw new Error(`Execution ${executionId} not found in database`);
+      }
+
+      // Use WaitStateManager to restore context data
+      const restoredData = WaitStateManager.restoreContextFromState(executionState);
+
+      // Reconstruct the execution context from saved state
+      const context: FlowExecutionContext = {
+        executionId,
+        workflowId,
+        userId: executionRecord.workspaceId || 'system',
+        triggerNodeId: restoredData.triggerNodeId,
+        triggerData: restoredData.triggerData,
+        executionOptions: restoredData.executionOptions as FlowExecutionOptions,
+        nodeStates: new Map(),
+        nodeOutputs: restoredData.nodeOutputs,
+        nodeIdToName: restoredData.nodeIdToName,
+        executionPath: restoredData.executionPath,
+        startTime: restoredData.startTime,
+        cancelled: false,
+        paused: false,
+      };
+
+      // Restore node states
+      for (const [key, value] of Object.entries(executionState.nodeStates || {})) {
+        const state = value as any;
+        context.nodeStates.set(key, {
+          identifier: state.identifier,
+          status: state.status === 'waiting' ? FlowNodeStatus.COMPLETED : state.status,
+          inputData: state.inputData,
+          outputData: state.outputData,
+          dependencies: state.dependencies || [],
+          dependents: state.dependents || [],
+        });
+      }
+
+      // Mark the Wait node as completed with the webhook data using WaitStateManager
+      const waitNodeState = context.nodeStates.get(nodeId);
+      if (waitNodeState) {
+        waitNodeState.status = FlowNodeStatus.COMPLETED;
+        const outputData = WaitStateManager.createWaitNodeOutput(waitId, inputData, webhookData);
+        waitNodeState.outputData = outputData;
+        context.nodeOutputs.set(nodeId, outputData);
+      }
+
+      // Register this context
+      this.activeExecutions.set(executionId, context);
+      this.nodeQueue.set(executionId, []);
+
+      // Update execution status in database
+      await db
+        .update(schema.executions)
+        .set({
+          status: 'RUNNING',
+          resumedAt: new Date(),
+        })
+        .where(eq(schema.executions.id, executionId));
+
+      // Queue the dependent nodes of the Wait node
+      await this.queueDependentNodes(nodeId, context, workflow);
+
+      // Log the resume
+      this.executionHistoryService.addExecutionLog(
+        executionId,
+        "info",
+        `Resumed from webhook wait`,
+        nodeId,
+        {
+          waitId,
+          webhookData,
+        }
+      );
+
+      // Continue execution
+      const result = await this.executeFlow(context, workflow);
+
+      // Update final status in database
+      const dbStatus = result.status === 'completed' ? 'SUCCESS' 
+        : result.status === 'failed' ? 'ERROR'
+        : result.status === 'cancelled' ? 'CANCELLED'
+        : result.status === 'paused' ? 'PAUSED'
+        : 'ERROR';
+
+      await db
+        .update(schema.executions)
+        .set({
+          status: dbStatus,
+          finishedAt: result.status !== 'paused' ? new Date() : undefined,
+        })
+        .where(eq(schema.executions.id, executionId));
+
+      return result;
+    } catch (error) {
+      logger.error("Failed to resume execution from wait", {
+        waitId,
+        executionId,
+        error,
+      });
+
+      // Update execution as failed
+      await db
+        .update(schema.executions)
+        .set({
+          status: 'ERROR',
+          error: { message: error instanceof Error ? error.message : 'Unknown error' },
+          finishedAt: new Date(),
+        })
+        .where(eq(schema.executions.id, executionId));
+
+      throw error;
+    } finally {
+      this.activeExecutions.delete(executionId);
+      this.nodeQueue.delete(executionId);
+    }
   }
 
   /**
@@ -717,6 +884,25 @@ export class FlowExecutionEngine extends EventEmitter {
               duration: result.duration,
             }
           );
+        } else if (result.status === FlowNodeStatus.WAITING) {
+          // Node is waiting for external event (webhook)
+          logger.info("Node is waiting for external event", {
+            nodeId,
+            executionId: context.executionId,
+          });
+          
+          // Log the wait
+          const node = workflow.nodes.find((n) => n.id === nodeId);
+          const nodeName = node?.name || "Unknown Node";
+          this.executionHistoryService.addExecutionLog(
+            context.executionId,
+            "info",
+            `Waiting: ${nodeName} - Paused for webhook`,
+            nodeId,
+            {
+              waitId: context.pauseWaitId,
+            }
+          );
         }
 
         this.emit("nodeExecuted", {
@@ -727,6 +913,84 @@ export class FlowExecutionEngine extends EventEmitter {
           result,
         });
       } catch (error) {
+        // Check if this is a pause error (webhook wait)
+        if (ExecutionPauseError.isExecutionPauseError(error)) {
+          logger.info("Execution paused for webhook wait", {
+            nodeId,
+            waitId: error.waitId,
+            resumeUrl: error.resumeUrl,
+            executionId: context.executionId,
+          });
+
+          // Mark node as waiting
+          nodeState.status = FlowNodeStatus.WAITING;
+          nodeState.endTime = Date.now();
+          nodeState.duration = nodeState.endTime - (nodeState.startTime || nodeState.endTime);
+          
+          // Store pause info in context
+          context.paused = true;
+          context.pausedAtNodeId = nodeId;
+          context.pauseWaitId = error.waitId;
+
+          // Save execution state for later resume
+          await this.saveExecutionStateForResume(context, error.waitId, workflow);
+
+          // Update execution status in database
+          await db
+            .update(schema.executions)
+            .set({
+              status: 'PAUSED',
+              pausedAt: new Date(),
+            })
+            .where(eq(schema.executions.id, context.executionId));
+
+          // Create a waiting result
+          const waitingResult: NodeExecutionResult = {
+            identifier: nodeId,
+            status: FlowNodeStatus.WAITING,
+            data: error.outputData ? {
+              main: [{ json: error.outputData }],
+              metadata: { nodeType: 'wait', outputCount: 1, hasMultipleBranches: false },
+            } : undefined,
+            duration: nodeState.duration,
+          };
+          nodeResults.set(nodeId, waitingResult);
+          executedNodes.push(nodeId);
+          context.executionPath.push(nodeId);
+
+          // Store the wait output for potential use
+          if (error.outputData) {
+            context.nodeOutputs.set(nodeId, waitingResult.data);
+          }
+
+          // Log the pause
+          const node = workflow.nodes.find((n) => n.id === nodeId);
+          const nodeName = node?.name || "Wait";
+          this.executionHistoryService.addExecutionLog(
+            context.executionId,
+            "info",
+            `Paused: ${nodeName} - Waiting for webhook at ${error.resumeUrl}`,
+            nodeId,
+            {
+              waitId: error.waitId,
+              resumeUrl: error.resumeUrl,
+              expiresAt: error.resumeAt.toISOString(),
+            }
+          );
+
+          this.emit("nodeExecuted", {
+            executionId: context.executionId,
+            workflowId: context.workflowId,
+            nodeId,
+            status: FlowNodeStatus.WAITING,
+            result: waitingResult,
+          });
+
+          // Break out of the loop - execution is paused
+          break;
+        }
+
+        // Regular error handling
         logger.error("Node execution failed with exception", {
           nodeId,
           error,
@@ -755,9 +1019,11 @@ export class FlowExecutionEngine extends EventEmitter {
       }
     }
 
-    let finalStatus: "completed" | "failed" | "cancelled" | "partial" =
+    let finalStatus: "completed" | "failed" | "cancelled" | "partial" | "paused" =
       "completed";
-    if (context.cancelled) {
+    if (context.paused && context.pauseWaitId) {
+      finalStatus = "paused";
+    } else if (context.cancelled) {
       finalStatus = "cancelled";
     } else if (failedNodes.length > 0) {
       finalStatus =
@@ -775,10 +1041,40 @@ export class FlowExecutionEngine extends EventEmitter {
       executionPath: context.executionPath,
       totalDuration,
       nodeResults,
+      pauseInfo: context.pauseWaitId ? {
+        waitId: context.pauseWaitId,
+        nodeId: context.pausedAtNodeId!,
+      } : undefined,
     };
 
     this.emit("flowExecutionCompleted", result);
     return result;
+  }
+
+  /**
+   * Save execution state for later resume (webhook waits)
+   * Uses shared WaitStateManager for consistent serialization
+   */
+  private async saveExecutionStateForResume(
+    context: FlowExecutionContext,
+    waitId: string,
+    workflow: Workflow
+  ): Promise<void> {
+    await WaitStateManager.saveExecutionState({
+      waitId,
+      executionId: context.executionId,
+      context: {
+        nodeOutputs: context.nodeOutputs,
+        nodeIdToName: context.nodeIdToName,
+        executionPath: context.executionPath,
+        triggerData: context.triggerData,
+        triggerNodeId: context.triggerNodeId,
+        executionOptions: context.executionOptions,
+        startTime: context.startTime,
+        nodeStates: context.nodeStates,
+      },
+      pausedAtNodeId: context.pausedAtNodeId,
+    });
   }
 
   private async executeNode(

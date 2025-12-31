@@ -251,6 +251,53 @@ export class ExecutionService {
 
     return triggerData;
   }
+
+  /**
+   * Get paused executions for a workflow
+   * Returns executions that are waiting for webhook resume
+   */
+  async getPausedExecutions(workflowId: string): Promise<PausedExecution[]> {
+    const response = await apiClient.get<{ pausedExecutions: PausedExecution[]; total: number }>(
+      `/executions/paused?workflowId=${workflowId}`
+    );
+
+    if (!response.success) {
+      console.warn("Failed to fetch paused executions:", response.error);
+      return [];
+    }
+
+    return response.data?.pausedExecutions || [];
+  }
+}
+
+/**
+ * Paused execution info returned from the API
+ */
+export interface PausedExecution {
+  executionId: string;
+  workflowId: string;
+  nodeId: string;
+  waitId: string;
+  waitType: 'webhook' | 'duration' | 'datetime';
+  status: string;
+  resumeUrl?: string;
+  expiresAt?: string;
+  createdAt?: string;
+  reason?: string;
+  // Execution state for restoring node visual states
+  executionState?: {
+    nodeOutputs: Record<string, any>;
+    nodeStates: Record<string, {
+      identifier: string;
+      status: string;
+      inputData?: any;
+      outputData?: any;
+    }>;
+    executionPath: string[];
+    nodeIdToName: Record<string, string>;
+    triggerData?: any;
+    startTime: number;
+  };
 }
 
 export const executionService = new ExecutionService();

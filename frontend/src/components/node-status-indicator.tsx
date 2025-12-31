@@ -1,9 +1,9 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, Pause } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-export type NodeStatus = "loading" | "success" | "error" | "initial";
+export type NodeStatus = "loading" | "success" | "error" | "initial" | "paused";
 
 export type NodeStatusVariant = "overlay" | "border";
 
@@ -27,6 +27,25 @@ export const SpinnerLoadingIndicator = ({
         <span className="absolute left-[calc(50%-1.25rem)] top-[calc(50%-1.25rem)] inline-block h-10 w-10 animate-ping rounded-full bg-blue-700/20" />
 
         <Loader2 className="absolute left-[calc(50%-0.75rem)] top-[calc(50%-0.75rem)] size-6 animate-spin text-blue-700" />
+      </div>
+    </div>
+  );
+};
+
+export const PausedIndicator = ({
+  children,
+}: {
+  children: ReactNode;
+}) => {
+  return (
+    <div className="relative">
+      <StatusBorder className="border-yellow-500">{children}</StatusBorder>
+
+      <div className="absolute inset-0 z-50 rounded-[7px] bg-background/30 backdrop-blur-[1px]" />
+      <div className="absolute inset-0 z-50">
+        <span className="absolute left-[calc(50%-1.25rem)] top-[calc(50%-1.25rem)] inline-block h-10 w-10 animate-pulse rounded-full bg-yellow-500/20" />
+
+        <Pause className="absolute left-[calc(50%-0.75rem)] top-[calc(50%-0.75rem)] size-6 text-yellow-500" />
       </div>
     </div>
   );
@@ -101,6 +120,8 @@ export const NodeStatusIndicator = ({
         default:
           return <>{children}</>;
       }
+    case "paused":
+      return <PausedIndicator>{children}</PausedIndicator>;
     case "success":
       return (
         <StatusBorder className="border-emerald-600">{children}</StatusBorder>

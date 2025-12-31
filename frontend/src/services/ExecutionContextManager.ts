@@ -23,7 +23,8 @@ export interface ExecutionContext {
   completedNodes: Set<string>; // Successfully completed nodes
   failedNodes: Set<string>; // Failed nodes
   queuedNodes: Set<string>; // Nodes waiting to execute
-  status: "running" | "completed" | "failed" | "cancelled";
+  pausedNodes: Set<string>; // Nodes paused waiting for external trigger
+  status: "running" | "completed" | "failed" | "cancelled" | "paused";
   startTime: number;
   endTime?: number;
 }
@@ -55,6 +56,7 @@ export class ExecutionContextManager {
       completedNodes: new Set(),
       failedNodes: new Set(),
       queuedNodes: new Set(),
+      pausedNodes: new Set(),
       status: "running",
       startTime: Date.now(),
     };
@@ -129,6 +131,9 @@ export class ExecutionContextManager {
         break;
       case NodeExecutionStatus.FAILED:
         this.setNodeFailed(executionId, nodeId);
+        break;
+      case NodeExecutionStatus.PAUSED:
+        this.setNodePaused(executionId, nodeId);
         break;
       case NodeExecutionStatus.IDLE:
         // Remove from all sets
@@ -208,9 +213,27 @@ export class ExecutionContextManager {
     context.runningNodes.delete(nodeId);
     context.queuedNodes.delete(nodeId);
     context.completedNodes.delete(nodeId);
+    context.pausedNodes.delete(nodeId);
 
     // Mark execution as failed if any node fails
     context.status = "failed";
+  }
+
+  /**
+   * Mark a node as paused in a specific execution (waiting for external trigger)
+   */
+  setNodePaused(executionId: string, nodeId: string): void {
+    const context = this.executions.get(executionId);
+    if (!context || !context.affectedNodeIds.has(nodeId)) return;
+
+    context.pausedNodes.add(nodeId);
+    context.runningNodes.delete(nodeId);
+    context.queuedNodes.delete(nodeId);
+    context.completedNodes.delete(nodeId);
+    context.failedNodes.delete(nodeId);
+
+    // Mark execution as paused
+    context.status = "paused";
   }
 
   /**
@@ -343,6 +366,7 @@ export class ExecutionContextManager {
       return NodeExecutionStatus.COMPLETED;
     if (context.failedNodes.has(nodeId)) return NodeExecutionStatus.FAILED;
     if (context.queuedNodes.has(nodeId)) return NodeExecutionStatus.QUEUED;
+    if (context.pausedNodes.has(nodeId)) return NodeExecutionStatus.PAUSED;
 
     return NodeExecutionStatus.IDLE;
   }
@@ -373,7 +397,7 @@ export class ExecutionContextManager {
       }
     }
 
-    // No current execution - check for most recent execution (running OR just completed)
+    // No current execution - check for most recent execution (running, paused, OR just completed)
     const executions = this.nodeToExecutions.get(nodeId);
     if (!executions) {
       return {
@@ -390,8 +414,8 @@ export class ExecutionContextManager {
       const context = this.executions.get(executionId);
       if (!context) continue;
 
-      // Prioritize running executions
-      if (context.status === "running") {
+      // Prioritize running or paused executions
+      if (context.status === "running" || context.status === "paused") {
         return {
           status: this.getNodeStatusInExecution(nodeId, executionId),
           executionId,
@@ -461,11 +485,11 @@ export class ExecutionContextManager {
   }
 
   /**
-   * Get all active executions
+   * Get all active executions (running or paused)
    */
   getActiveExecutions(): ExecutionContext[] {
     return Array.from(this.executions.values()).filter(
-      (ctx) => ctx.status === "running"
+      (ctx) => ctx.status === "running" || ctx.status === "paused"
     );
   }
 

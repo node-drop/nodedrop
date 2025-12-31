@@ -17,7 +17,10 @@ import {
   PinOff,
   Table as TableIcon,
   ScrollText,
-  X
+  X,
+  Pause,
+  Clock,
+  ExternalLink
 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -34,7 +37,7 @@ interface OutputColumnProps {
 export function OutputColumn({ node }: OutputColumnProps) {
   const [viewMode, setViewMode] = useState<'json' | 'table' | 'logs'>('json')
   const [isEditingPinData, setIsEditingPinData] = useState(false)
-  const { getNodeExecutionResult, executionLogs } = useWorkflowStore()
+  const { getNodeExecutionResult, executionLogs, getCurrentPausedWaits } = useWorkflowStore()
   const { getNodeTypeById } = useNodeTypesStore()
   const {
     mockData,
@@ -48,6 +51,12 @@ export function OutputColumn({ node }: OutputColumnProps) {
 
   const nodeExecutionResult = getNodeExecutionResult(node.id)
   const nodeTypeDefinition = getNodeTypeById(node.type)
+  
+  // Check if this is a Wait node
+  const isWaitNode = node.type === 'wait'
+  
+  // Get all paused waits for the current execution (for parallel branches)
+  const allPausedWaits = getCurrentPausedWaits()
 
   // Get custom output component if defined
   // Temporary: Check node type directly until database migration is complete
@@ -336,6 +345,76 @@ export function OutputColumn({ node }: OutputColumnProps) {
           /* Main Output Display - Only shown when editor is closed */
           <ScrollArea className="h-full">
             <div className="p-4 h-full flex flex-col space-y-4">
+              {/* All Paused Waits Info - Show all paused waits for parallel branches */}
+              {isWaitNode && allPausedWaits.length > 0 && (
+                <div className="flex flex-col gap-3 text-sm bg-yellow-50 border border-yellow-200 rounded-md p-4 flex-shrink-0">
+                  <div className="flex items-center gap-2 text-yellow-800">
+                    <Pause className="h-4 w-4 flex-shrink-0" />
+                    <span className="font-semibold">
+                      {allPausedWaits.length === 1 
+                        ? 'Waiting for Webhook' 
+                        : `Waiting for Webhooks (${allPausedWaits.length} parallel waits)`}
+                    </span>
+                  </div>
+                  
+                  {allPausedWaits.map((wait, index) => (
+                    <div key={wait.waitId} className="space-y-2 border-t border-yellow-200 pt-3 first:border-t-0 first:pt-0">
+                      {allPausedWaits.length > 1 && (
+                        <div className="text-xs text-yellow-700 font-medium">
+                          Wait #{index + 1} (Node: {wait.nodeId.slice(-8)})
+                        </div>
+                      )}
+                      <div className="text-xs text-yellow-700 font-medium">Resume URL:</div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-yellow-100 px-2 py-1.5 rounded border border-yellow-300 break-all font-mono">
+                          {wait.resumeUrl}
+                        </code>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(wait.resumeUrl)
+                                toast.success('Resume URL copied to clipboard')
+                              }}
+                              className="h-7 w-7 p-0 flex-shrink-0 border-yellow-300 hover:bg-yellow-100"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Copy URL</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(wait.resumeUrl, '_blank')}
+                              className="h-7 w-7 p-0 flex-shrink-0 border-yellow-300 hover:bg-yellow-100"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Open in new tab</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      
+                      {wait.expiresAt && (
+                        <div className="flex items-center gap-1.5 text-xs text-yellow-700">
+                          <Clock className="h-3 w-3" />
+                          <span>Expires: {new Date(wait.expiresAt).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Error Message at Top */}
               {nodeExecutionResult?.status === 'error' && nodeExecutionResult?.error && (
                 <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">

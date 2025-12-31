@@ -75,6 +75,17 @@ interface WorkflowStore extends WorkflowEditorState {
   executionManager: ExecutionContextManager; // NEW: Manages execution contexts with proper isolation
   executionStateVersion: number; // NEW: Version counter to trigger hook re-renders
   executionTimeouts: Map<string, NodeJS.Timeout>; // Track execution timeouts for safety
+  
+  // Paused waits for current execution (supports parallel branches)
+  currentPausedWaits: Array<{
+    executionId: string;
+    nodeId: string;
+    waitId: string;
+    resumeUrl: string;
+    expiresAt?: string;
+    waitType: string;
+    reason?: string;
+  }>;
 
   // Node interaction state
   showPropertyPanel: boolean;
@@ -192,6 +203,11 @@ interface WorkflowStore extends WorkflowEditorState {
   // Workflow activation
   toggleWorkflowActive: () => void;
   setWorkflowActive: (active: boolean) => void;
+
+  // Paused executions
+  loadPausedExecutions: () => Promise<void>;
+  restorePausedExecutionState: (pausedExecution: any, allPausedWaits?: any[]) => void;
+  getCurrentPausedWaits: () => WorkflowStore['currentPausedWaits'];
 
   // Node lock/unlock
   toggleNodeLock: (nodeId: string) => void;
@@ -335,6 +351,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
       executionManager: new ExecutionContextManager(), // NEW: Initialize execution context manager
       executionStateVersion: 0, // NEW: Initialize version counter
       executionTimeouts: new Map(), // Initialize execution timeout tracking
+      currentPausedWaits: [], // Initialize paused waits array
 
       // Node interaction state
       showPropertyPanel: false,
@@ -426,6 +443,12 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
         }
         if (processedWorkflow) {
           get().saveToHistory("Load workflow");
+          
+          // Load any paused executions for this workflow
+          // Use setTimeout to avoid blocking the initial render
+          setTimeout(() => {
+            get().loadPausedExecutions();
+          }, 500);
         }
       },
 
@@ -973,12 +996,16 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
       },
 
       getNodeVisualState: (nodeId: string) => {
-        const { executionManager } = get();
+        const { executionManager, progressTracker } = get();
         const statusInfo = executionManager.getNodeStatus(nodeId);
         const isExecutingInCurrent = executionManager.isNodeExecutingInCurrent(nodeId);
 
-        let animationState: "idle" | "pulsing" | "spinning" | "success" | "error" = "idle";
+        // Get pause info from ProgressTracker
+        const progressTrackerState = progressTracker.getNodeVisualState(nodeId);
+
+        let animationState: "idle" | "pulsing" | "spinning" | "success" | "error" | "paused" = "idle";
         if (isExecutingInCurrent) animationState = "spinning";
+        else if (statusInfo.status === NodeExecutionStatus.PAUSED) animationState = "paused";
         else if (statusInfo.status === NodeExecutionStatus.COMPLETED) animationState = "success";
         else if (statusInfo.status === NodeExecutionStatus.FAILED) animationState = "error";
 
@@ -990,6 +1017,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
           lastUpdated: statusInfo.lastUpdated,
           executionTime: undefined,
           errorMessage: statusInfo.status === NodeExecutionStatus.FAILED ? "Execution failed" : undefined,
+          pauseInfo: progressTrackerState.pauseInfo, // Get pause info from ProgressTracker
         };
       },
 
@@ -2276,6 +2304,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
           realTimeResults: new Map(),
           persistentNodeResults: updatedPersistentResults,
           executionLogs: currentLogs, // Preserve logs by default
+          currentPausedWaits: [], // Clear paused waits
           // Note: Node visual states are not cleared here by design
           // They are only cleared when starting a new execution in executeWorkflow()
           // This ensures success/failed icons remain visible after unsubscribing
@@ -2446,8 +2475,11 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
           }
 
           // CRITICAL: Initialize executionManager FIRST before any events arrive
+          // BUT only if not already initialized (e.g., for restored paused executions)
           const { workflow, executionManager } = get();
-          if (workflow) {
+          const existingContext = executionManager.getExecution(executionId);
+          
+          if (workflow && !existingContext) {
             const nodeIds = workflow.nodes.map((node) => node.id);
             // Find trigger node (first node with no incoming connections)
             const triggerNode = workflow.nodes.find(node => 
@@ -2982,6 +3014,119 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
               get().addExecutionLog(logEntry);
             }
             break;
+
+          case "paused":
+            // Handle execution paused (webhook wait)
+            get().setExecutionState({
+              status: "paused",
+              // Keep progress as-is, don't set to 100
+            });
+
+            // Store pause info for UI display
+            if (data.executionId) {
+              const pausedFlowStatus = activeExecutions.get(data.executionId);
+              if (pausedFlowStatus) {
+                pausedFlowStatus.overallStatus = "paused";
+                // Store pause metadata for UI
+                (pausedFlowStatus as any).pauseInfo = {
+                  pausedAtNodeId: data.data?.pausedAtNodeId,
+                  waitId: data.data?.waitId,
+                  resumeUrl: data.data?.resumeUrl,
+                  pausedAt: new Date().toISOString(),
+                };
+                activeExecutions.set(data.executionId, pausedFlowStatus);
+                set({
+                  flowExecutionState: {
+                    ...get().flowExecutionState,
+                    activeExecutions: new Map(activeExecutions),
+                  },
+                });
+              }
+            }
+
+            get().addExecutionLog({
+              timestamp: new Date().toISOString(),
+              level: "info",
+              message: `Execution paused - waiting for webhook`,
+              data: {
+                waitId: data.data?.waitId,
+                resumeUrl: data.data?.resumeUrl,
+                pausedAtNodeId: data.data?.pausedAtNodeId,
+              },
+            });
+            break;
+
+          case "node-paused":
+            // Handle node paused (Wait node in webhook mode)
+            if (data.nodeId) {
+              const pausedNodeName = get().workflow?.nodes.find((n) => n.id === data.nodeId)?.name || "Wait";
+              
+              // Update node execution state to show paused status
+              get().updateNodeExecutionState(
+                data.nodeId,
+                NodeExecutionStatus.PAUSED,
+                {
+                  pauseInfo: {
+                    waitId: data.data?.waitId,
+                    resumeUrl: data.data?.resumeUrl,
+                    expiresAt: data.data?.expiresAt,
+                  },
+                }
+              );
+
+              get().addExecutionLog({
+                timestamp: new Date(data.timestamp).toISOString(),
+                level: "info",
+                nodeId: data.nodeId,
+                message: `Node paused: ${pausedNodeName} - waiting for webhook`,
+                data: {
+                  nodeId: data.nodeId,
+                  nodeName: pausedNodeName,
+                  waitId: data.data?.waitId,
+                  resumeUrl: data.data?.resumeUrl,
+                },
+              });
+            }
+            break;
+
+          case "resumed":
+            // Handle execution resumed from webhook
+            get().setExecutionState({
+              status: "running",
+            });
+
+            // Clear pause info and paused waits
+            if (data.executionId) {
+              const resumedFlowStatus = activeExecutions.get(data.executionId);
+              if (resumedFlowStatus) {
+                resumedFlowStatus.overallStatus = "running";
+                delete (resumedFlowStatus as any).pauseInfo;
+                activeExecutions.set(data.executionId, resumedFlowStatus);
+                set({
+                  flowExecutionState: {
+                    ...get().flowExecutionState,
+                    activeExecutions: new Map(activeExecutions),
+                  },
+                  currentPausedWaits: [], // Clear paused waits on resume
+                });
+              }
+            }
+
+            // Update the paused node to running state
+            if (data.data?.nodeId) {
+              get().updateNodeExecutionState(data.data.nodeId, NodeExecutionStatus.RUNNING);
+            }
+
+            get().addExecutionLog({
+              timestamp: new Date().toISOString(),
+              level: "info",
+              message: `Execution resumed from webhook`,
+              data: {
+                nodeId: data.data?.nodeId,
+                waitId: data.data?.waitId,
+              },
+            });
+            break;
         }
       },
 
@@ -3411,6 +3556,233 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             message: `Workflow ${active ? "activated" : "deactivated"}`,
           });
         }
+      },
+
+      // Load paused executions for the current workflow
+      loadPausedExecutions: async () => {
+        const { workflow } = get();
+        if (!workflow?.id) return;
+
+        try {
+          const { executionService } = await import("@/services/execution");
+          const pausedExecutions = await executionService.getPausedExecutions(workflow.id);
+
+          console.log(`[loadPausedExecutions] API returned ${pausedExecutions.length} paused executions:`, pausedExecutions);
+
+          if (pausedExecutions.length === 0) {
+            // No paused executions - clear any stale paused state
+            console.log(`[loadPausedExecutions] No paused executions found, clearing any stale state`);
+            set({ currentPausedWaits: [] });
+            return;
+          }
+
+          if (pausedExecutions.length > 0) {
+            // Group paused executions by executionId
+            const executionGroups = new Map<string, typeof pausedExecutions>();
+            for (const paused of pausedExecutions) {
+              const existing = executionGroups.get(paused.executionId) || [];
+              existing.push(paused);
+              executionGroups.set(paused.executionId, existing);
+            }
+
+            // Find the most recent execution (by createdAt of the first wait in each group)
+            let mostRecentExecutionId: string | null = null;
+            let mostRecentTime = 0;
+            
+            for (const [execId, waits] of executionGroups) {
+              const createdAt = waits[0].createdAt ? new Date(waits[0].createdAt).getTime() : 0;
+              if (createdAt > mostRecentTime) {
+                mostRecentTime = createdAt;
+                mostRecentExecutionId = execId;
+              }
+            }
+
+            // Restore only the most recent execution (with all its paused waits for parallel branches)
+            if (mostRecentExecutionId) {
+              const pausedInExecution = executionGroups.get(mostRecentExecutionId)!;
+              get().restorePausedExecutionState(pausedInExecution[0], pausedInExecution);
+            }
+
+            get().addExecutionLog({
+              timestamp: new Date().toISOString(),
+              level: "info",
+              message: `Found ${pausedExecutions.length} paused wait(s) across ${executionGroups.size} execution(s) - restored most recent`,
+              data: { pausedExecutions, restoredExecutionId: mostRecentExecutionId },
+            });
+          }
+        } catch (error) {
+          console.warn("Failed to load paused executions:", error);
+        }
+      },
+
+      // Restore UI state for a paused execution
+      // allPausedWaits is optional - if provided, it contains all paused waits for this execution (for parallel branches)
+      restorePausedExecutionState: (pausedExecution: any, allPausedWaits?: any[]) => {
+        const { workflow, flowExecutionState, executionManager, progressTracker } = get();
+        if (!workflow || !pausedExecution) return;
+
+        const { executionId, nodeId, waitId, resumeUrl, expiresAt, waitType, executionState } = pausedExecution;
+
+        // Get all node IDs from the workflow
+        const allNodeIds = workflow.nodes.map(n => n.id);
+
+        // Set up execution context in ExecutionContextManager
+        // This is critical for the useExecutionContext hook to work
+        executionManager.startExecution(executionId, nodeId, allNodeIds);
+        executionManager.setCurrentExecution(executionId);
+
+        // Set up ProgressTracker
+        progressTracker.setCurrentExecution(executionId);
+
+        // Set execution state to paused
+        get().setExecutionState({
+          executionId,
+          status: "paused",
+          progress: 0,
+        });
+
+        // Track completed nodes from execution state
+        const completedNodes: string[] = [];
+        const failedNodes: string[] = [];
+        const pausedNodeIds: string[] = [];
+
+        // Build a map of all paused waits by nodeId for quick lookup
+        const pausedWaitsByNodeId = new Map<string, any>();
+        if (allPausedWaits) {
+          for (const wait of allPausedWaits) {
+            pausedWaitsByNodeId.set(wait.nodeId, wait);
+          }
+        } else {
+          pausedWaitsByNodeId.set(nodeId, pausedExecution);
+        }
+
+        // Restore node visual states from saved execution state
+        if (executionState?.nodeStates) {
+          for (const [nodeStateId, nodeState] of Object.entries(executionState.nodeStates)) {
+            const state = nodeState as any;
+            
+            if (state.status === 'completed') {
+              completedNodes.push(nodeStateId);
+              // Update ExecutionContextManager
+              executionManager.setNodeCompleted(executionId, nodeStateId);
+              // Update ProgressTracker and visual state
+              get().updateNodeExecutionState(nodeStateId, NodeExecutionStatus.COMPLETED, {
+                outputData: state.outputData,
+              });
+            } else if (state.status === 'failed') {
+              failedNodes.push(nodeStateId);
+              // Update ExecutionContextManager
+              executionManager.setNodeFailed(executionId, nodeStateId);
+              // Update ProgressTracker and visual state
+              get().updateNodeExecutionState(nodeStateId, NodeExecutionStatus.FAILED, {
+                error: state.error,
+              });
+            } else if (state.status === 'waiting') {
+              // Check if this node has a paused wait
+              const pausedWait = pausedWaitsByNodeId.get(nodeStateId);
+              if (pausedWait) {
+                pausedNodeIds.push(nodeStateId);
+                // Update ExecutionContextManager
+                executionManager.setNodePaused(executionId, nodeStateId);
+                // Update ProgressTracker and visual state
+                get().updateNodeExecutionState(nodeStateId, NodeExecutionStatus.PAUSED, {
+                  pauseInfo: {
+                    waitId: pausedWait.waitId,
+                    resumeUrl: pausedWait.resumeUrl,
+                    expiresAt: pausedWait.expiresAt,
+                  },
+                });
+              }
+            }
+          }
+        } else {
+          // No execution state saved, mark all paused Wait nodes
+          for (const [pausedNodeId, pausedWait] of pausedWaitsByNodeId) {
+            pausedNodeIds.push(pausedNodeId);
+            executionManager.setNodePaused(executionId, pausedNodeId);
+            get().updateNodeExecutionState(pausedNodeId, NodeExecutionStatus.PAUSED, {
+              pauseInfo: {
+                waitId: pausedWait.waitId,
+                resumeUrl: pausedWait.resumeUrl,
+                expiresAt: pausedWait.expiresAt,
+              },
+            });
+          }
+        }
+
+        // Create flow status with pause info (use first paused wait for the main pause info)
+        const activeExecutions = new Map(flowExecutionState.activeExecutions);
+        activeExecutions.set(executionId, {
+          executionId,
+          workflowId: workflow.id,
+          triggerType: "manual",
+          startTime: executionState?.startTime || Date.now(),
+          status: "paused",
+          overallStatus: "paused",
+          completedNodes,
+          failedNodes,
+          executionPath: executionState?.executionPath || [],
+          activeEdges: new Set(),
+          completedEdges: new Set(),
+          currentlyExecuting: [],
+          queuedNodes: [],
+          nodeStates: new Map(),
+          pauseInfo: {
+            pausedAtNodeId: nodeId,
+            pausedNodeIds, // All paused node IDs for parallel branches
+            waitId,
+            resumeUrl,
+            expiresAt,
+            pausedAt: new Date().toISOString(),
+          },
+        } as any);
+
+        set({
+          flowExecutionState: {
+            ...flowExecutionState,
+            activeExecutions,
+            selectedExecution: executionId,
+          },
+          // Store all paused waits for access by OutputColumn
+          currentPausedWaits: (allPausedWaits || [pausedExecution]).map((wait: any) => ({
+            executionId: wait.executionId,
+            nodeId: wait.nodeId,
+            waitId: wait.waitId,
+            resumeUrl: wait.resumeUrl,
+            expiresAt: wait.expiresAt,
+            waitType: wait.waitType,
+            reason: wait.reason,
+          })),
+        });
+
+        // Increment version to trigger re-renders
+        set({ executionStateVersion: get().executionStateVersion + 1 });
+
+        get().addExecutionLog({
+          timestamp: new Date().toISOString(),
+          level: "info",
+          message: `Restored paused execution state (${completedNodes.length} completed nodes)`,
+          data: {
+            executionId,
+            nodeId,
+            waitId,
+            waitType,
+            resumeUrl,
+            completedNodes,
+          },
+        });
+
+        // Subscribe to WebSocket for this execution to receive live updates when resumed
+        get().subscribeToExecution(executionId).then(() => {
+          console.log(`[restorePausedExecutionState] Subscribed to WebSocket for execution ${executionId}`);
+        }).catch((error) => {
+          console.warn(`[restorePausedExecutionState] Failed to subscribe to WebSocket:`, error);
+        });
+      },
+
+      // Get all paused waits for current execution
+      getCurrentPausedWaits: () => {
+        return get().currentPausedWaits;
       },
 
       // Node lock/unlock

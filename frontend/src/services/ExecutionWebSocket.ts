@@ -11,9 +11,12 @@ export interface ExecutionEventData {
     | "node-started"
     | "node-completed"
     | "node-failed"
+    | "node-paused"
     | "completed"
     | "failed"
     | "cancelled"
+    | "paused"
+    | "resumed"
     | "execution-log";
   executionId: string;
   nodeId?: string;
@@ -24,6 +27,10 @@ export interface ExecutionEventData {
   timestamp: number | string;
   level?: 'info' | 'warn' | 'error' | 'debug';
   message?: string;
+  // Pause-specific fields
+  waitId?: string;
+  resumeUrl?: string;
+  expiresAt?: string;
 }
 
 export class ExecutionWebSocket {

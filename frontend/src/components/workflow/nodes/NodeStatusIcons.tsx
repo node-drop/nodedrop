@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, XCircle, Check, Pin, LucideIcon } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, XCircle, Check, Pin, Pause, LucideIcon } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface NodeStatusIconsProps {
@@ -7,12 +7,13 @@ interface NodeStatusIconsProps {
     isExecuting: boolean
     hasError: boolean
     hasSuccess: boolean
+    isPaused?: boolean
   }
   hasNodeConfig?: boolean
   hasPinnedData?: boolean
 }
 
-type StatusType = 'validation' | 'error' | 'success' | 'pinned'
+type StatusType = 'validation' | 'error' | 'success' | 'pinned' | 'paused'
 
 interface StatusConfig {
   type: StatusType
@@ -70,8 +71,8 @@ function StatusIcon({ bgColor, Icon, tooltip, position = 'top-right', type }: St
 }
 
 /**
- * NodeStatusIcons - Displays status icons for validation errors, success, error states, and pinned data
- * Priority: Validation errors > Execution errors > Success (top-right)
+ * NodeStatusIcons - Displays status icons for validation errors, success, error states, paused states, and pinned data
+ * Priority: Validation errors > Execution errors > Paused > Success (top-right)
  * Pinned data icon always shows on top-left when data is pinned
  */
 export function NodeStatusIcons({
@@ -81,7 +82,7 @@ export function NodeStatusIcons({
   hasPinnedData = false,
 }: NodeStatusIconsProps) {
   const hasErrors = errors.length > 0
-  const { hasError, hasSuccess, isExecuting } = nodeExecutionState
+  const { hasError, hasSuccess, isExecuting, isPaused } = nodeExecutionState
 
   // Determine which status to show (only one at a time) - top-right position
   const statusConfig: StatusConfig | null = hasErrors
@@ -107,15 +108,23 @@ export function NodeStatusIcons({
           tooltip: <p className="text-xs">Execution failed</p>,
           position: 'top-right',
         }
-      : hasSuccess && !isExecuting
+      : isPaused && !isExecuting
         ? {
-            type: 'success',
-            bgColor: 'bg-green-500',
-            Icon: hasNodeConfig ? CheckCircle2 : Check,
-            tooltip: <p className="text-xs">Execution successful</p>,
+            type: 'paused' as StatusType,
+            bgColor: 'bg-yellow-500',
+            Icon: Pause,
+            tooltip: <p className="text-xs">Waiting for webhook to resume</p>,
             position: 'top-right',
           }
-        : null
+        : hasSuccess && !isExecuting
+          ? {
+              type: 'success',
+              bgColor: 'bg-green-500',
+              Icon: hasNodeConfig ? CheckCircle2 : Check,
+              tooltip: <p className="text-xs">Execution successful</p>,
+              position: 'top-right',
+            }
+          : null
 
   // Pinned data config - just icon with color, positioned inside node
   const pinnedConfig: StatusConfig | null = hasPinnedData

@@ -773,6 +773,14 @@ export class NodeService {
         data: standardizedOutput,
       };
     } catch (error) {
+      // Re-throw ExecutionPauseError - it's not a failure, it's a pause signal
+      // Import dynamically to avoid circular dependencies
+      const { ExecutionPauseError } = await import('../../errors/ExecutionPauseError');
+      if (ExecutionPauseError.isExecutionPauseError(error)) {
+        await this.secureExecutionService.cleanupExecution(execId);
+        throw error;
+      }
+
       logger.error('Secure node execution failed', {
         error: {
           message: error instanceof Error ? error.message : String(error),

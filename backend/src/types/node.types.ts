@@ -84,6 +84,10 @@ export interface StandardizedNodeOutput {
  * Execution context provided to nodes during execution
  */
 export interface NodeExecutionContext {
+  // Execution identifiers (for nodes that need to persist state, like Wait)
+  executionId?: string;
+  workflowId?: string;
+  nodeId?: string;
   getNodeParameter(parameterName: string, itemIndex?: number): any;
   getCredentials(type: string): Promise<any>;
   getInputData(inputName?: string): NodeInputData;

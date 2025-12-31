@@ -386,6 +386,10 @@ export class SecureExecutionService {
 
     return {
       settings: settings || {}, // Node settings from Settings tab
+      // Execution context identifiers for nodes that need them (e.g., Wait node)
+      executionId,
+      workflowId,
+      nodeId,
       getNodeParameter: (parameterName: string, itemIndex?: number) => {
         // Validate parameter access
         if (typeof parameterName !== "string") {

@@ -55,6 +55,14 @@ export const ExecutionStatusIndicator: React.FC<ExecutionStatusIndicatorProps> =
               bgColor: 'bg-gray-50',
               label: 'Cancelled'
             };
+          case 'paused':
+            return {
+              status: 'paused',
+              icon: <Pause className="w-4 h-4" />,
+              color: 'text-yellow-500',
+              bgColor: 'bg-yellow-50',
+              label: 'Paused'
+            };
         }
       }
       

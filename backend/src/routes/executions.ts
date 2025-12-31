@@ -196,6 +196,66 @@ router.get(
   })
 );
 
+// GET /api/executions/paused - Get paused executions for a workflow
+router.get(
+  "/paused",
+  requireAuth,
+  requireWorkspace,
+  asyncHandler(async (req: WorkspaceRequest, res: Response) => {
+    const { workflowId } = req.query as { workflowId?: string };
+
+    if (!workflowId) {
+      throw new AppError("Workflow ID is required", 400, "MISSING_WORKFLOW_ID");
+    }
+
+    // Import WaitJobManager
+    const { getWaitJobManager } = await import("../services/execution/WaitJobManager");
+    const waitJobManager = getWaitJobManager();
+
+    if (!waitJobManager) {
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          pausedExecutions: [],
+          message: "Wait job manager not available",
+        },
+      };
+      return res.json(response);
+    }
+
+    // Get pending waits for this workflow
+    const pendingWaits = await waitJobManager.getPendingWaitsForWorkflow(workflowId);
+
+    // Format the response - include execution state for full restoration
+    const pausedExecutions = pendingWaits.map((wait: any) => ({
+      executionId: wait.executionId,
+      workflowId: wait.workflowId,
+      nodeId: wait.nodeId,
+      waitId: wait.id,
+      waitType: wait.waitType,
+      status: wait.status,
+      resumeUrl: wait.waitType === 'webhook' 
+        ? `${process.env.BACKEND_URL || process.env.BASE_URL || 'http://localhost:4000'}/webhook/wait/${wait.id}/resume`
+        : undefined,
+      expiresAt: wait.resumeAt?.toISOString(),
+      createdAt: wait.createdAt?.toISOString(),
+      reason: wait.reason,
+      // Include execution state for restoring node visual states
+      executionState: wait.executionState,
+    }));
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        pausedExecutions,
+        total: pausedExecutions.length,
+      },
+    };
+
+    res.json(response);
+  })
+);
+
 // GET /api/executions - List executions
 router.get(
   "/",

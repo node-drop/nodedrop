@@ -109,6 +109,7 @@ const errorTriggerService = new ErrorTriggerService(db as any);
 import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
 import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
 import { workflowService } from "./services/WorkflowService";
+import { WaitJobManager, setWaitJobManager } from "./services/execution/WaitJobManager";
 
 // WorkflowService is already initialized as a singleton
 
@@ -124,6 +125,17 @@ const scheduleJobManager = new ScheduleJobManager(
     },
   }
 );
+
+// Initialize WaitJobManager (for persistent wait operations)
+const waitJobManager = new WaitJobManager(
+  db as any,
+  {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD,
+  }
+);
+setWaitJobManager(waitJobManager);
 
 // Connect RealtimeExecutionEngine events to SocketService
 // Using named functions for proper cleanup
@@ -238,6 +250,71 @@ function handleExecutionCancelled(data: any) {
   });
 }
 
+function handleNodePaused(data: any) {
+  logger.debug('⏸️ [RealtimeEngine] node-paused event received', {
+    executionId: data.executionId,
+    nodeId: data.nodeId,
+    nodeName: data.nodeName,
+    nodeType: data.nodeType,
+    waitId: data.waitId,
+    resumeUrl: data.resumeUrl,
+  });
+  
+  socketService.broadcastExecutionEvent(data.executionId, {
+    executionId: data.executionId,
+    type: "node-paused",
+    nodeId: data.nodeId,
+    data: { 
+      nodeName: data.nodeName, 
+      nodeType: data.nodeType,
+      waitId: data.waitId,
+      resumeUrl: data.resumeUrl,
+      expiresAt: data.expiresAt?.toISOString(),
+    },
+    timestamp: data.timestamp,
+  });
+}
+
+function handleExecutionPaused(data: any) {
+  logger.info('⏸️ [RealtimeEngine] execution-paused event received', {
+    executionId: data.executionId,
+    workflowId: data.workflowId,
+    pausedAtNodeId: data.pausedAtNodeId,
+    waitId: data.waitId,
+    resumeUrl: data.resumeUrl,
+  });
+  
+  socketService.broadcastExecutionEvent(data.executionId, {
+    executionId: data.executionId,
+    type: "paused",
+    data: { 
+      pausedAtNodeId: data.pausedAtNodeId,
+      waitId: data.waitId,
+      resumeUrl: data.resumeUrl,
+    },
+    timestamp: data.timestamp,
+  });
+}
+
+function handleExecutionResumed(data: any) {
+  logger.info('▶️ [RealtimeEngine] execution-resumed event received', {
+    executionId: data.executionId,
+    workflowId: data.workflowId,
+    nodeId: data.nodeId,
+    waitId: data.waitId,
+  });
+  
+  socketService.broadcastExecutionEvent(data.executionId, {
+    executionId: data.executionId,
+    type: "resumed",
+    data: { 
+      nodeId: data.nodeId,
+      waitId: data.waitId,
+    },
+    timestamp: data.timestamp,
+  });
+}
+
 function handleExecutionLog(logEntry: any) {
   logger.debug('📝 [RealtimeEngine] execution-log event received', {
     executionId: logEntry.executionId,
@@ -254,9 +331,12 @@ realtimeExecutionEngine.on("execution-started", handleExecutionStarted);
 realtimeExecutionEngine.on("node-started", handleNodeStarted);
 realtimeExecutionEngine.on("node-completed", handleNodeCompleted);
 realtimeExecutionEngine.on("node-failed", handleNodeFailed);
+realtimeExecutionEngine.on("node-paused", handleNodePaused);
 realtimeExecutionEngine.on("execution-completed", handleExecutionCompleted);
 realtimeExecutionEngine.on("execution-failed", handleExecutionFailed);
 realtimeExecutionEngine.on("execution-cancelled", handleExecutionCancelled);
+realtimeExecutionEngine.on("execution-paused", handleExecutionPaused);
+realtimeExecutionEngine.on("execution-resumed", handleExecutionResumed);
 realtimeExecutionEngine.on("execution-log", handleExecutionLog);
 
 // Make services available globally for other services
@@ -271,6 +351,7 @@ declare global {
   var errorTriggerService: ErrorTriggerService;
   var workflowService: WorkflowService;
   var scheduleJobManager: ScheduleJobManager;
+  var waitJobManager: WaitJobManager;
   var triggerService: any;
   var executionEventBridge: ExecutionEventBridge;
   var executionQueueService: ExecutionQueueService;
@@ -287,6 +368,7 @@ global.executionListenerManager = executionListenerManager;
 global.errorTriggerService = errorTriggerService;
 global.workflowService = workflowService;
 global.scheduleJobManager = scheduleJobManager;
+global.waitJobManager = waitJobManager;
 global.db = db;
 
 // Initialize node systems
@@ -700,6 +782,42 @@ httpServer.listen(PORT, async () => {
     logger.error(`❌ Failed to initialize ScheduleJobManager`, { error });
   }
 
+  // Initialize WaitJobManager for persistent wait operations
+  try {
+    // Set up the resume callback to resume paused executions
+    waitJobManager.setResumeCallback(async (waitId, executionId, workflowId, nodeId, inputData, executionState, webhookData) => {
+      logger.info(`Resuming execution from wait: ${waitId}`, { executionId, workflowId, nodeId });
+      
+      try {
+        // Use the RealtimeExecutionEngine to resume from the saved state
+        // This ensures WebSocket events are properly emitted
+        await realtimeExecutionEngine.resumeFromWait(
+          waitId,
+          executionId,
+          workflowId,
+          nodeId,
+          inputData,
+          executionState,
+          webhookData
+        );
+        
+        logger.info(`Execution resumed successfully from wait: ${waitId}`, {
+          executionId,
+        });
+      } catch (error) {
+        logger.error(`Failed to resume execution from wait: ${waitId}`, {
+          executionId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    });
+    
+    await waitJobManager.initialize();
+    logger.info(`✅ Initialized wait job manager`);
+  } catch (error) {
+    logger.error(`❌ Failed to initialize WaitJobManager`, { error });
+  }
+
   // Initialize ExecutionEventBridge for Redis Pub/Sub to WebSocket forwarding
   try {
     global.executionEventBridge = await createExecutionEventBridge(socketService);
@@ -785,6 +903,7 @@ process.on("SIGTERM", async () => {
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
+  await waitJobManager.shutdown();
   
   // Stop execution event bridge
   if (global.executionEventBridge) {
@@ -823,6 +942,7 @@ process.on("SIGINT", async () => {
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
+  await waitJobManager.shutdown();
   
   // Stop execution event bridge
   if (global.executionEventBridge) {

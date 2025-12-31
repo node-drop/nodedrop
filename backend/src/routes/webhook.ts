@@ -418,6 +418,222 @@ router.get(
   })
 );
 
+/**
+ * Wait Resume Webhook Endpoint - resumes a paused workflow execution
+ * Called when a Wait node is in "On Webhook Call" mode
+ * 
+ * URL format: http://localhost:4000/webhook/wait/{waitId}/resume
+ * 
+ * Supports: GET, POST, PUT, PATCH, DELETE (configurable per wait)
+ * Supports: Authentication (Basic, Header, Query), CORS, IP Whitelist
+ */
+router.all(
+  "/wait/:waitId/resume",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { waitId } = req.params;
+
+    console.log(`⏰ Wait resume webhook received: ${req.method} /webhook/wait/${waitId}/resume`);
+    console.log(`📝 Body:`, req.body);
+    console.log(`📝 Query:`, req.query);
+
+    // Get WaitJobManager
+    const { getWaitJobManager } = await import("../services/execution/WaitJobManager");
+    const waitJobManager = getWaitJobManager();
+
+    if (!waitJobManager) {
+      return res.status(503).json({
+        success: false,
+        error: "Service Unavailable",
+        message: "Wait job manager is not initialized",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get the wait record to check options
+    const waitRecord = await waitJobManager.getWait(waitId);
+    
+    if (!waitRecord) {
+      return res.status(404).json({
+        success: false,
+        error: "Not Found",
+        message: "Wait not found",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const webhookOptions = (waitRecord.webhookOptions as any) || {};
+    
+    // Apply CORS headers
+    const allowedOrigins = webhookOptions.allowedOrigins || '*';
+    const origin = req.get('Origin');
+    
+    if (allowedOrigins === '*') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } else if (origin) {
+      const origins = allowedOrigins.split(',').map((o: string) => o.trim());
+      if (origins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      }
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
+    
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
+    // Validate HTTP method
+    const allowedMethod = webhookOptions.httpMethod || 'ALL';
+    if (allowedMethod !== 'ALL' && req.method !== allowedMethod) {
+      res.setHeader('Allow', allowedMethod);
+      return res.status(405).json({
+        success: false,
+        error: "Method Not Allowed",
+        message: `This webhook only accepts ${allowedMethod} requests`,
+        allowed_methods: [allowedMethod],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate IP whitelist
+    const ipWhitelist = webhookOptions.ipWhitelist || '';
+    if (ipWhitelist) {
+      const clientIp = req.ip || req.connection?.remoteAddress || '';
+      const allowedIps = ipWhitelist.split(',').map((ip: string) => ip.trim()).filter((ip: string) => ip);
+      
+      const isIpAllowed = allowedIps.some((allowedIp: string) => {
+        // Simple IP match (supports exact match and basic CIDR)
+        if (allowedIp.includes('/')) {
+          // Basic CIDR support - for now just check prefix
+          const [network] = allowedIp.split('/');
+          return clientIp.startsWith(network.replace(/\.0+$/, ''));
+        }
+        return clientIp === allowedIp || clientIp.endsWith(allowedIp);
+      });
+      
+      if (!isIpAllowed) {
+        console.log(`❌ IP ${clientIp} not in whitelist: ${ipWhitelist}`);
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden",
+          message: "IP address not allowed",
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Validate authentication using the same pattern as TriggerService
+    const authConfig = webhookOptions.authConfig || { type: 'none' };
+    
+    if (authConfig.type !== 'none') {
+      let isAuthenticated = false;
+      
+      switch (authConfig.type) {
+        case 'basic': {
+          // Validate Basic Authentication (username:password)
+          const authHeader = req.get('Authorization') || '';
+          if (authHeader.startsWith('Basic ')) {
+            try {
+              const base64Credentials = authHeader.substring(6);
+              const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+              const [username, password] = credentials.split(':');
+              
+              const expectedUsername = authConfig.settings?.username;
+              const expectedPassword = authConfig.settings?.password;
+              
+              isAuthenticated = username === expectedUsername && password === expectedPassword;
+            } catch (error) {
+              console.log(`❌ Basic auth decoding failed for wait ${waitId}`);
+            }
+          }
+          break;
+        }
+        
+        case 'header': {
+          // Validate custom header authentication
+          const headerName = authConfig.settings?.headerName || 'Authorization';
+          const expectedValue = authConfig.settings?.expectedValue;
+          const headerValue = req.get(headerName) || '';
+          
+          isAuthenticated = headerValue === expectedValue;
+          break;
+        }
+        
+        case 'query': {
+          // Validate query parameter authentication
+          const queryParam = authConfig.settings?.queryParam || 'token';
+          const expectedValue = authConfig.settings?.expectedValue;
+          const queryValue = req.query[queryParam] as string || '';
+          
+          isAuthenticated = queryValue === expectedValue;
+          break;
+        }
+      }
+      
+      if (!isAuthenticated) {
+        console.log(`❌ Authentication failed for wait ${waitId}, type: ${authConfig.type}`);
+        return res.status(401).json({
+          success: false,
+          error: "Unauthorized",
+          message: "Authentication failed",
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Prepare webhook data from request
+    const webhookData = {
+      method: req.method,
+      headers: req.headers,
+      query: req.query,
+      body: req.body,
+      ip: req.ip || req.connection?.remoteAddress || "unknown",
+      userAgent: req.get("User-Agent"),
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const result = await waitJobManager.resumeWaitViaWebhook(waitId, webhookData);
+
+      if (result.success) {
+        console.log(`✅ Wait resumed successfully: ${waitId}`);
+        const responseMessage = webhookOptions.responseMessage || 'Workflow resumed successfully';
+        res.json({
+          success: true,
+          message: responseMessage,
+          executionId: result.executionId,
+          nodeId: result.nodeId,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        console.log(`❌ Wait resume failed: ${result.message}`);
+        const statusCode = result.message.includes("not found") ? 404 
+          : result.message.includes("expired") ? 410 
+          : result.message.includes("already") ? 409 
+          : 400;
+        
+        res.status(statusCode).json({
+          success: false,
+          error: getErrorTitle(statusCode),
+          message: result.message,
+          executionId: result.executionId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (error: any) {
+      console.error(`❌ Wait resume error:`, error);
+      res.status(500).json({
+        success: false,
+        error: "Internal Server Error",
+        message: error.message || "Failed to resume wait",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  })
+);
+
 // Rate limiting for webhooks to prevent memory exhaustion
 import rateLimit from 'express-rate-limit';
 

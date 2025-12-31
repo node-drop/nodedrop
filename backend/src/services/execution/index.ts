@@ -30,3 +30,7 @@ export * from './ExecutionTimeoutManager';
 // FlowExecutionPersistenceService - commented out, not exported
 export * from './SecureExecutionService';
 export * from './TriggerExecutionContext';
+
+// Wait/Resume System
+export * from './WaitJobManager';
+export * from './WaitStateManager';

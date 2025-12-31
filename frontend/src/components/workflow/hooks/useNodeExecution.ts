@@ -12,6 +12,7 @@ interface NodeExecutionState {
   isExecuting: boolean;
   hasError: boolean;
   hasSuccess: boolean;
+  isPaused: boolean;
   lastExecutionTime?: number;
   executionError?: NodeExecutionError;
 }
@@ -22,6 +23,10 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
   const getNodeVisualState = useWorkflowStore(
     (state) => state.getNodeVisualState
   );
+  // Subscribe to version changes to force re-renders when execution state changes
+  const executionStateVersion = useWorkflowStore(
+    (state) => state.executionStateVersion
+  );
 
   // NEW: Use ExecutionContext hook as primary source of truth
   const executionContext = useExecutionContext(nodeId);
@@ -31,9 +36,10 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
       isExecuting: false,
       hasError: false,
       hasSuccess: false,
+      isPaused: false,
     });
 
-  // Get visual state for backward compatibility
+  // Get visual state for backward compatibility - recalculate when version changes
   const nodeVisualState = getNodeVisualState(nodeId);
 
   // Update local state based on execution context (NEW: Single source of truth)
@@ -42,6 +48,7 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
     const isExecuting = executionContext.isExecuting; // Already filtered by current execution!
     const hasError = executionContext.hasError;
     const hasSuccess = executionContext.hasSuccess;
+    const isPaused = executionContext.isPaused;
 
     let executionError: NodeExecutionError | undefined;
     if (hasError && nodeVisualState?.errorMessage) {
@@ -62,6 +69,7 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
       isExecuting,
       hasError,
       hasSuccess,
+      isPaused,
       lastExecutionTime: nodeVisualState?.executionTime,
       executionError,
     });
@@ -69,9 +77,12 @@ export function useNodeExecution(nodeId: string, nodeType: string) {
     executionContext.isExecuting,
     executionContext.hasError,
     executionContext.hasSuccess,
+    executionContext.isPaused,
     executionContext.status,
     nodeVisualState?.errorMessage,
     nodeVisualState?.executionTime,
+    nodeVisualState?.status, // Add status to dependencies
+    executionStateVersion, // Force re-render when execution state changes
     nodeId,
     nodeType,
   ]);

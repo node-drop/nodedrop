@@ -309,7 +309,8 @@ export function BaseNodeWrapper({
         nodeVisualState.status === NodeExecutionStatus.FAILED ? 'error' :
           nodeVisualState.status === NodeExecutionStatus.SKIPPED ? 'skipped' :
             nodeVisualState.status === NodeExecutionStatus.QUEUED ? 'running' :
-              'idle') // Use 'idle' instead of data.status fallback to ensure borders reset
+              nodeVisualState.status === NodeExecutionStatus.PAUSED ? 'paused' :
+                'idle') // Use 'idle' instead of data.status fallback to ensure borders reset
     : data.status
 
   // Handle double-click to open properties dialog

@@ -49,6 +49,9 @@ export class ProgressTracker {
     this.currentExecutionId = executionId;
   }
 
+  // Store pause info separately since NodeExecutionState doesn't have it
+  private pauseInfoMap: Map<string, { waitId: string; resumeUrl: string; expiresAt?: string }> = new Map();
+
   /**
    * Update the status of a specific node
    */
@@ -63,8 +66,13 @@ export class ProgressTracker {
       outputData?: any;
       startTime?: number;
       endTime?: number;
+      pauseInfo?: { waitId: string; resumeUrl: string; expiresAt?: string };
     }
   ): void {
+    // Store pause info if provided
+    if (data?.pauseInfo) {
+      this.pauseInfoMap.set(nodeId, data.pauseInfo);
+    }
     const nodeStates = this.getNodeStatesForExecution(executionId);
 
     const currentState = nodeStates.get(nodeId) || {
@@ -136,6 +144,9 @@ export class ProgressTracker {
         case NodeExecutionStatus.CANCELLED:
         case NodeExecutionStatus.SKIPPED:
           totalProgress += 100; // These are "complete" even if not successful
+          break;
+        case NodeExecutionStatus.PAUSED:
+          totalProgress += 50; // Paused nodes are partially complete
           break;
         case NodeExecutionStatus.RUNNING:
           totalProgress += state.progress || 50; // Default to 50% if no specific progress
@@ -297,11 +308,18 @@ export class ProgressTracker {
       .filter((state) => state.status === NodeExecutionStatus.QUEUED)
       .map((state) => state.nodeId);
 
+    const pausedNodes = nodeStatesArray
+      .filter((state) => state.status === NodeExecutionStatus.PAUSED)
+      .map((state) => state.nodeId);
+
     // Determine overall status
-    let overallStatus: "running" | "completed" | "failed" | "cancelled" =
+    let overallStatus: "running" | "completed" | "failed" | "cancelled" | "paused" =
       "running";
 
-    if (
+    // Check for paused status first (takes precedence over running)
+    if (pausedNodes.length > 0) {
+      overallStatus = "paused";
+    } else if (
       failedNodes.length > 0 &&
       currentlyExecuting.length === 0 &&
       queuedNodes.length === 0
@@ -374,9 +392,15 @@ export class ProgressTracker {
       case NodeExecutionStatus.FAILED:
         animationState = "error";
         break;
+      case NodeExecutionStatus.PAUSED:
+        animationState = "paused";
+        break;
       default:
         animationState = "idle";
     }
+
+    // Get pause info if available
+    const pauseInfo = this.pauseInfoMap.get(nodeId);
 
     return {
       nodeId,
@@ -386,6 +410,7 @@ export class ProgressTracker {
       lastUpdated: Date.now(),
       executionTime: state.duration,
       errorMessage: state.error?.message,
+      pauseInfo,
     };
   }
 
@@ -430,6 +455,7 @@ export class ProgressTracker {
    */
   reset(): void {
     this.executionStates.clear();
+    this.pauseInfoMap.clear();
     this.currentExecutionId = "default";
     this.listeners.clear();
   }
@@ -439,11 +465,27 @@ export class ProgressTracker {
    */
   clearExecution(executionId: string): void {
     this.executionStates.delete(executionId);
+    // Note: pauseInfoMap is keyed by nodeId, not executionId
+    // We don't clear it here to preserve pause info across execution contexts
 
     // If we cleared the current execution, reset to default
     if (this.currentExecutionId === executionId) {
       this.currentExecutionId = "default";
     }
+  }
+
+  /**
+   * Clear pause info for a specific node
+   */
+  clearPauseInfo(nodeId: string): void {
+    this.pauseInfoMap.delete(nodeId);
+  }
+
+  /**
+   * Clear all pause info
+   */
+  clearAllPauseInfo(): void {
+    this.pauseInfoMap.clear();
   }
 
   /**

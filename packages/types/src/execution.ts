@@ -29,6 +29,8 @@ export enum NodeExecutionStatus {
   CANCELLED = "cancelled",
   /** Node was skipped (e.g., due to condition not met) */
   SKIPPED = "skipped",
+  /** Node is paused waiting for external trigger (webhook) */
+  PAUSED = "paused",
 }
 
 /**
@@ -49,7 +51,8 @@ export type FlowOverallStatus =
   | "running" 
   | "completed" 
   | "failed" 
-  | "cancelled";
+  | "cancelled"
+  | "paused";
 
 // ============================================================================
 // ERROR TYPES
@@ -160,13 +163,19 @@ export interface NodeVisualState {
   /** Execution progress (0-100) */
   progress: number;
   /** Current animation state for UI */
-  animationState: "idle" | "pulsing" | "spinning" | "success" | "error";
+  animationState: "idle" | "pulsing" | "spinning" | "success" | "error" | "paused";
   /** Timestamp of last state update */
   lastUpdated: number;
   /** Execution time in milliseconds */
   executionTime?: number;
   /** Error message for display */
   errorMessage?: string;
+  /** Pause information for webhook waits */
+  pauseInfo?: {
+    waitId: string;
+    resumeUrl: string;
+    expiresAt?: string;
+  };
 }
 
 // ============================================================================
@@ -258,9 +267,12 @@ export type ExecutionEventType =
   | 'node-started' 
   | 'node-completed' 
   | 'node-failed' 
+  | 'node-paused'
   | 'completed' 
   | 'failed' 
   | 'cancelled'
+  | 'paused'
+  | 'resumed'
   | 'node-status-update'
   | 'execution-progress';
 

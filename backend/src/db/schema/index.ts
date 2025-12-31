@@ -32,4 +32,4 @@ export * from './variables';
 export * from './webhooks';
 export * from './workflows';
 export * from './workspace';
-
+export * from './scheduled-waits';

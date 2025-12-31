@@ -22,6 +22,7 @@ export interface NodeExecutionContext {
   isQueued: boolean; // Node is queued in CURRENT execution
   hasError: boolean; // Node failed in CURRENT execution
   hasSuccess: boolean; // Node completed successfully in CURRENT execution
+  isPaused: boolean; // Node is paused waiting for external trigger
   status: NodeExecutionStatus; // Current status
   executionId: string | null; // Which execution owns this node state
 }
@@ -88,6 +89,7 @@ export function useExecutionContext(nodeId: string): NodeExecutionContext {
         isQueued: false,
         hasError: false,
         hasSuccess: false,
+        isPaused: false,
         status: NodeExecutionStatus.IDLE,
         executionId: null,
       };
@@ -99,6 +101,7 @@ export function useExecutionContext(nodeId: string): NodeExecutionContext {
       isQueued: nodeStateSnapshot.status === NodeExecutionStatus.QUEUED,
       hasError: nodeStateSnapshot.status === NodeExecutionStatus.FAILED,
       hasSuccess: nodeStateSnapshot.status === NodeExecutionStatus.COMPLETED,
+      isPaused: nodeStateSnapshot.status === NodeExecutionStatus.PAUSED,
       status: nodeStateSnapshot.status,
       executionId: nodeStateSnapshot.executionId,
     };
