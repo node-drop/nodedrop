@@ -43,6 +43,27 @@ export function getAffectedNodes(
   // This is needed because service nodes (model, memory, tools) connect TO the consuming node
   const reverseAdjacencyMap = buildReverseAdjacencyMap(workflow.connections);
 
+  // Helper function to recursively collect service nodes
+  const collectServiceNodes = (nodeId: string) => {
+    const incomingNodes = reverseAdjacencyMap.get(nodeId) || [];
+    for (const { sourceNodeId, targetInput } of incomingNodes) {
+      // Only include if it's a service input (not 'main')
+      const isServiceInput = targetInput && targetInput !== 'main' && 
+        (targetInput.toLowerCase().includes('service') || 
+         targetInput === 'tools' || 
+         targetInput === 'model' || 
+         targetInput === 'memory' ||
+         targetInput === 'agent');
+      
+      if (isServiceInput && !visited.has(sourceNodeId)) {
+        visited.add(sourceNodeId);
+        affectedNodes.push(sourceNodeId);
+        // Recursively collect nested service nodes (e.g., Worker Agent's Model)
+        collectServiceNodes(sourceNodeId);
+      }
+    }
+  };
+
   while (queue.length > 0) {
     const currentNodeId = queue.shift()!;
 
@@ -63,21 +84,8 @@ export function getAffectedNodes(
     // CRITICAL FIX: Also include service nodes that connect TO this node
     // Service nodes (model, memory, tools) connect to service inputs (modelService, memoryService, etc.)
     // These nodes need to be included in affectedNodes for visual indicators to work
-    const incomingNodes = reverseAdjacencyMap.get(currentNodeId) || [];
-    for (const { sourceNodeId, targetInput } of incomingNodes) {
-      // Only include if it's a service input (not 'main')
-      const isServiceInput = targetInput && targetInput !== 'main' && 
-        (targetInput.toLowerCase().includes('service') || 
-         targetInput === 'tools' || 
-         targetInput === 'model' || 
-         targetInput === 'memory');
-      
-      if (isServiceInput && !visited.has(sourceNodeId)) {
-        visited.add(sourceNodeId);
-        affectedNodes.push(sourceNodeId);
-        // Don't add to queue - service nodes don't have downstream nodes to process
-      }
-    }
+    // This is recursive to handle nested services (e.g., Worker Agent with its own Model)
+    collectServiceNodes(currentNodeId);
   }
 
   return affectedNodes;

@@ -1276,6 +1276,22 @@ export class RealtimeExecutionEngine extends EventEmitter {
                     if (sourceNode) {
                         const nodeParameters = sourceNode.parameters || {};
                         
+                        // Emit node-started event for nested service node
+                        const isToolNode = inputName === 'tools';
+                        if (!isToolNode) {
+                            logger.info(`[RealtimeExecution-Nested] 🔵 Emitting node-started for nested service node ${sourceNode.id} (${sourceNode.type})`, {
+                                executionId: context.executionId,
+                                nodeId: sourceNode.id,
+                            });
+                            this.emit('node-started', {
+                                executionId: context.executionId,
+                                nodeId: sourceNode.id,
+                                nodeName: sourceNode.parameters?.name || sourceNode.type,
+                                nodeType: sourceNode.type,
+                                timestamp: new Date(),
+                            });
+                        }
+                        
                         // Build credentials mapping
                         let credentialsMapping: Record<string, string> = {};
                         try {
@@ -1317,6 +1333,12 @@ export class RealtimeExecutionEngine extends EventEmitter {
                             credentials: credentialsMapping,
                             inputData: Object.keys(nestedServices).length > 0 ? nestedServices : undefined,
                         });
+                        
+                        // NOTE: Do NOT emit node-completed here!
+                        // Nested service nodes are only being discovered/validated at this point.
+                        // The actual execution happens later when the parent node calls them.
+                        // The parent node (e.g., Supervisor/Worker Agent) is responsible for
+                        // emitting node-completed or node-failed based on actual execution results.
                     }
                 }
                 
