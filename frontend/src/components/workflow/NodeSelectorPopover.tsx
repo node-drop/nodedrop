@@ -112,7 +112,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
         switch (filterType) {
           case 'trigger':
             // Show only trigger nodes
-            return node.nodeCategory === 'trigger'
+            return node.category === 'trigger'
           
           case 'model':
             // Show only model service nodes
@@ -136,7 +136,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
               const lower = o.toLowerCase()
               return lower.includes('model') || lower.includes('memory') || lower.includes('tool') || lower.includes('service')
             })
-            return node.nodeCategory !== 'trigger' && !hasServiceOutput
+            return node.category !== 'trigger' && !hasServiceOutput
           
           default:
             return true
@@ -223,7 +223,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
                         nodeGroup: node.group,
                         displayName: node.displayName,
                         color: node.color || '#6b7280',
-                        isTrigger: node.nodeCategory === 'trigger',
+                        isTrigger: node.category === 'trigger',
                       }}
                       size="sm"
                       className="flex-shrink-0"

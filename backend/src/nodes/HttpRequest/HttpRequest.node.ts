@@ -1,8 +1,7 @@
 import {
-  BuiltInNodeTypes,
   NodeDefinition,
   NodeInputData,
-  NodeOutputData,
+  NodeOutputData
 } from "../../types/node.types";
 import { HttpExecutionErrorFactory } from "../../utils/errors/HttpExecutionError";
 import { RetryHandler } from "../../utils/retry/RetryStrategy";
@@ -10,7 +9,6 @@ import { ResourceLimitsEnforcer } from "../../utils/security/ResourceLimitsEnfor
 import { UrlSecurityValidator } from "../../utils/security/UrlSecurityValidator";
 
 export const HttpRequestNode: NodeDefinition = {
-  identifier: BuiltInNodeTypes.HTTP_REQUEST,
   displayName: "HTTP Request",
   name: "httpRequest",
   group: ["transform"],

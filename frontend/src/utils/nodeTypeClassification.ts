@@ -61,14 +61,14 @@ export function getNodeTypeMetadata(nodeType: string): NodeTypeMetadata | null {
 }
 
 /**
- * Determine execution capability from nodeCategory
+ * Determine execution capability from category
  */
 function determineExecutionCapability(
   nodeData: NodeType
 ): NodeExecutionCapability {
-  // Use nodeCategory (all nodes should have this now)
-  if (nodeData.nodeCategory) {
-    switch (nodeData.nodeCategory) {
+  // Use category (all nodes should have this now)
+  if (nodeData.category) {
+    switch (nodeData.category) {
       case "trigger":
         return "trigger";
       case "condition":
@@ -83,7 +83,7 @@ function determineExecutionCapability(
     }
   }
 
-  // Legacy fallback for nodes without nodeCategory (should be rare)
+  // Legacy fallback for nodes without category (should be rare)
   const group = nodeData.group;
   if (group.includes("trigger")) {
     return "trigger";
@@ -101,12 +101,12 @@ function determineExecutionCapability(
  * Only triggers can execute individually, service/tool nodes cannot
  */
 function determineCanExecuteIndividually(nodeData: NodeType): boolean {
-  // Use nodeCategory (all nodes should have this now)
-  if (nodeData.nodeCategory) {
-    return nodeData.nodeCategory === "trigger";
+  // Use category (all nodes should have this now)
+  if (nodeData.category) {
+    return nodeData.category === "trigger";
   }
   
-  // Legacy fallback for nodes without nodeCategory (should be rare)
+  // Legacy fallback for nodes without category (should be rare)
   return nodeData.group.includes("trigger");
 }
 
@@ -215,8 +215,8 @@ export function shouldShowExecuteButton(nodeType: string): boolean {
   // First check if it's a service or tool node (not executable)
   const nodeData = getNodeTypeData(nodeType);
   if (nodeData) {
-    const nodeCategory = (nodeData as any).nodeCategory;
-    if (nodeCategory === 'service' || nodeCategory === 'tool') {
+    const category = (nodeData as any).category;
+    if (category === 'service' || category === 'tool') {
       return false;
     }
   }

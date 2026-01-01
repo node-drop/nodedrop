@@ -49,11 +49,10 @@ export interface WorkflowErrorData {
  * 3. In other workflows, set this workflow as the "Error Workflow" in settings
  */
 export const ErrorTriggerNode: NodeDefinition = {
-  identifier: "error-trigger",
   displayName: "Error Trigger",
   name: "errorTrigger",
   group: ["trigger"],
-  nodeCategory: "trigger",
+  category: "trigger",
   triggerType: "error",
   version: 2,
   description:

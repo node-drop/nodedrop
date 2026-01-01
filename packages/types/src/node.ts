@@ -19,7 +19,7 @@ import type { NodeSetting, NodeSettingsConfig, TriggerType } from "./workflow";
 // Import schemas from the schemas module
 import {
   // Category and capability schemas
-  NodeCategorySchema,
+  CategorySchema,
   ExecutionCapabilitySchema,
   // Property schemas
   NodePropertyTypeSchema,
@@ -53,7 +53,7 @@ import {
 // =============================================================================
 
 export {
-  NodeCategorySchema,
+  CategorySchema,
   ExecutionCapabilitySchema,
   NodePropertyTypeSchema,
   NodePropertyOptionSchema,
@@ -80,7 +80,7 @@ export {
 /**
  * High-level category for node organization and execution control
  */
-export type NodeCategory = z.infer<typeof NodeCategorySchema>;
+export type Category = z.infer<typeof CategorySchema>;
 
 /**
  * Execution capability of a node
@@ -186,7 +186,7 @@ export interface NodeHooks {
  */
 export interface NodeDefinition {
   /** High-level category for organization and execution control */
-  nodeCategory?: NodeCategory;
+  category?: Category;
   displayName: string;
   name: string;
   group: string[];

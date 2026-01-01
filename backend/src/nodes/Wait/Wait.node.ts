@@ -15,7 +15,6 @@ import { ExecutionPauseError } from "../../errors/ExecutionPauseError";
  * - On Webhook Call: Wait until an external webhook resumes the execution
  */
 export const WaitNode: NodeDefinition = {
-  identifier: "wait",
   displayName: "Wait",
   name: "wait",
   group: ["flow"],

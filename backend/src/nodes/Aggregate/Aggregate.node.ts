@@ -43,7 +43,6 @@ import {
  *    Get Products → Aggregate (Group By: category) → Process Each Category
  */
 export const AggregateNode: NodeDefinition = {
-    identifier: "aggregate",
     displayName: "Aggregate",
     name: "aggregate",
     group: ["transform"],

@@ -18,7 +18,7 @@ export type {
   // Credential types
   CredentialSelectorConfig, ExecutionCapability,
   // Node category and capability types
-  NodeCategory, NodeDisplayOptions,
+  Category, NodeDisplayOptions,
   // Node definition types (excluding execute function - backend adds that)
   NodeHooks,
   // Node input/output configuration types
@@ -39,7 +39,7 @@ import type {
   CredentialDefinition,
   CredentialSelectorConfig,
   ExecutionCapability,
-  NodeCategory,
+  Category,
   NodeHooks,
   NodeInputConfig,
   NodeProperty,
@@ -176,7 +176,7 @@ export interface NodeExecutionResult {
 export interface NodeDefinition {
 
   /** High-level category for organization and execution control */
-  nodeCategory?: NodeCategory;
+  category?: Category;
   displayName: string;
   name: string;
   group: string[];

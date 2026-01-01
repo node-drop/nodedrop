@@ -5,10 +5,10 @@ import {
 } from "../../types/node.types";
 
 export const GoogleSheetsTriggerNode: NodeDefinition = {
-  identifier: "google-sheets-trigger",
   displayName: "Google Sheets Trigger",
   name: "googleSheetsTrigger",
   group: ["trigger"],
+  category: "trigger",
   version: 2,
   description: "Triggers workflow execution when changes occur in Google Sheets",
   ai: {

@@ -1,8 +1,7 @@
 import {
-    BuiltInNodeTypes,
-    NodeDefinition,
-    NodeInputData,
-    NodeOutputData,
+  NodeDefinition,
+  NodeInputData,
+  NodeOutputData
 } from "../../types/node.types";
 
 /**
@@ -29,7 +28,6 @@ import {
  *    Output: { "name": "John", "user": { "address": { "city": "New York" }, "age": 30 } }
  */
 export const SetNode: NodeDefinition = {
-  identifier: BuiltInNodeTypes.SET,
   displayName: "Set",
   name: "set",
   group: ["transform"],

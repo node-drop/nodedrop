@@ -5,11 +5,10 @@ import {
 } from "../../types/node.types";
 
 export const ScheduleTriggerNode: NodeDefinition = {
-  identifier: "schedule-trigger",
   displayName: "Schedule Trigger",
   name: "scheduleTrigger",
   group: ["trigger"],
-  nodeCategory: "trigger",
+  category: "trigger",
   triggerType: "schedule",
   version: 2,
   description:

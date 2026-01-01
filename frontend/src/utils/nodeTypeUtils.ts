@@ -16,8 +16,8 @@ import type { NodeType } from '@/types'
  */
 export function isServiceNode(nodeType: string | NodeType): boolean {
   if (typeof nodeType === 'object' && nodeType !== null) {
-    // Check the nodeCategory property (new approach)
-    return (nodeType as any).nodeCategory === 'service'
+    // Check the category property (new approach)
+    return (nodeType as any).category === 'service'
   }
   return false
 }
@@ -31,8 +31,8 @@ export function isServiceNode(nodeType: string | NodeType): boolean {
  */
 export function isToolNode(nodeType: string | NodeType): boolean {
   if (typeof nodeType === 'object' && nodeType !== null) {
-    // Check the nodeCategory property (new approach)
-    return (nodeType as any).nodeCategory === 'tool'
+    // Check the category property (new approach)
+    return (nodeType as any).category === 'tool'
   }
   return false
 }

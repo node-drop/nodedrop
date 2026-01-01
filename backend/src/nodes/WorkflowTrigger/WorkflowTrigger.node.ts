@@ -6,10 +6,10 @@ import {
 import { WorkflowTriggerHelper } from "./WorkflowTriggerHelper";
 
 export const WorkflowTriggerNode: NodeDefinition = {
-  identifier: "workflow-trigger",
   displayName: "Trigger Workflow",
   name: "workflowTrigger",
   group: ["automation"],
+  category: "action",
   version: 2,
   description: "Trigger another workflow with optional data",
   ai: {

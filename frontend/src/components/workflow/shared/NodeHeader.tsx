@@ -60,7 +60,7 @@ export const NodeHeader = memo(function NodeHeader({
               nodeGroup: nodeType.group,
               displayName: nodeType.displayName,
               color: nodeType.color,
-              isTrigger: (nodeType as any).nodeCategory === 'trigger',
+              isTrigger: (nodeType as any).category === 'trigger',
             }}
             size={iconSize}
             className={isSmall ? 'rounded' : 'rounded-lg'}

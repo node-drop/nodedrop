@@ -30,9 +30,6 @@ import {
 } from "../../types/node.types";
 
 export const MyNode: NodeDefinition = {
-  // Required: Unique identifier
-  identifier: "myNode",
-  
   // Display info
   displayName: "My Node",
   name: "myNode",
@@ -486,7 +483,6 @@ execute: async function(inputData): Promise<NodeOutputData[]> {
 ### Trigger Node
 
 ```typescript
-identifier: "myTrigger",
 triggerType: "webhook",  // or "schedule", "manual", "event"
 inputs: [],              // Triggers have no inputs
 outputs: ["main"],

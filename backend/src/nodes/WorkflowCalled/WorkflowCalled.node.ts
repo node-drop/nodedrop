@@ -5,11 +5,10 @@ import {
 } from "../../types/node.types";
 
 export const WorkflowCalledNode: NodeDefinition = {
-  identifier: "workflow-called",
   displayName: "Called by Workflow",
   name: "workflowCalled",
   group: ["trigger"],
-  nodeCategory: "trigger",
+  category: "trigger",
   triggerType: "workflow-called",
 
   version: 2,

@@ -16,7 +16,6 @@ import {
  * component/componentProps. The frontend then needs to implement the custom component.
  */
 export const CustomTemplateNode: NodeDefinition = {
-  identifier: "custom-template-example",
   displayName: "Custom Template Example",
   name: "customTemplateExample",
   group: ["transform"],
@@ -295,7 +294,6 @@ export const CustomTemplateNode: NodeDefinition = {
       component: "JsonSchemaEditor", // Frontend component identifier
       componentProps: {
         schema: {
-          identifier: "object",
           properties: {
             name: { type: "string" },
             age: { type: "number" },

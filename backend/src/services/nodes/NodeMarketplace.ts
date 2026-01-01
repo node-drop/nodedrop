@@ -17,7 +17,7 @@ export interface NodePackageMetadata {
   description: string;
   author: string;
   keywords: string[];
-  nodeCategory?: string;
+  category?: string;
   downloadUrl: string;
   homepage?: string;
   repository?: string;
@@ -142,7 +142,7 @@ export class NodeMarketplace {
             description: node.description,
             author: node.author,
             keywords: node.tags || [],
-            nodeCategory: node.nodeCategory || node.category,
+            category: node.category || node.category,
             downloadUrl: node.downloadUrl || (node.githubUrl ? `${node.githubUrl}/archive/refs/heads/main.zip` : ''),
             icon: node.icon,
             iconUrl: node.iconUrl,
@@ -183,7 +183,7 @@ export class NodeMarketplace {
             description: 'Advanced Slack integration with threads, reactions, and file uploads',
             author: 'SlackDevs',
             keywords: ['communication', 'slack', 'messaging', 'notifications'],
-            nodeCategory: 'communication',
+            category: 'communication',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-slack-advanced/-/nd-nodes-slack-advanced-1.2.3.tgz',
             homepage: 'https://github.com/slackdevs/nd-nodes-slack-advanced',
             repository: 'https://github.com/slackdevs/nd-nodes-slack-advanced',
@@ -210,7 +210,7 @@ export class NodeMarketplace {
             description: 'Enhanced MongoDB operations with aggregation pipelines and advanced queries',
             author: 'DatabaseExperts',
             keywords: ['database', 'mongodb', 'aggregation', 'nosql'],
-            nodeCategory: 'database',
+            category: 'database',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-mongodb-extended/-/nd-nodes-mongodb-extended-2.1.0.tgz',
             homepage: 'https://github.com/dbexperts/nd-nodes-mongodb-extended',
             repository: 'https://github.com/dbexperts/nd-nodes-mongodb-extended',
@@ -237,7 +237,7 @@ export class NodeMarketplace {
             description: 'Professional email templates with dynamic content and styling',
             author: 'EmailMasters',
             keywords: ['communication', 'email', 'templates', 'html'],
-            nodeCategory: 'communication',
+            category: 'communication',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-email-templates-pro/-/nd-nodes-email-templates-pro-1.5.2.tgz',
             homepage: 'https://github.com/emailmasters/nd-nodes-email-templates-pro',
             repository: 'https://github.com/emailmasters/nd-nodes-email-templates-pro',
@@ -264,7 +264,7 @@ export class NodeMarketplace {
             description: 'Advanced data transformation with custom functions and filters',
             author: 'DataWizards',
             keywords: ['transform', 'data', 'filter', 'manipulation'],
-            nodeCategory: 'transform',
+            category: 'transform',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-data-transformer/-/nd-nodes-data-transformer-3.0.1.tgz',
             homepage: 'https://github.com/datawizards/nd-nodes-data-transformer',
             repository: 'https://github.com/datawizards/nd-nodes-data-transformer',
@@ -291,7 +291,7 @@ export class NodeMarketplace {
             description: 'Comprehensive API gateway with rate limiting and authentication',
             author: 'APIDevs',
             keywords: ['api', 'gateway', 'auth', 'rate-limiting'],
-            nodeCategory: 'api',
+            category: 'api',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-api-gateway/-/nd-nodes-api-gateway-1.8.4.tgz',
             homepage: 'https://github.com/apidevs/nd-nodes-api-gateway',
             repository: 'https://github.com/apidevs/nd-nodes-api-gateway',
@@ -318,7 +318,7 @@ export class NodeMarketplace {
             description: 'Enhanced webhook node with advanced filtering and validation',
             author: 'WebhookPro',
             keywords: ['trigger', 'webhook', 'http', 'validation'],
-            nodeCategory: 'trigger',
+            category: 'trigger',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-webhook-enhanced/-/nd-nodes-webhook-enhanced-2.3.1.tgz',
             homepage: 'https://github.com/webhookpro/nd-nodes-webhook-enhanced',
             repository: 'https://github.com/webhookpro/nd-nodes-webhook-enhanced',
@@ -345,7 +345,7 @@ export class NodeMarketplace {
             description: 'Advanced CSV processing with custom delimiters and encoding support',
             author: 'CSVExperts',
             keywords: ['transform', 'csv', 'data', 'processing'],
-            nodeCategory: 'transform',
+            category: 'transform',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-csv-processor/-/nd-nodes-csv-processor-1.4.0.tgz',
             homepage: 'https://github.com/csvexperts/nd-nodes-csv-processor',
             repository: 'https://github.com/csvexperts/nd-nodes-csv-processor',
@@ -372,7 +372,7 @@ export class NodeMarketplace {
             description: 'Professional scheduling with cron expressions and timezone support',
             author: 'ScheduleMasters',
             keywords: ['trigger', 'schedule', 'cron', 'timezone'],
-            nodeCategory: 'trigger',
+            category: 'trigger',
             downloadUrl: 'https://registry.npmjs.org/nd-nodes-scheduler-pro/-/nd-nodes-scheduler-pro-2.0.5.tgz',
             homepage: 'https://github.com/schedulemasters/nd-nodes-scheduler-pro',
             repository: 'https://github.com/schedulemasters/nd-nodes-scheduler-pro',
@@ -411,11 +411,11 @@ export class NodeMarketplace {
         );
       }
 
-      // Filter by category (using nodeCategory property)
+      // Filter by category (using category property)
       if (filters.category) {
         const category = filters.category.toLowerCase();
         filteredPackages = filteredPackages.filter(pkg =>
-          pkg.nodeCategory?.toLowerCase() === category
+          pkg.category?.toLowerCase() === category
         );
       }
 

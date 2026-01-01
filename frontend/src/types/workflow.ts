@@ -21,7 +21,7 @@ export type {
   WorkflowConnection, 
   NodeSetting,
   TriggerType,
-  NodeCategory,
+  Category,
   ExecutionCapability,
   NodePropertyType,
   NodeDisplayOptions,

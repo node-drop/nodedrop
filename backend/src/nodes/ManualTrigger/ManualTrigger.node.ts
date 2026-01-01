@@ -5,11 +5,10 @@ import {
 } from "../../types/node.types";
 
 export const ManualTriggerNode: NodeDefinition = {
-  identifier: "manual-trigger",
   displayName: "Manual Trigger",
   name: "manualTrigger",
   group: ["trigger"],
-  nodeCategory: "trigger",
+  category: "trigger",
   triggerType: "manual",
   version: 2,
   description:

@@ -5,10 +5,9 @@ import {
 } from "../../types/node.types";
 
 export const ChatNode: NodeDefinition = {
-  identifier: "chat",
   displayName: "Chat",
   name: "chat",
-  nodeCategory: "trigger",
+  category: "trigger",
   group: ["communication", "ai","chat","trigger"],
   description: "Interactive chat interface - Send messages and trigger workflows. Can be used as a trigger or accept input from other nodes.",
   version: 2,

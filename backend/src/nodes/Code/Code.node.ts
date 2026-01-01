@@ -13,7 +13,6 @@ import {
 const execAsync = promisify(exec);
 
 export const CodeNode: NodeDefinition = {
-  identifier: "code",
   displayName: "Code",
   name: "code",
   group: ["transform"],

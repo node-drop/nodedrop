@@ -24,7 +24,6 @@ import {
  * - Implement complex business logic routing
  */
 export const SwitchNode: NodeDefinition = {
-    identifier: "switch",
     displayName: "Switch",
     name: "switch",
     group: ["transform"],

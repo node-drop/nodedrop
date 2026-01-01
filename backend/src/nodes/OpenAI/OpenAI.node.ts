@@ -32,7 +32,6 @@ import {
  * Supports all major GPT models with configurable parameters.
  */
 export const OpenAINode: NodeDefinition = {
-  identifier: "openai",
   displayName: "OpenAI",
   name: "openai",
   group: ["ai", "transform"],

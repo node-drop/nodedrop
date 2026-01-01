@@ -517,7 +517,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
                             nodeGroup: nodeType.group,
                             displayName: nodeType.displayName,
                             color: nodeType.color,
-                            isTrigger: (nodeType as any).nodeCategory === 'trigger',
+                            isTrigger: (nodeType as any).category === 'trigger',
                           }}
                           size="sm"
                         />

@@ -35,7 +35,7 @@ export type {
   TriggerOption,
   WorkflowOption,
   // Node types from shared package
-  NodeCategory,
+  Category,
   ExecutionCapability,
   NodePropertyType,
   NodeDisplayOptions,

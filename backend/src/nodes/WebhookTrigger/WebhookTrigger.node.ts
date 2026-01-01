@@ -5,11 +5,10 @@ import {
 } from "../../types/node.types";
 
 export const WebhookTriggerNode: NodeDefinition = {
-  identifier: "webhook-trigger",
   displayName: "Webhook Trigger",
   name: "webhookTrigger",
   group: ["trigger"],
-  nodeCategory: "trigger",
+  category: "trigger",
   triggerType: "webhook",
   version: 2,
   description: "Triggers workflow execution when a webhook is called",
@@ -250,7 +249,6 @@ export const WebhookTriggerNode: NodeDefinition = {
         {
           name: "responseHeaders",
           displayName: "Response Headers",
-          identifier: "fixedCollection",
           typeOptions: {
             multipleValues: true,
           },

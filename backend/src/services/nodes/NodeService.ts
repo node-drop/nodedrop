@@ -319,7 +319,7 @@ export class NodeService {
               color: nodeDefinition.color || null,
               style: (nodeDefinition as any).style || null,
               outputComponent: nodeDefinition.outputComponent || null,
-              nodeCategory: nodeDefinition.nodeCategory || null,
+              category: nodeDefinition.category || null,
               updatedAt: new Date(),
               // Don't update active status on update - preserve user's choice
               // Don't update workspaceId on update - preserve original workspace
@@ -344,7 +344,7 @@ export class NodeService {
             color: nodeDefinition.color || null,
             style: (nodeDefinition as any).style || null,
             outputComponent: nodeDefinition.outputComponent || null,
-            nodeCategory: nodeDefinition.nodeCategory || null,
+            category: nodeDefinition.category || null,
             isCore: isCore,
             active: true,
             workspaceId: options?.workspaceId || null,
@@ -480,7 +480,7 @@ export class NodeService {
           credentialSelector: nodeDefinition.credentialSelector,
           icon: nodeDefinition.icon,
           color: nodeDefinition.color,
-          nodeCategory: nodeDefinition.nodeCategory,
+          category: nodeDefinition.category,
           triggerType: nodeDefinition.triggerType,
           executionCapability:
             nodeDefinition.executionCapability ||
@@ -612,7 +612,7 @@ export class NodeService {
           credentialSelector: nodeDefinition.credentialSelector,
           icon: nodeDefinition.icon,
           color: nodeDefinition.color,
-          nodeCategory: nodeDefinition.nodeCategory,
+          category: nodeDefinition.category,
           inputsConfig: nodeDefinition.inputsConfig,
         };
       }
@@ -1268,13 +1268,13 @@ export class NodeService {
   }
 
   /**
-   * Determine execution capability based on nodeCategory
+   * Determine execution capability based on category
    */
   private getExecutionCapability(
     nodeDefinition: NodeDefinition
   ): 'trigger' | 'action' | 'transform' | 'condition' {
-    if (nodeDefinition.nodeCategory) {
-      switch (nodeDefinition.nodeCategory) {
+    if (nodeDefinition.category) {
+      switch (nodeDefinition.category) {
         case 'trigger':
           return 'trigger';
         case 'condition':
@@ -1305,8 +1305,8 @@ export class NodeService {
    * Determine if node can execute individually
    */
   private canExecuteIndividually(nodeDefinition: NodeDefinition): boolean {
-    if (nodeDefinition.nodeCategory) {
-      return nodeDefinition.nodeCategory === 'trigger';
+    if (nodeDefinition.category) {
+      return nodeDefinition.category === 'trigger';
     }
     
     return nodeDefinition.group.includes('trigger');

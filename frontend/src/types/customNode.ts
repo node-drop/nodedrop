@@ -59,7 +59,7 @@ export interface NodePackageMetadata {
   description: string;
   author: string;
   keywords: string[];
-  nodeCategory?: string;
+  category?: string;
   downloadUrl: string;
   icon?: string;
   iconUrl?: string;

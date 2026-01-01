@@ -10,7 +10,7 @@
 import type {
   WorkflowNode,
   TriggerType,
-  NodeCategory,
+  Category,
 } from "@nodedrop/types";
 
 // =============================================================================
@@ -25,7 +25,7 @@ export interface NodeTypeDefinition {
   /** Unique name for the node type */
   name: string;
   /** High-level category for node organization */
-  nodeCategory?: NodeCategory;
+  category?: Category;
   /** Trigger-specific metadata (only for trigger nodes) */
   triggerType?: TriggerType;
 }
@@ -60,25 +60,25 @@ export interface TriggerExtractionConfig {
 
 /**
  * Check if a node type definition is a trigger.
- * Uses nodeCategory (all trigger nodes should have this) with fallback to triggerType.
+ * Uses category (all trigger nodes should have this) with fallback to triggerType.
  *
  * @param nodeType - The node type definition to check
  * @returns True if the node type is a trigger
  *
  * @example
  * ```typescript
- * const webhookNode = { name: 'webhook-trigger', nodeCategory: 'trigger', triggerType: 'webhook' };
+ * const webhookNode = { name: 'webhook-trigger', category: 'trigger', triggerType: 'webhook' };
  * isTriggerNodeType(webhookNode); // true
  *
- * const httpNode = { name: 'http-request', nodeCategory: 'action' };
+ * const httpNode = { name: 'http-request', category: 'action' };
  * isTriggerNodeType(httpNode); // false
  * ```
  */
 export function isTriggerNodeType(nodeType: NodeTypeDefinition | undefined): boolean {
   if (!nodeType) return false;
 
-  // Check nodeCategory (all trigger nodes have this now)
-  if (nodeType.nodeCategory === "trigger") return true;
+  // Check category (all trigger nodes have this now)
+  if (nodeType.category === "trigger") return true;
 
   // Legacy fallback: check triggerType for older nodes
   return nodeType.triggerType !== undefined;
@@ -143,7 +143,7 @@ export function getTriggerType(
  * ];
  * const nodeTypes = [
  *   { name: 'webhook-trigger', triggerType: 'webhook' },
- *   { name: 'http-request', nodeCategory: 'action' }
+ *   { name: 'http-request', category: 'action' }
  * ];
  * getTriggerNodes(nodes, nodeTypes); // [{ id: '1', type: 'webhook-trigger', ... }]
  * ```

@@ -57,7 +57,7 @@ export const nodeTypes = pgTable(
     templateData: json('template_data'), // Template structure (nodes and connections)
     
     // Execution control
-    nodeCategory: text('node_category'), // 'service' or 'tool'
+    category: text('category'), // 'service' or 'tool'
     
     // Workspace association (NULL = global/system node)
     workspaceId: text('workspace_id'),

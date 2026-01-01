@@ -77,19 +77,19 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
 
   // Check if this is a trigger node (memoize to prevent recalculation)
   const isTrigger = useMemo(() => {
-    const nodeCategory = (data.nodeTypeDefinition as any)?.nodeCategory
-    return nodeCategory === 'trigger' || data.executionCapability === 'trigger'
+    const category = (data.nodeTypeDefinition as any)?.category
+    return category === 'trigger' || data.executionCapability === 'trigger'
   }, [data.nodeTypeDefinition, data.executionCapability])
 
   // Check if this is a service node (tool, memory, model) - hide labels in compact mode
   const isServiceNode = useMemo(() => {
-    const nodeCategory = (data.nodeTypeDefinition as any)?.nodeCategory
-    const isService = nodeCategory === 'service' || nodeCategory === 'tool'
+    const category = (data.nodeTypeDefinition as any)?.category
+    const isService = category === 'service' || category === 'tool'
     
-    // Debug logging to verify nodeCategory is received
+    // Debug logging to verify category is received
     if (data.nodeType === 'openai-model' || data.nodeType === 'http-request-tool' || data.nodeType === 'slack-tool') {
       console.log(`[CustomNode] ${data.nodeType} detection:`, {
-        nodeCategory,
+        category,
         isService,
         nodeTypeDefinition: data.nodeTypeDefinition,
       });

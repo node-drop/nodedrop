@@ -22,7 +22,6 @@ Every node must export an object with these required properties:
 
 ```javascript
 const MyNode = {
-  identifier: 'my-node',           // Unique identifier (kebab-case)
   displayName: 'My Node',          // Display name in UI
   name: 'my-node',                 // Internal name
   group: ['category'],             // Node groups for filtering
@@ -125,7 +124,7 @@ ai: {
 - Examples: HTTP Request, Code, Transform
 
 ### Service Nodes
-- Set `nodeCategory: 'service'`
+- Set `category: 'service'`
 - Connect to bottom of orchestrator nodes
 - Don't execute directly in flow
 - Default width: 100px (can be customized with `nodeWidth`)
@@ -133,8 +132,7 @@ ai: {
 
 ```javascript
 const ServiceNode = {
-  identifier: 'my-service',
-  nodeCategory: 'service',  // <-- Important!
+  category: 'service',  // <-- Important!
   nodeWidth: '120px',       // Optional: Override default 100px width
   // ...
 };
@@ -146,7 +144,6 @@ You can customize the visual appearance of any node by adding the `style` proper
 
 ```javascript
 const MyNode = {
-  identifier: 'my-node',
   displayName: 'My Node',
   style: { width: '180px' },  // Custom width - overrides category defaults
   // ...
@@ -155,7 +152,7 @@ const MyNode = {
 
 **Default Widths:**
 - Regular nodes: `150px`
-- Service nodes (nodeCategory: 'service'): `100px`
+- Service nodes (category: 'service'): `100px`
 
 **When to customize:**
 - Service nodes with longer labels that need more space

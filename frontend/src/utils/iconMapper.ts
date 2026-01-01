@@ -189,18 +189,18 @@ const FA_TO_LUCIDE_MAP: Record<string, string> = {
  * @param iconString - Icon identifier (e.g., "lucide:play", "fa:globe", "svg:openai", "file:postgres.svg", "⚡", "H")
  * @param nodeType - Optional node type for fallback logic and file: icon resolution
  * @param nodeGroup - Optional node group array for category-based icons
- * @param nodeCategory - Optional node category for better categorization
+ * @param category - Optional node category for better categorization
  * @returns Lucide icon component, SVG path string, or null
  */
 export function getIconComponent(
   iconString?: string,
   nodeType?: string,
   nodeGroup?: string[],
-  nodeCategory?: string
+  category?: string
 ): IconType | null {
   // No icon string provided
   if (!iconString) {
-    return getFallbackIcon(nodeType, nodeGroup, nodeCategory);
+    return getFallbackIcon(nodeType, nodeGroup, category);
   }
 
   // Check for file: prefix (custom node/credential SVG files from backend)
@@ -249,14 +249,14 @@ export function getIconComponent(
 function getFallbackIcon(
   nodeType?: string,
   nodeGroup?: string[],
-  nodeCategory?: string
+  category?: string
 ): LucideIcon | null {
   if (!nodeType && !nodeGroup) {
     return Command; // Default fallback
   }
 
-  // Check nodeCategory (all trigger nodes have this now)
-  const isTrigger = nodeCategory === "trigger";
+  // Check category (all trigger nodes have this now)
+  const isTrigger = category === "trigger";
   
   if (isTrigger) {
     // Trigger-specific fallback based on type

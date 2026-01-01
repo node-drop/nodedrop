@@ -47,7 +47,6 @@ import {
  *    Process A → Merge (Append) ← Process B
  */
 export const MergeNode: NodeDefinition = {
-    identifier: "merge",
     displayName: "Merge",
     name: "merge",
     group: ["transform"],

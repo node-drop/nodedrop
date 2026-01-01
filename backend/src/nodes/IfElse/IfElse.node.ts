@@ -15,7 +15,6 @@ import {
  * Uses the conditionRow field type for intuitive condition configuration.
  */
 export const IfElseNode: NodeDefinition = {
-    identifier: "ifElse",
     displayName: "IF",
     name: "ifElse",
     group: ["transform"],

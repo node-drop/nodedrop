@@ -14,7 +14,7 @@ import { z } from "zod";
 /**
  * High-level category for node organization and execution control
  */
-export const NodeCategorySchema = z.enum([
+export const CategorySchema = z.enum([
   "trigger",
   "action",
   "service",
@@ -22,7 +22,7 @@ export const NodeCategorySchema = z.enum([
   "condition",
   "transform",
 ]);
-export type NodeCategory = z.infer<typeof NodeCategorySchema>;
+export type Category = z.infer<typeof CategorySchema>;
 
 /**
  * Execution capability of a node
@@ -312,7 +312,7 @@ export const NodeTypeInfoSchema = z.object({
   /** Optional custom output component identifier */
   outputComponent: z.string().optional(),
   /** Node category for high-level organization */
-  nodeCategory: NodeCategorySchema.optional(),
+  category: CategorySchema.optional(),
   /** Trigger-specific metadata */
   triggerType: TriggerTypeSchema.optional(),
   /** Execution metadata */
@@ -332,7 +332,7 @@ export type NodeTypeInfo = z.infer<typeof NodeTypeInfoSchema>;
  */
 export const NodeSchemaSchema = z.object({
   /** High-level category */
-  nodeCategory: NodeCategorySchema.optional(),
+  category: CategorySchema.optional(),
   displayName: z.string(),
   name: z.string(),
   group: z.array(z.string()),
