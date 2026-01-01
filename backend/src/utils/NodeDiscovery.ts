@@ -230,7 +230,6 @@ export class NodeDiscovery {
     return (
       obj &&
       typeof obj === "object" &&
-      typeof obj.identifier === "string" &&
       typeof obj.displayName === "string" &&
       typeof obj.name === "string" &&
       Array.isArray(obj.inputs) &&

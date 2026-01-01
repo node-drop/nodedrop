@@ -208,7 +208,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
                 </div>
                 {nodes.map(node => (
                   <button
-                    key={node.identifier}
+                    key={node.name}
                     onClick={() => onSelectNode(node)}
                     className={cn(
                       'w-full flex items-center gap-3 p-2 rounded-md',
@@ -219,7 +219,7 @@ export const NodeSelectorContent = memo(function NodeSelectorContent({
                     <NodeIcon
                       config={{
                         icon: node.icon,
-                        nodeType: node.identifier,
+                        nodeType: node.name,
                         nodeGroup: node.group,
                         displayName: node.displayName,
                         color: node.color || '#6b7280',

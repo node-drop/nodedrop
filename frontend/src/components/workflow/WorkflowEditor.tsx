@@ -85,8 +85,8 @@ export function WorkflowEditor({
         // For dynamically uploaded nodes, they all use the CustomNode component
         // The CustomNode component handles different node types based on the data.nodeType
         storeNodeTypes.forEach(nodeType => {
-            if (!baseNodeTypes[nodeType.identifier]) {
-                baseNodeTypes[nodeType.identifier] = CustomNode as any
+            if (!baseNodeTypes[nodeType.name]) {
+                baseNodeTypes[nodeType.name] = CustomNode as any
             }
         })
 
@@ -408,7 +408,7 @@ export function WorkflowEditor({
 
     // Memoize node type map for O(1) lookups
     const nodeTypeMap = useMemo(() => {
-        return new Map(availableNodeTypes.map(nt => [nt.identifier, nt]))
+        return new Map(availableNodeTypes.map(nt => [nt.name, nt]))
     }, [availableNodeTypes])
 
     // Memoize workflow nodes map for O(1) lookups

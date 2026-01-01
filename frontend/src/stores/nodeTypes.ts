@@ -116,7 +116,7 @@ export const useNodeTypesStore = createWithEqualityFn<NodeTypesState>((set, get)
   updateNodeType: (updatedNodeType: ExtendedNodeType) => {
     set((state) => {
       const updatedTypes = state.nodeTypes.map((nodeType) =>
-        nodeType.identifier === updatedNodeType.identifier ? updatedNodeType : nodeType
+        nodeType.name === updatednodeType.name ? updatedNodeType : nodeType
       );
       // Update the classification cache
       updateNodeTypesCache(updatedTypes);
@@ -127,7 +127,7 @@ export const useNodeTypesStore = createWithEqualityFn<NodeTypesState>((set, get)
   removeNodeType: (nodeTypeId: string) => {
     set((state) => {
       const updatedTypes = state.nodeTypes.filter(
-        (nodeType) => nodeType.identifier !== nodeTypeId && nodeType.id !== nodeTypeId
+        (nodeType) => nodeType.name !== nodeTypeId && nodeType.id !== nodeTypeId
       );
       // Update the classification cache
       updateNodeTypesCache(updatedTypes);
@@ -150,7 +150,7 @@ export const useNodeTypesStore = createWithEqualityFn<NodeTypesState>((set, get)
   getNodeTypeById: (id: string) => {
     const { nodeTypes } = get();
     return nodeTypes.find(
-      (nodeType) => nodeType.identifier === id || nodeType.id === id
+      (nodeType) => nodeType.name === id || nodeType.id === id
     );
   },
 
@@ -164,7 +164,7 @@ export const useNodeTypesStore = createWithEqualityFn<NodeTypesState>((set, get)
         if (!groups[categoryKey]) {
           groups[categoryKey] = [];
         }
-        if (!groups[categoryKey].find((nt) => nt.identifier === nodeType.identifier)) {
+        if (!groups[categoryKey].find((nt) => nt.name === nodeType.name)) {
           groups[categoryKey].push(nodeType);
         }
       });
@@ -203,7 +203,7 @@ export const useNodeTypesStore = createWithEqualityFn<NodeTypesState>((set, get)
 
     Object.entries(allCategories).forEach(([category, nodeTypes]) => {
       const activeInCategory = nodeTypes.filter((nodeType) =>
-        activeNodeTypes.find((active) => active.identifier === nodeType.identifier)
+        activeNodeTypes.find((active) => active.name === nodeType.name)
       );
       if (activeInCategory.length > 0) {
         activeCategories[category] = activeInCategory;

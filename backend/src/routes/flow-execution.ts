@@ -5,10 +5,11 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import { workflowService } from "../services/WorkflowService";
 
 const router = express.Router();
+const executionService = getExecutionServiceInstance();
 
 /**
  * Start flow execution from a specific node
@@ -36,7 +37,7 @@ router.post(
     }
 
     // Create execution record with flow execution fields
-    const execution = await executionServiceDrizzle.createExecution(
+    const execution = await executionService.createExecution(
       workflowId,
       userId,
       "RUNNING",
@@ -68,14 +69,14 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
+    const execution = await executionService.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
     }
 
     // Update execution status
-    await executionServiceDrizzle.updateExecutionStatus(executionId, "CANCELLED", new Date());
+    await executionService.updateExecutionStatus(executionId, "CANCELLED", new Date());
 
     res.json({
       success: true,
@@ -98,7 +99,7 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
+    const execution = await executionService.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -112,7 +113,7 @@ router.post(
     }
 
     // Update execution status to paused
-    await executionServiceDrizzle.updateExecutionStatus(executionId, "PAUSED");
+    await executionService.updateExecutionStatus(executionId, "PAUSED");
 
     res.json({
       success: true,
@@ -135,7 +136,7 @@ router.post(
     const workspaceId = req.workspace?.workspaceId;
 
     // Get execution
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
+    const execution = await executionService.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -144,7 +145,7 @@ router.post(
     // Check if execution can be resumed
     if (execution.status === "PAUSED") {
       // Update execution status back to running
-      await executionServiceDrizzle.updateExecutionStatus(executionId, "RUNNING");
+      await executionService.updateExecutionStatus(executionId, "RUNNING");
 
       res.json({
         success: true,
@@ -169,7 +170,7 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId, { workspaceId });
+    const execution = await executionService.getExecution(executionId, userId, { workspaceId });
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -210,7 +211,7 @@ router.get(
       return res.status(404).json({ error: "Workflow not found" });
     }
 
-    const result = await executionServiceDrizzle.listExecutions(userId, {
+    const result = await executionService.listExecutions(userId, {
       workflowId,
       limit: parseInt(limit as string),
       offset: parseInt(offset as string),
@@ -240,7 +241,7 @@ router.get(
     const userId = req.user!.id;
     const workspaceId = req.workspace?.workspaceId;
 
-    const result = await executionServiceDrizzle.listExecutions(userId, {
+    const result = await executionService.listExecutions(userId, {
       status: "RUNNING",
     }, { workspaceId });
 

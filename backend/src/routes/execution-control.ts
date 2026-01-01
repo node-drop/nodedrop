@@ -6,9 +6,10 @@ import {
     ManualInterventionResponse,
 } from "../services/execution/ExecutionTimeoutManager";
 import { SocketService } from "../services/SocketService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 
 const router = express.Router();
+const executionService = getExecutionServiceInstance();
 
 
 // Initialize timeout manager (will be enhanced with proper dependency injection)
@@ -115,7 +116,7 @@ router.post(
     }
 
     // Check if execution belongs to user
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+    const execution = await executionService.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -161,7 +162,7 @@ router.get(
     const userId = req.user!.id;
 
     // Check if execution belongs to user
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+    const execution = await executionService.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -215,7 +216,7 @@ router.post(
     const userId = req.user!.id;
 
     // Check if execution belongs to user
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+    const execution = await executionService.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });
@@ -223,7 +224,7 @@ router.post(
 
     try {
       // Update execution to cancelled status
-      await executionServiceDrizzle.updateExecutionStatus(
+      await executionService.updateExecutionStatus(
         executionId,
         "CANCELLED",
         new Date(),
@@ -279,7 +280,7 @@ router.post(
     }
 
     // Check if execution belongs to user
-    const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+    const execution = await executionService.getExecution(executionId, userId);
 
     if (!execution) {
       return res.status(404).json({ error: "Execution not found" });

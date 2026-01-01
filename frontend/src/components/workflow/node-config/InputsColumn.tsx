@@ -123,7 +123,7 @@ function UnifiedTreeNode({
   // Get node type definition for icon rendering
   const { nodeTypes } = useNodeTypes()
   const nodeTypeDefinition = useMemo(() => 
-    nodeTypes.find(nt => nt.identifier === inputNode.type),
+    nodeTypes.find(nt => nt.name === inputNode.type),
     [nodeTypes, inputNode.type]
   )
   
@@ -931,7 +931,7 @@ export function InputsColumn({ node }: InputsColumnProps) {
               {nodeItems.map((item) => {
                 const { node: inputNode } = item
                 const nodeExecutionResult = getNodeExecutionResult(inputNode.id)
-                const nodeTypeDefinition = nodeTypes.find(nt => nt.identifier === inputNode.type)
+                const nodeTypeDefinition = nodeTypes.find(nt => nt.name === inputNode.type)
                 const isTrigger = getNodeExecutionCapability(inputNode.type) === 'trigger'
 
                 return (
@@ -984,7 +984,7 @@ export function InputsColumn({ node }: InputsColumnProps) {
                     {nodeItems.map((item) => {
                       const { node: inputNode } = item
                       const nodeExecutionResult = getNodeExecutionResult(inputNode.id)
-                      const nodeTypeDefinition = nodeTypes.find(nt => nt.identifier === inputNode.type)
+                      const nodeTypeDefinition = nodeTypes.find(nt => nt.name === inputNode.type)
                       const isTrigger = getNodeExecutionCapability(inputNode.type) === 'trigger'
 
                       return (

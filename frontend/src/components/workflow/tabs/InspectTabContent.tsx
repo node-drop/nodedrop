@@ -31,7 +31,7 @@ export function InspectTabContent({ displayResults }: InspectTabContentProps) {
 
   const selectedNodeType = useMemo(() => {
     if (!selectedNode) return null
-    return activeNodeTypes.find((nt: NodeType) => nt.identifier === selectedNode.type)
+    return activeNodeTypes.find((nt: NodeType) => nt.name === selectedNode.type)
   }, [selectedNode, activeNodeTypes])
 
   // Initialize dialog store when node is selected

@@ -1676,7 +1676,7 @@ export const useWorkflowStore = createWithEqualityFn<WorkflowStore>()(
             try {
               const nodeTypes = await workflowService.getNodeTypes();
               nodeTypeDefinition = nodeTypes.find(
-                (nt) => nt.identifier === node.type
+                (nt) => nt.name === node.type
               );
 
               if (nodeTypeDefinition && nodeTypeDefinition.properties) {

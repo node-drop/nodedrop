@@ -6,6 +6,7 @@
 
 import { ExecutionServiceDrizzle } from './ExecutionService.drizzle';
 import { logger } from '../../utils/logger';
+import { NodeService } from '../nodes/NodeService';
 
 // Type definitions for the service interface
 export interface IExecutionService {
@@ -26,24 +27,26 @@ export interface IExecutionService {
 /**
  * Get the ExecutionService implementation (Drizzle ORM)
  */
-function getExecutionService(): IExecutionService {
+function getExecutionService(nodeService?: NodeService): IExecutionService {
   logger.debug('Initializing Drizzle ExecutionService');
-  return new ExecutionServiceDrizzle();
+  return new ExecutionServiceDrizzle(nodeService);
 }
 
 /**
  * Export the service instance - lazy initialize to avoid circular dependencies
  */
 let serviceInstance: IExecutionService | null = null;
+let sharedNodeService: NodeService | null = null;
 
-export function getExecutionServiceInstance(): IExecutionService {
+export function getExecutionServiceInstance(nodeService?: NodeService): IExecutionService {
   if (!serviceInstance) {
-    serviceInstance = getExecutionService();
+    if (nodeService) {
+      sharedNodeService = nodeService;
+    }
+    serviceInstance = getExecutionService(sharedNodeService || undefined);
   }
   return serviceInstance;
 }
-
-export const executionServiceDrizzle = getExecutionServiceInstance();
 
 // Re-export types from Drizzle implementation
 export { ExecutionServiceDrizzle };

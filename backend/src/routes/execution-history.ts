@@ -4,10 +4,11 @@ import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import ExecutionHistoryService, {
     ExecutionHistoryQuery,
 } from "../services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 
 const router = express.Router();
 const historyService = new ExecutionHistoryService();
+const executionService = getExecutionServiceInstance();
 
 /**
  * Query execution history with filtering
@@ -127,7 +128,7 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+      const execution = await executionService.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
@@ -167,7 +168,7 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+      const execution = await executionService.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
@@ -207,7 +208,7 @@ router.get(
 
     try {
       // Check if execution belongs to user
-      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+      const execution = await executionService.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
@@ -289,7 +290,7 @@ router.post(
 
     try {
       // Check if execution belongs to user
-      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+      const execution = await executionService.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });
@@ -331,7 +332,7 @@ router.delete(
 
     try {
       // Check if execution belongs to user
-      const execution = await executionServiceDrizzle.getExecution(executionId, userId);
+      const execution = await executionService.getExecution(executionId, userId);
 
       if (!execution) {
         return res.status(404).json({ error: "Execution not found" });

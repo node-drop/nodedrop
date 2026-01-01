@@ -288,7 +288,7 @@ export interface PausedExecution {
   executionState?: {
     nodeOutputs: Record<string, any>;
     nodeStates: Record<string, {
-      identifier: string;
+      name: string;
       status: string;
       inputData?: any;
       outputData?: any;

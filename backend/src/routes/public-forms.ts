@@ -9,7 +9,7 @@ import {
 } from "../rate-limit/rate-limit.config";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import { SocketService } from "../services/SocketService";
 import { workflowService } from "../services/WorkflowService";
 import {
@@ -115,7 +115,7 @@ const socketService = new SocketService(httpServer);
 
 // Use Drizzle-based execution service
 const getExecutionService = () => {
-  return executionServiceDrizzle;
+  return getExecutionServiceInstance();
 };
 
 // Initialize TriggerService singleton on first access
@@ -168,7 +168,7 @@ router.get(
 
         // Find forms node with matching formId
         const formNode = (workflowNodes as any[])?.find((node: any) => {
-          const isFormGenerator = node.type === "forms" || node.identifier === "forms";
+          const isFormGenerator = node.type === "forms" || node.name === "forms";
           const hasFormUrl = node.parameters?.formUrl;
           
           // Normalize both values by removing leading slashes for comparison

@@ -48,7 +48,7 @@ router.get(
         (node) =>
           node.displayName.toLowerCase().includes(searchLower) ||
           node.description.toLowerCase().includes(searchLower) ||
-          node.identifier.toLowerCase().includes(searchLower)
+          node.name.toLowerCase().includes(searchLower)
       );
     }
 

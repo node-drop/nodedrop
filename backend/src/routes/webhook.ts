@@ -4,7 +4,7 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { db } from "../db/client";
 import { getCredentialService } from "../services/CredentialService.factory";
 import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import { workflowService } from "../services/WorkflowService";
 import {
     getTriggerService,
@@ -378,7 +378,7 @@ const getSocketService = () => {
 
 // Use Drizzle-based execution service
 const getExecutionService = () => {
-  return executionServiceDrizzle;
+  return getExecutionServiceInstance();
 };
 
 // Initialize TriggerService singleton on first access

@@ -29,7 +29,7 @@ export class AIContextBuilder {
 
     const nodeTypes = await this.nodeService.getNodeTypes();
     const index = nodeTypes.map(node => ({
-        id: node.identifier,
+        id: node.name,
         name: node.displayName,
         desc: node.description,
         category: (node as any).category || 'general'
@@ -41,7 +41,7 @@ export class AIContextBuilder {
 
   async buildScopedNodeContext(nodeIds: string[]): Promise<string> {
     const nodeTypes = await this.nodeService.getNodeTypes();
-    const filteredNodes = nodeTypes.filter(n => nodeIds.includes(n.identifier));
+    const filteredNodes = nodeTypes.filter(n => nodeIds.includes(n.name));
     return this.minifyNodes(filteredNodes);
   }
 
@@ -59,7 +59,7 @@ export class AIContextBuilder {
    * Determine the node's role based on its identifier and outputs
    */
   private getNodeRole(node: any): string | null {
-    const id = node.identifier;
+    const id = node.name;
     
     // Check if it's a trigger node
     if (NODE_CONNECTION_PATTERNS.triggers.includes(id) || 
@@ -104,7 +104,7 @@ export class AIContextBuilder {
   private minifyNodes(nodes: any[]): string {
     const simplifiedSchemas = nodes.map(node => {
         const schema: any = {
-            id: node.identifier, 
+            id: node.name, 
             name: node.displayName,
             in: node.inputs ? (node.inputs as any[]).map((i: any) => typeof i === 'string' ? i : i.name) : ['main'], 
             out: node.outputs ? (node.outputs as any[]).map((o: any) => typeof o === 'string' ? o : o.name) : ['main'],

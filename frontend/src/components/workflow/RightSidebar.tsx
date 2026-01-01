@@ -39,7 +39,7 @@ export const RightSidebar = memo(function RightSidebar({
   // Get node type for selected node
   const selectedNodeType = useMemo(() => {
     if (!selectedNode) return null
-    return activeNodeTypes.find(nt => nt.identifier === selectedNode.type) || null
+    return activeNodeTypes.find(nt => nt.name === selectedNode.type) || null
   }, [selectedNode, activeNodeTypes])
 
   // Get selected nodes and connections for template creation

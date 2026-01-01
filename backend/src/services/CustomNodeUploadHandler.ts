@@ -973,7 +973,7 @@ export class CustomNodeUploadHandler {
     try {
       // Check if node type already exists
       const existingNode = await db.query.nodeTypes.findFirst({
-        where: eq(schema.nodeTypes.identifier, nodeDefinition.type),
+        where: eq(schema.nodeTypes.name, nodeDefinition.type),
       });
 
       if (existingNode) {
@@ -995,11 +995,11 @@ export class CustomNodeUploadHandler {
             active: true,
             updatedAt: new Date(),
           })
-          .where(eq(schema.nodeTypes.identifier, nodeDefinition.type));
+          .where(eq(schema.nodeTypes.name, nodeDefinition.type));
       } else {
         // Create new node
         return await db.insert(schema.nodeTypes).values({
-          identifier: nodeDefinition.type,
+          name: nodeDefinition.type,
           displayName: nodeDefinition.displayName,
           name: nodeDefinition.name,
           group: nodeDefinition.group,

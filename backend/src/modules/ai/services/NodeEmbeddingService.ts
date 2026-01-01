@@ -22,7 +22,7 @@ let embeddingPipeline: any = null;
 
 interface NodeForEmbedding {
   id: string;
-  identifier: string;
+  name?: string; // Optional for backward compatibility, id is the primary identifier
   displayName: string;
   description: string;
   group?: string[];
@@ -179,14 +179,16 @@ export class NodeEmbeddingService {
 
     try {
       // Pass embedding array directly - customType handles conversion
+      const nodeName = node.name || node.id;
       await db.update(nodeTypes)
         .set({ embedding: embedding })
-        .where(eq(nodeTypes.identifier, node.identifier));
+        .where(eq(nodeTypes.name, nodeName));
 
-      logger.info(`Indexed node: ${node.identifier}`);
+      logger.info(`Indexed node: ${nodeName}`);
       return true;
     } catch (error) {
-      logger.error('Failed to store node embedding', { error, nodeId: node.identifier });
+      const nodeName = node.name || node.id;
+      logger.error('Failed to store node embedding', { error, nodeId: nodeName });
       return false;
     }
   }
@@ -198,7 +200,7 @@ export class NodeEmbeddingService {
     try {
       await db.update(nodeTypes)
         .set({ embedding: null })
-        .where(eq(nodeTypes.identifier, identifier));
+        .where(eq(nodeTypes.name, identifier));
     } catch (error) {
       logger.error('Failed to remove node embedding', { error, identifier });
     }
@@ -230,7 +232,7 @@ export class NodeEmbeddingService {
       
       const results = await db
         .select({
-          identifier: nodeTypes.identifier,
+          name: nodeTypes.name,
           displayName: nodeTypes.displayName,
           distance: similarity,
         })
@@ -243,12 +245,12 @@ export class NodeEmbeddingService {
         .orderBy(asc(similarity))
         .limit(topK);
 
-      const nodeIds = results.map(row => row.identifier);
+      const nodeIds = results.map(row => row.name);
       
       // Log with distance scores for debugging
       logger.info(`Found ${nodeIds.length} similar nodes for query (threshold: ${similarityThreshold})`, { 
         query: query.substring(0, 50), 
-        results: results.map(r => ({ id: r.identifier, distance: typeof r.distance === 'number' ? r.distance.toFixed(3) : r.distance }))
+        results: results.map(r => ({ id: r.name, distance: typeof r.distance === 'number' ? r.distance.toFixed(3) : r.distance }))
       });
 
       return nodeIds;

@@ -20,7 +20,7 @@ export interface NodeTypeProperty {
  * Node type info interface
  */
 export interface NodeTypeInfo {
-  identifier: string;
+  name: string;
   properties?: NodeTypeProperty[];
 }
 
@@ -177,7 +177,7 @@ export function extractCredentialProperties(
   if (!nodeTypeInfo?.properties) {
     logger.debug("[extractCredentialProperties] No properties found in nodeTypeInfo", {
       hasNodeTypeInfo: !!nodeTypeInfo,
-      nodeTypeIdentifier: nodeTypeInfo?.identifier,
+      nodeTypeName: nodeTypeInfo?.name,
     });
     return [];
   }
@@ -192,7 +192,7 @@ export function extractCredentialProperties(
   );
 
   logger.debug("[extractCredentialProperties] Extracted credential properties", {
-    nodeTypeIdentifier: nodeTypeInfo.identifier,
+    nodeTypeName: nodeTypeInfo.name,
     totalProperties: properties.length,
     credentialPropertiesCount: credentialProperties.length,
     credentialProperties: credentialProperties.map((p) => ({

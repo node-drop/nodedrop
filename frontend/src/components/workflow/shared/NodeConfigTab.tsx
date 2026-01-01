@@ -164,7 +164,7 @@ export const NodeConfigTab = memo(function NodeConfigTab({
         disabled={disabled}
         showRequiredIndicator={true}
         nodeId={node.id}
-        nodeType={nodeType.identifier}
+        nodeType={nodeType.name}
         validateOnMount={true}
         validateOnChange={true}
       />

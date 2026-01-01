@@ -174,8 +174,7 @@ export interface NodeExecutionResult {
  * This extends the shared NodeDefinition with the execute function
  */
 export interface NodeDefinition {
-  /** Unique identifier for the node type */
-  identifier: string;
+
   /** High-level category for organization and execution control */
   nodeCategory?: NodeCategory;
   displayName: string;

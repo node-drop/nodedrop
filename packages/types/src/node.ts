@@ -185,8 +185,6 @@ export interface NodeHooks {
  * Note: This interface contains functions and cannot be fully represented as a Zod schema
  */
 export interface NodeDefinition {
-  /** Unique identifier for the node type */
-  identifier: string;
   /** High-level category for organization and execution control */
   nodeCategory?: NodeCategory;
   displayName: string;

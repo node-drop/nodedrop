@@ -76,7 +76,7 @@ router.get("/:type", async (req: Request, res: Response) => {
     const { type } = req.params;
 
     const nodeType = await db.query.nodeTypes.findFirst({
-      where: eq(nodeTypes.identifier, type),
+      where: eq(nodeTypes.name, type),
     });
 
     if (!nodeType) {
@@ -189,7 +189,7 @@ router.patch("/:type", async (req: Request, res: Response) => {
         ...updateData,
         updatedAt: new Date(),
       })
-      .where(eq(nodeTypes.identifier, type))
+      .where(eq(nodeTypes.name, type))
       .returning();
 
     const nodeType = result[0];
@@ -240,7 +240,7 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
 
     // Check if this is a core node that cannot be deleted
     const coreNodeCheck = await db.query.nodeTypes.findFirst({
-      where: and(eq(nodeTypes.identifier, packageName), eq(nodeTypes.isCore, true)),
+      where: and(eq(nodeTypes.name, packageName), eq(nodeTypes.isCore, true)),
     });
 
     if (coreNodeCheck) {
@@ -275,14 +275,14 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     logger.info("Using heuristic matching to find package nodes", { packageName });
 
     for (const nodeType of allNodeTypes) {
-      const typeMatch = nodeType.identifier.toLowerCase() === packageName.toLowerCase();
+      const typeMatch = nodeType.name.toLowerCase() === packageName.toLowerCase();
       const nameMatch = nodeType.name.toLowerCase().includes(packageName.toLowerCase());
       const displayNameMatch = nodeType.displayName.toLowerCase().includes(packageName.toLowerCase());
 
       if (typeMatch || nameMatch || displayNameMatch) {
         packageNodeTypes.push(nodeType);
         logger.info("Found matching node type", {
-          type: nodeType.identifier,
+          type: nodeType.name,
           displayName: nodeType.displayName,
           matchReason: typeMatch ? 'type' : nameMatch ? 'name' : 'displayName'
         });
@@ -312,10 +312,10 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
             const nodeFileName = path.basename(nodePath, path.extname(nodePath));
             const potentialType = nodeFileName.replace('.node', '');
 
-            const matchingNode = allNodeTypes.find(nt => nt.identifier === potentialType);
-            if (matchingNode && !packageNodeTypes.find(pnt => pnt.identifier === matchingNode.identifier)) {
+            const matchingNode = allNodeTypes.find(nt => nt.name === potentialType);
+            if (matchingNode && !packageNodeTypes.find(pnt => pnt.name === matchingNode.name)) {
               packageNodeTypes.push(matchingNode);
-              logger.info("Found node type from package.json", { type: matchingNode.identifier });
+              logger.info("Found node type from package.json", { type: matchingNode.name });
             }
           }
         }
@@ -355,10 +355,10 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
         const fileName = path.basename(nodeFile);
         const potentialType = fileName.replace(/\.(node\.)?(js|ts)$/, '');
 
-        const matchingNode = allNodeTypes.find(nt => nt.identifier === potentialType);
-        if (matchingNode && !packageNodeTypes.find(pnt => pnt.identifier === matchingNode.identifier)) {
+        const matchingNode = allNodeTypes.find(nt => nt.name === potentialType);
+        if (matchingNode && !packageNodeTypes.find(pnt => pnt.name === matchingNode.name)) {
           packageNodeTypes.push(matchingNode);
-          logger.info("Found node type from file scan", { type: matchingNode.identifier, file: fileName });
+          logger.info("Found node type from file scan", { type: matchingNode.name, file: fileName });
         }
       }
       } catch (error) {
@@ -369,7 +369,7 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     logger.info("Node identification complete", {
       packageName,
       foundNodes: packageNodeTypes.length,
-      nodeTypes: packageNodeTypes.map(nt => nt.identifier)
+      nodeTypes: packageNodeTypes.map(nt => nt.name)
     });
 
     // Check if we found any nodes to delete
@@ -388,15 +388,15 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
     // Step 3: Unload from memory using NodeService (BEFORE database deletion)
     try {
       // Import NodeService to unload nodes from memory
-      const { NodeService } = await import("../services/NodeService");
+      const { NodeService } = await import("../services/nodes/NodeService");
       const nodeService = new NodeService();
 
       for (const nodeType of packageNodeTypes) {
         try {
-          await nodeService.unloadNodeFromMemory(nodeType.identifier);
-          logger.info("Unloaded node from memory", { type: nodeType.identifier });
+          await nodeService.unloadNodeFromMemory(nodeType.name);
+          logger.info("Unloaded node from memory", { type: nodeType.name });
         } catch (error) {
-          logger.warn("Failed to unload node from memory", { type: nodeType.identifier, error: error instanceof Error ? error.message : String(error) });
+          logger.warn("Failed to unload node from memory", { type: nodeType.name, error: error instanceof Error ? error.message : String(error) });
         }
       }
     } catch (error) {
@@ -409,17 +409,17 @@ router.delete("/packages/:packageName", async (req: Request, res: Response) => {
       try {
         // Double-check that this is not a core node
         if (nodeType.isCore) {
-          const errorMsg = `Skipped deletion of core node: ${nodeType.identifier}`;
+          const errorMsg = `Skipped deletion of core node: ${nodeType.name}`;
           logger.warn(errorMsg);
           errors.push(errorMsg);
           continue;
         }
 
-        await db.delete(nodeTypes).where(eq(nodeTypes.identifier, nodeType.identifier));
-        deletedNodeTypes.push(nodeType.identifier);
-        logger.info("Deleted node type from database", { type: nodeType.identifier });
+        await db.delete(nodeTypes).where(eq(nodeTypes.name, nodeType.name));
+        deletedNodeTypes.push(nodeType.name);
+        logger.info("Deleted node type from database", { type: nodeType.name });
       } catch (error) {
-        const errorMsg = `Failed to delete node type ${nodeType.identifier}: ${error instanceof Error ? error.message : String(error)}`;
+        const errorMsg = `Failed to delete node type ${nodeType.name}: ${error instanceof Error ? error.message : String(error)}`;
         logger.warn(errorMsg);
         errors.push(errorMsg);
       }
@@ -692,7 +692,7 @@ router.post("/templates", async (req: Request, res: Response) => {
 
     // Check if custom node with this type already exists
     const existing = await db.query.nodeTypes.findFirst({
-      where: eq(nodeTypes.identifier, type),
+      where: eq(nodeTypes.name, type),
     });
 
     if (existing) {
@@ -706,9 +706,8 @@ router.post("/templates", async (req: Request, res: Response) => {
     const result = await db
       .insert(nodeTypes)
       .values({
-        identifier: type,
+        name: type,
         displayName,
-        name: name || displayName,
         description: description || "",
         icon: icon || "📦",
         color: color || "#6366f1",
@@ -727,7 +726,7 @@ router.post("/templates", async (req: Request, res: Response) => {
     const customNode = result[0];
 
     logger.info("Custom node created successfully", {
-      type: customNode.identifier,
+      type: customNode.name,
       displayName: customNode.displayName,
       nodesCount: templateData?.nodes?.length || 0,
       connectionsCount: templateData?.connections?.length || 0,
@@ -782,7 +781,7 @@ router.get("/templates/:type", async (req: Request, res: Response) => {
     const { type } = req.params;
 
     const template = await db.query.nodeTypes.findFirst({
-      where: and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)),
+      where: and(eq(nodeTypes.name, type), eq(nodeTypes.isTemplate, true)),
     });
 
     if (!template) {
@@ -820,7 +819,7 @@ router.patch("/templates/:type", async (req: Request, res: Response) => {
         ...updateData,
         updatedAt: new Date(),
       })
-      .where(and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)))
+      .where(and(eq(nodeTypes.name, type), eq(nodeTypes.isTemplate, true)))
       .returning();
 
     if (result.length === 0) {
@@ -861,7 +860,7 @@ router.delete("/templates/:type", async (req: Request, res: Response) => {
 
     // Check if this is a core node that cannot be deleted
     const coreNodeCheck = await db.query.nodeTypes.findFirst({
-      where: and(eq(nodeTypes.identifier, type), eq(nodeTypes.isCore, true)),
+      where: and(eq(nodeTypes.name, type), eq(nodeTypes.isCore, true)),
     });
 
     if (coreNodeCheck) {
@@ -874,7 +873,7 @@ router.delete("/templates/:type", async (req: Request, res: Response) => {
 
     const result = await db
       .delete(nodeTypes)
-      .where(and(eq(nodeTypes.identifier, type), eq(nodeTypes.isTemplate, true)))
+      .where(and(eq(nodeTypes.name, type), eq(nodeTypes.isTemplate, true)))
       .returning();
 
     if (result.length === 0) {

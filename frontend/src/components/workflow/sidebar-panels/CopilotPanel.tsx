@@ -737,7 +737,7 @@ function ExecutionReport({ result, logs = [] }: { result: any, logs?: any[] }) {
                         // 2. Generic type name (e.g. "HTTP Request")
                         // 3. Fallback to ID/System Name
                         const workflowNode = workflow?.nodes.find(n => n.id === node.nodeId);
-                        const nodeType = workflowNode ? nodeTypes.find(nt => nt.identifier === workflowNode.type) : undefined;
+                        const nodeType = workflowNode ? nodeTypes.find(nt => nt.name === workflowNode.type) : undefined;
                         const displayName = workflowNode?.parameters?.displayName || nodeType?.displayName || node.nodeName || node.nodeId;
 
                         return (

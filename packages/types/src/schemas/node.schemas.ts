@@ -288,8 +288,6 @@ export type NodeSettingsConfig = z.infer<typeof NodeSettingsConfigSchema>;
  * Node type information for frontend display
  */
 export const NodeTypeInfoSchema = z.object({
-  /** Unique identifier for the node type */
-  identifier: z.string(),
   displayName: z.string(),
   name: z.string(),
   description: z.string(),
@@ -333,8 +331,6 @@ export type NodeTypeInfo = z.infer<typeof NodeTypeInfoSchema>;
  * Used for API responses and frontend consumption
  */
 export const NodeSchemaSchema = z.object({
-  /** Unique identifier for the node type */
-  identifier: z.string(),
   /** High-level category */
   nodeCategory: NodeCategorySchema.optional(),
   displayName: z.string(),
@@ -389,7 +385,7 @@ export type NodeValidationResult = z.infer<typeof NodeValidationResultSchema>;
  */
 export const NodeRegistrationResultSchema = z.object({
   success: z.boolean(),
-  identifier: z.string().optional(),
+  name: z.string().optional(),
   errors: z.array(z.string()).optional(),
 });
 export type NodeRegistrationResult = z.infer<typeof NodeRegistrationResultSchema>;

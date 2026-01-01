@@ -53,7 +53,7 @@ class NodeCLI {
         for (const [dirName, nodes] of Object.entries(nodesByDir)) {
           console.log(`📁 ${dirName}/`);
           nodes.forEach((node) => {
-            console.log(`   └─ ${node.displayName} (${node.identifier})`);
+            console.log(`   └─ ${node.displayName} (${node.name})`);
             if (node.description) {
               console.log(`      ${node.description}`);
             }
@@ -79,7 +79,7 @@ class NodeCLI {
         for (const [packageName, nodes] of Object.entries(customNodesByPackage)) {
           console.log(`📦 ${packageName}/`);
           nodes.forEach((nodeInfo) => {
-            console.log(`   └─ ${nodeInfo.definition.displayName} (${nodeInfo.definition.identifier})`);
+            console.log(`   └─ ${nodeInfo.definition.displayName} (${nodeInfo.definition.name})`);
             if (nodeInfo.definition.description) {
               console.log(`      ${nodeInfo.definition.description}`);
             }
@@ -196,7 +196,7 @@ export const ${nodeName}Node: NodeDefinition = {
           console.log(`\n📁 ${dirName}/`);
           nodes.forEach((node) => {
             console.log(`   ✅ ${node.displayName}`);
-            console.log(`      Type: ${node.identifier}`);
+            console.log(`      Type: ${node.name}`);
             console.log(`      Group: ${node.group.join(", ")}`);
             if (node.description) {
               console.log(`      Description: ${node.description}`);
@@ -309,7 +309,7 @@ export const ${nodeName}Node: NodeDefinition = {
       const { desc, asc } = await import("drizzle-orm");
       const nodes = await db.query.nodeTypes.findMany({
         columns: {
-          identifier: true,
+          name: true,
           displayName: true,
           active: true,
           group: true,
@@ -335,7 +335,7 @@ export const ${nodeName}Node: NodeDefinition = {
       console.log(`\n🟢 Active Nodes (${activeNodes.length}):`);
       if (activeNodes.length > 0) {
         activeNodes.forEach((node: any) => {
-          console.log(`  ✅ ${node.displayName} (${node.identifier})`);
+          console.log(`  ✅ ${node.displayName} (${node.name})`);
           console.log(`     ${node.description || "No description"}`);
           console.log("");
         });
@@ -346,7 +346,7 @@ export const ${nodeName}Node: NodeDefinition = {
       console.log(`\n🔴 Inactive Nodes (${inactiveNodes.length}):`);
       if (inactiveNodes.length > 0) {
         inactiveNodes.forEach((node: any) => {
-          console.log(`  ❌ ${node.displayName} (${node.identifier})`);
+          console.log(`  ❌ ${node.displayName} (${node.name})`);
           console.log(`     ${node.description || "No description"}`);
           console.log("");
         });
@@ -367,7 +367,7 @@ export const ${nodeName}Node: NodeDefinition = {
     try {
       const nodeService = await this.getNodeService();
       const allNodes = await nodeService.getNodesWithStatus();
-      const nodeTypes = allNodes.map((node) => node.identifier);
+      const nodeTypes = allNodes.map((node) => node.name);
 
       if (nodeTypes.length === 0) {
         console.log("📭 No nodes found to activate");
@@ -391,7 +391,7 @@ export const ${nodeName}Node: NodeDefinition = {
     try {
       const nodeService = await this.getNodeService();
       const allNodes = await nodeService.getNodesWithStatus();
-      const nodeTypes = allNodes.map((node) => node.identifier);
+      const nodeTypes = allNodes.map((node) => node.name);
 
       if (nodeTypes.length === 0) {
         console.log("📭 No nodes found to deactivate");

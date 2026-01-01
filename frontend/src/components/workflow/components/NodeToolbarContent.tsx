@@ -39,7 +39,7 @@ export const NodeToolbarContent = memo(function NodeToolbarContent({
   
   // Get node type definition for config button
   const nodeTypeDefinition = useMemo(
-    () => nodeTypes.find((nt) => nt.identifier === nodeType),
+    () => nodeTypes.find((nt) => nt.name === nodeType),
     [nodeTypes, nodeType]
   )
 

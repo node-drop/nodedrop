@@ -88,7 +88,7 @@ export const validateWorkflowHandler: ToolHandler = {
     if (nodeServiceInstance) {
       try {
         const nodeTypes = await nodeServiceInstance.getNodeTypes();
-        const schemaMap = new Map(nodeTypes.map(n => [n.identifier, n]));
+        const schemaMap = new Map(nodeTypes.map(n => [n.name, n]));
         const paramResult = validateRequiredParameters(workflow, schemaMap);
         errors.push(...paramResult.errors);
         warnings.push(...paramResult.warnings);

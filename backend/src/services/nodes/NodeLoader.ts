@@ -124,17 +124,17 @@ export class NodeLoader {
           const result = await this.nodeService.registerNode(nodeDefinition);
           registrationResults.push({
             success: result.success,
-            nodeType: result.identifier,
+            nodeType: result.name,
             errors: result.errors,
           });
           
           if (!result.success) {
             failedNodes.push({
-              nodeType: result.identifier || 'unknown',
+              nodeType: result.name || 'unknown',
               errors: result.errors || ['Unknown error'],
             });
             logger.error(`Failed to register node from package ${packageInfo.name}`, {
-              nodeType: result.identifier,
+              nodeType: result.name,
               errors: result.errors,
               packageName: packageInfo.name,
               packagePath,
@@ -144,15 +144,15 @@ export class NodeLoader {
           const errorMsg = registrationError instanceof Error ? registrationError.message : String(registrationError);
           registrationResults.push({
             success: false,
-            nodeType: nodeDefinition.identifier,
+            nodeType: nodeDefinition.name,
             errors: [errorMsg],
           });
           failedNodes.push({
-            nodeType: nodeDefinition.identifier,
+            nodeType: nodeDefinition.name,
             errors: [errorMsg],
           });
           logger.error(`Exception during node registration from package ${packageInfo.name}`, {
-            nodeType: nodeDefinition.identifier,
+            nodeType: nodeDefinition.name,
             error: {
               message: errorMsg,
               name: registrationError instanceof Error ? registrationError.name : typeof registrationError,
@@ -224,7 +224,7 @@ export class NodeLoader {
       for (const nodePath of packageInfo.nodes) {
         const nodeDefinition = await this.loadSingleNodeDefinition(nodePath);
         if (nodeDefinition) {
-          await this.nodeService.unregisterNode(nodeDefinition.identifier);
+          await this.nodeService.unregisterNode(nodeDefinition.name);
         }
       }
 

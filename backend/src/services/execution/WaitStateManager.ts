@@ -79,7 +79,7 @@ export class WaitStateManager {
       // build minimal state from nodeOutputs
       context.nodeOutputs.forEach((_, nodeId) => {
         nodeStates[nodeId] = {
-          identifier: nodeId,
+          name: nodeId,
           status: nodeId === pausedAtNodeId ? 'waiting' : 'completed',
           outputData: context.nodeOutputs.get(nodeId),
           dependencies: [],
@@ -90,7 +90,7 @@ export class WaitStateManager {
       // Mark paused node if not in outputs
       if (pausedAtNodeId && !nodeStates[pausedAtNodeId]) {
         nodeStates[pausedAtNodeId] = {
-          identifier: pausedAtNodeId,
+          name: pausedAtNodeId,
           status: 'waiting',
           dependencies: [],
           dependents: [],
@@ -207,7 +207,7 @@ export class WaitStateManager {
     pausedAtNodeId?: string
   ): any {
     return {
-      identifier: state.identifier || nodeId,
+      name: state.name || nodeId,
       status: nodeId === pausedAtNodeId ? 'waiting' : state.status,
       inputData: state.inputData,
       outputData: state.outputData,

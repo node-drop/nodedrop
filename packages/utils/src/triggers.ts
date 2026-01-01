@@ -22,8 +22,8 @@ import type {
  * This interface is compatible with both frontend NodeType and backend NodeDefinition.
  */
 export interface NodeTypeDefinition {
-  /** Unique identifier for the node type */
-  identifier: string;
+  /** Unique name for the node type */
+  name: string;
   /** High-level category for node organization */
   nodeCategory?: NodeCategory;
   /** Trigger-specific metadata (only for trigger nodes) */
@@ -34,7 +34,7 @@ export interface NodeTypeDefinition {
  * Extracted trigger configuration
  */
 export interface ExtractedTrigger {
-  /** Unique identifier for the trigger */
+  /** Unique name for the trigger */
   id: string;
   /** Type of trigger (webhook, schedule, manual, polling, workflow-called) */
   type: TriggerType;
@@ -67,10 +67,10 @@ export interface TriggerExtractionConfig {
  *
  * @example
  * ```typescript
- * const webhookNode = { identifier: 'webhook-trigger', nodeCategory: 'trigger', triggerType: 'webhook' };
+ * const webhookNode = { name: 'webhook-trigger', nodeCategory: 'trigger', triggerType: 'webhook' };
  * isTriggerNodeType(webhookNode); // true
  *
- * const httpNode = { identifier: 'http-request', nodeCategory: 'action' };
+ * const httpNode = { name: 'http-request', nodeCategory: 'action' };
  * isTriggerNodeType(httpNode); // false
  * ```
  */
@@ -94,7 +94,7 @@ export function isTriggerNodeType(nodeType: NodeTypeDefinition | undefined): boo
  * @example
  * ```typescript
  * const node = { id: '1', type: 'webhook-trigger', ... };
- * const nodeTypes = [{ identifier: 'webhook-trigger', triggerType: 'webhook' }];
+ * const nodeTypes = [{ name: 'webhook-trigger', triggerType: 'webhook' }];
  * isTriggerNode(node, nodeTypes); // true
  * ```
  */
@@ -102,7 +102,7 @@ export function isTriggerNode(
   node: WorkflowNode,
   nodeTypes: NodeTypeDefinition[]
 ): boolean {
-  const nodeType = nodeTypes.find((nt) => nt.identifier === node.type);
+  const nodeType = nodeTypes.find((nt) => nt.name === node.type);
   return isTriggerNodeType(nodeType);
 }
 
@@ -116,7 +116,7 @@ export function isTriggerNode(
  * @example
  * ```typescript
  * const node = { id: '1', type: 'schedule-trigger', ... };
- * const nodeTypes = [{ identifier: 'schedule-trigger', triggerType: 'schedule' }];
+ * const nodeTypes = [{ name: 'schedule-trigger', triggerType: 'schedule' }];
  * getTriggerType(node, nodeTypes); // 'schedule'
  * ```
  */
@@ -124,7 +124,7 @@ export function getTriggerType(
   node: WorkflowNode,
   nodeTypes: NodeTypeDefinition[]
 ): TriggerType | undefined {
-  const nodeType = nodeTypes.find((nt) => nt.identifier === node.type);
+  const nodeType = nodeTypes.find((nt) => nt.name === node.type);
   return nodeType?.triggerType;
 }
 
@@ -142,8 +142,8 @@ export function getTriggerType(
  *   { id: '2', type: 'http-request', ... }
  * ];
  * const nodeTypes = [
- *   { identifier: 'webhook-trigger', triggerType: 'webhook' },
- *   { identifier: 'http-request', nodeCategory: 'action' }
+ *   { name: 'webhook-trigger', triggerType: 'webhook' },
+ *   { name: 'http-request', nodeCategory: 'action' }
  * ];
  * getTriggerNodes(nodes, nodeTypes); // [{ id: '1', type: 'webhook-trigger', ... }]
  * ```
@@ -160,13 +160,13 @@ export function getTriggerNodes(
 // =============================================================================
 
 /**
- * Infer trigger type from node type identifier using naming patterns.
+ * Infer trigger type from node type name using naming patterns.
  * This is a fallback when node type definitions are not available.
  *
- * @param nodeTypeId - The node type identifier
+ * @param nodeTypeId - The node type name
  * @returns The inferred trigger type
  */
-function inferTriggerTypeFromIdentifier(nodeTypeId: string): TriggerType {
+function inferTriggerTypeFromname(nodeTypeId: string): TriggerType {
   const lowerCaseId = nodeTypeId.toLowerCase();
 
   if (lowerCaseId.includes("webhook")) return "webhook";
@@ -181,10 +181,10 @@ function inferTriggerTypeFromIdentifier(nodeTypeId: string): TriggerType {
 }
 
 /**
- * Check if a node type identifier looks like a trigger based on naming patterns.
+ * Check if a node type name looks like a trigger based on naming patterns.
  *
- * @param nodeTypeId - The node type identifier
- * @returns True if the identifier suggests a trigger node
+ * @param nodeTypeId - The node type name
+ * @returns True if the name suggests a trigger node
  */
 function looksLikeTrigger(nodeTypeId: string): boolean {
   return nodeTypeId.toLowerCase().includes("trigger");
@@ -224,11 +224,11 @@ export function extractTriggersFromNodes(
   if (nodeTypes && nodeTypes.length > 0) {
     return nodes
       .filter((node) => {
-        const nodeType = nodeTypes.find((nt) => nt.identifier === node.type);
+        const nodeType = nodeTypes.find((nt) => nt.name === node.type);
         return nodeType?.triggerType !== undefined;
       })
       .map((node) => {
-        const nodeType = nodeTypes.find((nt) => nt.identifier === node.type);
+        const nodeType = nodeTypes.find((nt) => nt.name === node.type);
         const triggerType = nodeType?.triggerType || "manual";
 
         return {
@@ -254,7 +254,7 @@ export function extractTriggersFromNodes(
   return nodes
     .filter((node) => looksLikeTrigger(node.type))
     .map((node) => {
-      const triggerType = inferTriggerTypeFromIdentifier(node.type);
+      const triggerType = inferTriggerTypeFromname(node.type);
 
       return {
         id: `trigger-${node.id}`,

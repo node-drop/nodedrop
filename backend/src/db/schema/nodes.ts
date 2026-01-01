@@ -22,12 +22,11 @@ export const nodeTypes = pgTable(
   {
     id: text('id').primaryKey().default(sql`cuid()`),
     
-    // Unique identifier for the node type
-    identifier: text('identifier').unique().notNull(),
+    // Unique identifier for the node type (name is the unique identifier)
+    name: text('name').unique().notNull(),
     
     // Display information
     displayName: text('display_name').notNull(),
-    name: text('name').notNull(),
     description: text('description').notNull(),
     
     // Organization
@@ -71,9 +70,7 @@ export const nodeTypes = pgTable(
     updatedAt: timestamp('updated_at').defaultNow(),
   },
   (table) => ({
-    identifierUnique: uniqueIndex('nodes_identifier_unique').on(
-      table.identifier
-    ),
+    nameUnique: uniqueIndex('nodes_name_unique').on(table.name),
     workspaceIdIdx: index('nodes_workspace_id_idx').on(table.workspaceId),
     isCoreIdx: index('nodes_is_core_idx').on(table.isCore),
     // Note: HNSW index for vector should be created via raw SQL migration:

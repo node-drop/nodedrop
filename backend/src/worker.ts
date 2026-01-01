@@ -28,7 +28,7 @@ async function startWorker() {
 
     // Initialize NodeService
     const nodeService = new NodeService();
-    await nodeService.waitForInitialization();
+    await nodeService.loadBuiltInNodes();
     
     const nodeTypes = await nodeService.getNodeTypes();
     logger.info(`✅ Loaded ${nodeTypes.length} node types`);

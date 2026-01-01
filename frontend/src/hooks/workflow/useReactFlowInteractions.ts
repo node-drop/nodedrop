@@ -511,7 +511,7 @@ export function useReactFlowInteractions() {
 
         const newNode: WorkflowNode = {
           id: `node-${Date.now()}`,
-          type: nodeType.identifier,
+          type: nodeType.name,
           name: nodeType.displayName,
           parameters,
           position,

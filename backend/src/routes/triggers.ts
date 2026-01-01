@@ -13,7 +13,7 @@ import {
 import { db } from "../db/client";
 import { getCredentialService } from "../services/CredentialService.factory";
 import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import { SocketService } from "../services/SocketService";
 import { TriggerService } from "../services/TriggerService";
 import { workflowService } from "../services/WorkflowService";
@@ -39,7 +39,7 @@ const socketService = new SocketService(httpServer);
 let triggerService: TriggerService;
 
 const getExecutionService = () => {
-  return executionServiceDrizzle;
+  return getExecutionServiceInstance();
 };
 
 const getTriggerService = () => {

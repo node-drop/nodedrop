@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Response, Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { AppError, asyncHandler } from "../middleware/errorHandler";
@@ -7,7 +6,7 @@ import {
     WorkspaceRequest,
     requireWorkspace,
 } from "../middleware/workspace";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
 import { workflowService } from "../services/WorkflowService";
 import { ApiResponse, ExecutionQuerySchema, IdParamSchema, ScheduledExecutionsQuerySchema } from "../types/api";
@@ -38,7 +37,7 @@ const getNodeService = () => {
 let executionHistoryService: ExecutionHistoryService;
 
 const getExecutionService = () => {
-  return executionServiceDrizzle;
+  return getExecutionServiceInstance();
 };
 
 // POST /api/executions - Execute a workflow or single node

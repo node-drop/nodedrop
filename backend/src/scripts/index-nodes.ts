@@ -24,12 +24,11 @@ async function main() {
   for (const node of nodes) {
     // Get full definition to ensure we have AI metadata, keywords, etc.
     // getNodeTypes() returns a stripped down version
-    const fullDefinition = nodeService.getNodeDefinitionSync(node.identifier);
+    const fullDefinition = nodeService.getNodeDefinitionSync(node.name);
     
     if (fullDefinition) {
       nodesForEmbedding.push({
-        id: fullDefinition.identifier,
-        identifier: fullDefinition.identifier,
+        id: fullDefinition.name,
         displayName: fullDefinition.displayName,
         description: fullDefinition.description,
         group: fullDefinition.group,
@@ -38,10 +37,9 @@ async function main() {
         properties: typeof fullDefinition.properties === 'function' ? fullDefinition.properties() : fullDefinition.properties,
       });
     } else {
-      logger.warn(`Could not find full definition for ${node.identifier}, using basic info`);
+      logger.warn(`Could not find full definition for ${node.name}, using basic info`);
       nodesForEmbedding.push({
-        id: node.identifier,
-        identifier: node.identifier,
+        id: node.name,
         displayName: node.displayName,
         description: node.description,
         group: node.group,

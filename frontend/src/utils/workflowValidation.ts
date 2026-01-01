@@ -87,7 +87,7 @@ export function validateWorkflowDetailed(
   // Create lookup maps once
   const nodeMap = new Map(nodes.map(node => [node.id, node]))
   const nodeTypeMap = nodeTypes 
-    ? new Map(nodeTypes.map(nt => [nt.identifier, nt]))
+    ? new Map(nodeTypes.map(nt => [nt.name, nt]))
     : null
 
   // Pre-build connection lookup maps for O(1) access

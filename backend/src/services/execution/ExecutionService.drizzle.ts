@@ -47,8 +47,8 @@ export class ExecutionServiceDrizzle {
   private queueService: ExecutionQueueService | null = null;
   private queueInitialized: boolean = false;
 
-  constructor() {
-    this.nodeService = new NodeService();
+  constructor(nodeService?: NodeService) {
+    this.nodeService = nodeService || new NodeService();
     this.realtimeEngine = new RealtimeExecutionEngine(db as any, this.nodeService);
   }
 

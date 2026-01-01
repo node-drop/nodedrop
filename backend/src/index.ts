@@ -1,355 +1,122 @@
 // @ts-nocheck
-// Main entry point for the node drop backend
+/**
+ * Main Entry Point - Node Drop Backend
+ */
+import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import "dotenv/config"; // Must be first!
 import express from "express";
 import helmet from "helmet";
+import path from "path";
 import { createServer } from "http";
 
-// Import routes
-import aiMemoryRoutes from "./modules/ai/routes/aiMemoryRoutes";
-import { aiRoutes } from "./modules/ai/routes/aiRoutes";
-import { authRoutes } from "./routes/auth";
-import { backupRoutes } from "./routes/backup";
-import credentialRoutes from "./routes/credentials";
-import { customNodeRoutes } from "./routes/custom-nodes";
-import environmentRoutes from "./routes/environment";
-import executionControlRoutes from "./routes/execution-control";
-import executionHistoryRoutes from "./routes/execution-history";
-import executionRecoveryRoutes from "./routes/execution-recovery";
-import executionResumeRoutes from "./routes/execution-resume";
-import { executionRoutes } from "./routes/executions";
-import flowExecutionRoutes from "./routes/flow-execution";
-import { gitRouter } from "./routes/git";
-import googleRoutes from "./routes/google";
-import { nodeTypeRoutes } from "./routes/node-types";
-import { nodeRoutes } from "./routes/nodes";
-import oauthGenericRoutes from "./routes/oauth-generic";
-import { publicChatsRoutes } from "./routes/public-chats";
-import { publicFormsRoutes } from "./routes/public-forms";
-import teamRoutes from "./routes/teams";
-import triggerRoutes from "./routes/triggers";
-import userRoutes from "./routes/user.routes";
-import variableRoutes from "./routes/variables";
-import webhookRoutes from "./routes/webhook";
-import webhookLogsRoutes from "./routes/webhook-logs";
-import { workflowRoutes } from "./routes/workflows";
-import workspaceRoutes from "./routes/workspaces";
+// Database
+import { db, disconnectDatabase } from "./db/client";
 
-// Import middleware
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-
-// Import services
+// Services
 import { NodeLoader, NodeService } from "./services";
 import { getCredentialService } from "./services/CredentialService.factory";
 import { ErrorTriggerService } from "./services/ErrorTriggerService";
-import { ExecutionEventBridge, createExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
+import { ExecutionEventBridge } from "./services/execution/ExecutionEventBridge";
 import ExecutionHistoryService from "./services/execution/ExecutionHistoryService";
 import { ExecutionListenerManager } from "./services/execution/ExecutionListenerManager";
-import { ExecutionQueueService, getExecutionQueueService } from "./services/execution/ExecutionQueueService";
-import { executionServiceDrizzle } from "./services/execution/ExecutionService.factory";
-import { ExecutionWorker, getExecutionWorker } from "./services/execution/ExecutionWorker";
+import { ExecutionQueueService } from "./services/execution/ExecutionQueueService";
+import { getExecutionServiceInstance } from "./services/execution/ExecutionService.factory";
+import { ExecutionWorker } from "./services/execution/ExecutionWorker";
 import { RealtimeExecutionEngine } from "./services/execution/RealtimeExecutionEngine";
+import { WaitJobManager, setWaitJobManager } from "./services/execution/WaitJobManager";
+import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
 import { SocketService } from "./services/SocketService";
+import { workflowService } from "./services/WorkflowService";
+
+// Startup modules
+import { initializeNodeSystems } from "./startup";
+import { registerExecutionEventHandlers } from "./startup/eventHandlers";
+import { initializeServices } from "./startup/services";
+
+// Middleware
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { webhookBodyParser } from "./middleware/webhookBodyParser";
+
+// Routes
+import { setupRoutes } from "./routes";
+
+// Utils
 import { logger } from "./utils/logger";
 
-// Import database after dotenv is loaded
-import { db, disconnectDatabase } from "./db/client";
+// ============================================================================
+// Server Setup
+// ============================================================================
 
 const app = express();
 const httpServer = createServer(app);
-const PORT = process.env.PORT || 5678; // Default to 5678 
+const PORT = process.env.PORT || 5678;
 
-// Set server timeout to prevent gateway timeouts (5 minutes)
+// Server timeouts
 httpServer.timeout = 300000; // 5 minutes
-httpServer.keepAliveTimeout = 65000; // 65 seconds (slightly higher than typical load balancer timeout)
-httpServer.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
+httpServer.keepAliveTimeout = 65000;
+httpServer.headersTimeout = 66000;
 
-// Initialize services
+// ============================================================================
+// Initialize Core Services
+// ============================================================================
+
 const nodeService = new NodeService();
 const credentialService = getCredentialService();
 
-// Register core credentials (OAuth2, HTTP Basic Auth, API Key, etc.)
+// Register core credentials
 try {
   credentialService.registerCoreCredentials();
-  logger.info("✅ Core credentials registered successfully");
+  logger.info("✅ Core credentials registered");
 } catch (error) {
   logger.error("❌ Failed to register core credentials", { error });
 }
 
-// Initialize OAuth providers (Google, Microsoft, Slack, GitHub)
+// Initialize OAuth providers
 try {
   const { initializeOAuthProviders } = require("./oauth");
   initializeOAuthProviders();
-  logger.info("✅ OAuth providers initialized successfully");
+  logger.info("✅ OAuth providers initialized");
 } catch (error) {
   logger.error("❌ Failed to initialize OAuth providers", { error });
 }
 
 const nodeLoader = new NodeLoader(nodeService as any, credentialService as any);
 const socketService = new SocketService(httpServer);
-
-// Initialize ExecutionService (for HTTP endpoints)
 const executionHistoryService = new ExecutionHistoryService();
-// Use the Drizzle-based execution service from factory
-const executionService = executionServiceDrizzle;
-
-// Initialize RealtimeExecutionEngine (for WebSocket execution)
+const executionService = getExecutionServiceInstance(nodeService);
 const realtimeExecutionEngine = new RealtimeExecutionEngine(db as any, nodeService as any);
-
-// Initialize ExecutionListenerManager (for memory leak prevention)
 const executionListenerManager = new ExecutionListenerManager(realtimeExecutionEngine);
-
-// Initialize ErrorTriggerService (for workflow failure monitoring)
 const errorTriggerService = new ErrorTriggerService(db as any);
 
-// Import WorkflowService, TriggerService singleton, and ScheduleJobManager
-import { ScheduleJobManager } from "./scheduled-jobs/ScheduleJobManager";
-import { getTriggerService, initializeTriggerService } from "./services/triggerServiceSingleton";
-import { workflowService } from "./services/WorkflowService";
-import { WaitJobManager, setWaitJobManager } from "./services/execution/WaitJobManager";
+const redisConfig = {
+  host: process.env.REDIS_HOST || "localhost",
+  port: parseInt(process.env.REDIS_PORT || "6379"),
+  password: process.env.REDIS_PASSWORD,
+};
 
-// WorkflowService is already initialized as a singleton
-
-// Initialize ScheduleJobManager (for persistent schedule jobs)
-const scheduleJobManager = new ScheduleJobManager(
-  db as any,
-  executionService,
-  {
-    redis: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-    },
-  }
-);
-
-// Initialize WaitJobManager (for persistent wait operations)
-const waitJobManager = new WaitJobManager(
-  db as any,
-  {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
-    password: process.env.REDIS_PASSWORD,
-  }
-);
+const scheduleJobManager = new ScheduleJobManager(db as any, executionService, { redis: redisConfig });
+const waitJobManager = new WaitJobManager(db as any, redisConfig);
 setWaitJobManager(waitJobManager);
 
-// Connect RealtimeExecutionEngine events to SocketService
-// Using named functions for proper cleanup
-function handleExecutionStarted(data: any) {
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "started",
-    timestamp: data.timestamp,
-  });
-}
+// Register event handlers
+registerExecutionEventHandlers(realtimeExecutionEngine, socketService, errorTriggerService);
 
-function handleNodeStarted(data: any) {
-  logger.debug('🔵 [RealtimeEngine] node-started event received', {
-    executionId: data.executionId,
-    nodeId: data.nodeId,
-    nodeName: data.nodeName,
-    nodeType: data.nodeType,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "node-started",
-    nodeId: data.nodeId,
-    data: { nodeName: data.nodeName, nodeType: data.nodeType },
-    timestamp: data.timestamp,
-  });
-}
+// ============================================================================
+// Global Service References
+// ============================================================================
 
-function handleNodeCompleted(data: any) {
-  logger.debug('🟢 [RealtimeEngine] node-completed event received', {
-    executionId: data.executionId,
-    nodeId: data.nodeId,
-    nodeName: data.nodeName,
-    nodeType: data.nodeType,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "node-completed",
-    nodeId: data.nodeId,
-    data: { 
-      outputData: data.outputData, 
-      duration: data.duration,
-      activeConnections: data.activeConnections, // NEW: Include active connections for edge animation
-    },
-    timestamp: data.timestamp,
-  });
-}
-
-function handleNodeFailed(data: any) {
-  logger.debug('🔴 [RealtimeEngine] node-failed event received', {
-    executionId: data.executionId,
-    nodeId: data.nodeId,
-    nodeName: data.nodeName,
-    nodeType: data.nodeType,
-    error: data.error,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "node-failed",
-    nodeId: data.nodeId,
-    error: data.error,
-    timestamp: data.timestamp,
-  });
-}
-
-function handleExecutionCompleted(data: any) {
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "completed",
-    data: { duration: data.duration },
-    timestamp: data.timestamp,
-  });
-}
-
-async function handleExecutionFailed(data: any) {
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "failed",
-    error: data.error,
-    timestamp: data.timestamp,
-  });
-
-  // Fire error triggers for workflow failures
-  try {
-    await errorTriggerService.onWorkflowExecutionFailed({
-      executionId: data.executionId,
-      workflowId: data.workflowId || "",
-      workflowName: data.workflowName || "Unknown Workflow",
-      failedNodeId: data.failedNodeId,
-      failedNodeName: data.failedNodeName,
-      failedNodeType: data.failedNodeType,
-      errorMessage: data.error?.message || "Unknown error",
-      errorStack: data.error?.stack,
-      errorTimestamp: data.timestamp?.toISOString() || new Date().toISOString(),
-      executionStartedAt: data.executionStartedAt || new Date().toISOString(),
-      executionMode: data.executionMode,
-      userId: data.userId,
-      errorContext: data.errorContext,
-    });
-  } catch (errorTriggerError) {
-    logger.error("Failed to fire error triggers:", errorTriggerError);
-  }
-}
-
-function handleExecutionCancelled(data: any) {
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "cancelled",
-    timestamp: data.timestamp,
-  });
-}
-
-function handleNodePaused(data: any) {
-  logger.debug('⏸️ [RealtimeEngine] node-paused event received', {
-    executionId: data.executionId,
-    nodeId: data.nodeId,
-    nodeName: data.nodeName,
-    nodeType: data.nodeType,
-    waitId: data.waitId,
-    resumeUrl: data.resumeUrl,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "node-paused",
-    nodeId: data.nodeId,
-    data: { 
-      nodeName: data.nodeName, 
-      nodeType: data.nodeType,
-      waitId: data.waitId,
-      resumeUrl: data.resumeUrl,
-      expiresAt: data.expiresAt?.toISOString(),
-    },
-    timestamp: data.timestamp,
-  });
-}
-
-function handleExecutionPaused(data: any) {
-  logger.info('⏸️ [RealtimeEngine] execution-paused event received', {
-    executionId: data.executionId,
-    workflowId: data.workflowId,
-    pausedAtNodeId: data.pausedAtNodeId,
-    waitId: data.waitId,
-    resumeUrl: data.resumeUrl,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "paused",
-    data: { 
-      pausedAtNodeId: data.pausedAtNodeId,
-      waitId: data.waitId,
-      resumeUrl: data.resumeUrl,
-    },
-    timestamp: data.timestamp,
-  });
-}
-
-function handleExecutionResumed(data: any) {
-  logger.info('▶️ [RealtimeEngine] execution-resumed event received', {
-    executionId: data.executionId,
-    workflowId: data.workflowId,
-    nodeId: data.nodeId,
-    waitId: data.waitId,
-  });
-  
-  socketService.broadcastExecutionEvent(data.executionId, {
-    executionId: data.executionId,
-    type: "resumed",
-    data: { 
-      nodeId: data.nodeId,
-      waitId: data.waitId,
-    },
-    timestamp: data.timestamp,
-  });
-}
-
-function handleExecutionLog(logEntry: any) {
-  logger.debug('📝 [RealtimeEngine] execution-log event received', {
-    executionId: logEntry.executionId,
-    nodeId: logEntry.nodeId,
-    level: logEntry.level,
-    message: logEntry.message,
-  });
-  
-  socketService.broadcastExecutionLog(logEntry.executionId, logEntry);
-}
-
-// Register global event handlers (these stay for the lifetime of the app)
-realtimeExecutionEngine.on("execution-started", handleExecutionStarted);
-realtimeExecutionEngine.on("node-started", handleNodeStarted);
-realtimeExecutionEngine.on("node-completed", handleNodeCompleted);
-realtimeExecutionEngine.on("node-failed", handleNodeFailed);
-realtimeExecutionEngine.on("node-paused", handleNodePaused);
-realtimeExecutionEngine.on("execution-completed", handleExecutionCompleted);
-realtimeExecutionEngine.on("execution-failed", handleExecutionFailed);
-realtimeExecutionEngine.on("execution-cancelled", handleExecutionCancelled);
-realtimeExecutionEngine.on("execution-paused", handleExecutionPaused);
-realtimeExecutionEngine.on("execution-resumed", handleExecutionResumed);
-realtimeExecutionEngine.on("execution-log", handleExecutionLog);
-
-// Make services available globally for other services
 declare global {
   var socketService: SocketService;
   var nodeLoader: NodeLoader;
   var nodeService: NodeService;
   var credentialService: any;
-  var executionService: ExecutionService;
+  var executionService: any;
   var realtimeExecutionEngine: RealtimeExecutionEngine;
   var executionListenerManager: ExecutionListenerManager;
   var errorTriggerService: ErrorTriggerService;
-  var workflowService: WorkflowService;
+  var workflowService: any;
   var scheduleJobManager: ScheduleJobManager;
   var waitJobManager: WaitJobManager;
   var triggerService: any;
@@ -358,6 +125,7 @@ declare global {
   var executionWorker: ExecutionWorker;
   var db: any;
 }
+
 global.socketService = socketService;
 global.nodeLoader = nodeLoader;
 global.nodeService = nodeService;
@@ -371,607 +139,237 @@ global.scheduleJobManager = scheduleJobManager;
 global.waitJobManager = waitJobManager;
 global.db = db;
 
-// Initialize node systems
-async function initializeNodeSystems() {
-  try {
-    // First, ensure built-in nodes are loaded
-    await nodeService.waitForInitialization();
+// ============================================================================
+// Middleware
+// ============================================================================
 
-    // Check if nodes were successfully registered
-    const nodeTypes = await nodeService.getNodeTypes();
-
-    if (nodeTypes.length === 0) {
-      try {
-        await nodeService.registerDiscoveredNodes();
-        const newNodeTypes = await nodeService.getNodeTypes();
-        logger.info(`✅ Registered ${newNodeTypes.length} nodes`);
-      } catch (registrationError) {
-        logger.error("Failed to register nodes", { error: registrationError });
-      }
-    }
-
-    // Then, load custom nodes
-    await nodeLoader.initialize();
-    
-    // Show total nodes loaded
-    const totalNodes = await nodeService.getNodeTypes();
-    logger.info(`✅ Loaded ${totalNodes.length} nodes`);
-  } catch (error) {
-    logger.error("❌ Failed to initialize node systems", { error });
-    // Don't throw the error - allow the application to start
-  }
-}
-
-// Basic middleware
 app.use(helmet());
-// Configure CORS origins
+
+// CORS configuration
 const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
   : [
-    process.env.FRONTEND_URL || "http://localhost:3000",
-    "http://localhost:8080", // For widget examples
-    "http://localhost:8081", // Alternative widget port
-    "http://localhost:9000", // Widget examples server
-    "http://127.0.0.1:8080", // Alternative localhost
-    "http://127.0.0.1:8081", // Alternative localhost
-    "http://127.0.0.1:9000", // Alternative localhost
-  ];
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "http://localhost:8080",
+      "http://localhost:8081",
+      "http://localhost:9000",
+      "http://127.0.0.1:8080",
+      "http://127.0.0.1:8081",
+      "http://127.0.0.1:9000",
+    ];
 
-// Dynamic CORS origin function
-const corsOriginFunction = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-  // Allow requests with no origin (same-origin requests, mobile apps, curl)
+const corsOriginFunction = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void
+) => {
   if (!origin) return callback(null, true);
-
-  // Check if origin is in allowed list
-  if (corsOrigins.includes(origin)) {
-    return callback(null, true);
-  }
-
-  // Allow localhost origins (for unified Docker image and development)
-  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-    return callback(null, true);
-  }
-
-  // Log rejected origins for debugging
-  logger.warn(`CORS: Rejected origin: ${origin}`, { origin });
-  return callback(new Error('Not allowed by CORS'), false);
+  if (corsOrigins.includes(origin)) return callback(null, true);
+  if (origin.includes("localhost") || origin.includes("127.0.0.1")) return callback(null, true);
+  logger.warn(`CORS: Rejected origin: ${origin}`);
+  return callback(new Error("Not allowed by CORS"), false);
 };
 
-// Apply CORS to all routes EXCEPT webhooks (webhooks have their own CORS logic)
 app.use((req, res, next) => {
-  // Skip global CORS for webhook routes - they handle CORS themselves
-  if (req.path.startsWith('/webhook')) {
-    return next();
-  }
-  
-  // Apply global CORS for all other routes
+  if (req.path.startsWith("/webhook")) return next();
   cors({
     origin: corsOriginFunction,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-workspace-id'],
-    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-workspace-id"],
+    exposedHeaders: ["Content-Length", "X-Foo", "X-Bar"],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   })(req, res, next);
 });
+
 app.use(compression());
-app.use(cookieParser()); // Parse cookies
-
-// Webhook body parsing middleware - MUST come before express.json()
-import { webhookBodyParser } from "./middleware/webhookBodyParser";
-
-// Apply webhook body parser for file uploads and special handling
+app.use(cookieParser());
 app.use("/webhook", webhookBodyParser);
-
-// Standard JSON parsing for all routes (including webhooks that aren't multipart)
-app.use(express.json({ limit: "10mb", verify: (req: any, res, buf, encoding) => {
-  // Store raw body for webhooks that might need it
-  if (req.originalUrl && req.originalUrl.startsWith('/webhook')) {
-    req.rawBody = buf;
-    req.rawBodyString = buf.toString('utf-8');
-  }
-}}));
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req: any, res, buf) => {
+      if (req.originalUrl?.startsWith("/webhook")) {
+        req.rawBody = buf;
+        req.rawBodyString = buf.toString("utf-8");
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
+// Request logging
 app.use((req, res, next) => {
   logger.http({ method: req.method, path: req.path });
   next();
 });
 
-// Health check endpoint
+// ============================================================================
+// Routes
+// ============================================================================
+
+// Health check
 app.get("/health", async (req, res) => {
   try {
-    const nodeTypes = await nodeService.getNodeTypes();
-    
-    // Get queue statistics if available
+    const nodes = await nodeService.getNodeTypes();
     let queueStats = null;
     let queueStatus = "not_initialized";
-    
-    if (global.executionQueueService && global.executionQueueService.isConnected()) {
+
+    if (global.executionQueueService?.isConnected()) {
       try {
         queueStats = await global.executionQueueService.getQueueStats();
         queueStatus = "ok";
-      } catch (queueError) {
+      } catch {
         queueStatus = "error";
-        logger.error("Failed to get queue stats for health check", { error: queueError });
       }
     }
 
-    // Get worker status if available
-    let workerStatus = null;
-    if (global.executionWorker) {
-      workerStatus = global.executionWorker.getStatus();
-    }
-
-    // Get Redis adapter status
+    const workerStatus = global.executionWorker?.getStatus() || null;
     const adapterStatus = socketService.getAdapterStatus();
-
-    // Get listener manager stats
     const listenerStats = executionListenerManager.getStats();
 
-    // Determine overall status
-    // Degraded if queue is unhealthy, adapter is enabled but disconnected, or worker is not running
     let overallStatus = "ok";
-    if (queueStatus === "error" || (workerStatus && !workerStatus.isRunning)) {
-      overallStatus = "degraded";
-    }
-    // Check if adapter is enabled but disconnected
-    if (adapterStatus.enabled && !adapterStatus.connected) {
-      overallStatus = "degraded";
-    }
-    // Check for excessive listeners (potential memory leak)
-    if (listenerStats.totalListeners > 500) {
-      overallStatus = "degraded";
-    }
+    if (queueStatus === "error" || (workerStatus && !workerStatus.isRunning)) overallStatus = "degraded";
+    if (adapterStatus.enabled && !adapterStatus.connected) overallStatus = "degraded";
+    if (listenerStats.totalListeners > 500) overallStatus = "degraded";
 
-    res.status(200).json({
+    res.json({
       status: overallStatus,
       timestamp: new Date().toISOString(),
       service: "node-drop-backend",
       version: "1.0.0",
-      hot_reload: "BACKEND HOT RELOAD WORKING!",
       websocket: {
         connected_users: socketService.getConnectedUsersCount(),
-        adapter: {
-          enabled: adapterStatus.enabled,
-          connected: adapterStatus.connected,
-          ...(adapterStatus.error && { error: adapterStatus.error }),
-        },
+        adapter: adapterStatus,
       },
-      nodes: {
-        registered_count: nodeTypes.length,
-        status: nodeTypes.length > 0 ? "ok" : "no_nodes_registered"
-      },
-      queue: {
-        status: queueStatus,
-        stats: queueStats,
-      },
-      worker: workerStatus ? {
-        status: workerStatus.isRunning ? "running" : "stopped",
-        activeJobs: workerStatus.activeJobs,
-        processedJobs: workerStatus.processedJobs,
-        failedJobs: workerStatus.failedJobs,
-      } : null,
-      listeners: {
-        activeExecutions: listenerStats.activeExecutions,
-        totalListeners: listenerStats.totalListeners,
-        oldestListenerAge: listenerStats.oldestListenerAge,
-        status: listenerStats.totalListeners > 500 ? "high" : "ok",
-      },
+      nodes: { registered_count: nodes.length, status: nodes.length > 0 ? "ok" : "no_nodes_registered" },
+      queue: { status: queueStatus, stats: queueStats },
+      worker: workerStatus
+        ? {
+            status: workerStatus.isRunning ? "running" : "stopped",
+            activeJobs: workerStatus.activeJobs,
+            processedJobs: workerStatus.processedJobs,
+            failedJobs: workerStatus.failedJobs,
+          }
+        : null,
+      listeners: listenerStats,
     });
   } catch (error) {
-    // Even in error case, try to get adapter status
-    let adapterStatus = { enabled: false, connected: false };
-    try {
-      adapterStatus = socketService.getAdapterStatus();
-    } catch (adapterError) {
-      // Ignore adapter status errors in error handler
-    }
-
-    res.status(500).json({
-      status: "error",
-      timestamp: new Date().toISOString(),
-      service: "node-drop-backend",
-      version: "1.0.0",
-      error: "Failed to check node status",
-      websocket: {
-        connected_users: 0,
-        adapter: {
-          enabled: adapterStatus.enabled,
-          connected: adapterStatus.connected,
-          ...(adapterStatus.error && { error: adapterStatus.error }),
-        },
-      },
-      nodes: {
-        registered_count: 0,
-        status: "error"
-      },
-      queue: {
-        status: "unknown",
-        stats: null,
-      },
-      worker: null,
-      listeners: {
-        activeExecutions: 0,
-        totalListeners: 0,
-        oldestListenerAge: null,
-        status: "unknown",
-      },
-    });
+    res.status(500).json({ status: "error", error: "Health check failed" });
   }
 });
 
-// API info route (moved to /api to avoid conflicting with frontend)
+// API info
 app.get("/api", (req, res) => {
   res.json({
-    message: "node drop Backend API",
+    message: "Node Drop Backend API",
     version: "1.0.0",
-    endpoints: {
-      auth: "/api/auth",
-      workflows: "/api/workflows",
-      executions: "/api/executions",
-      nodes: "/api/nodes",
-      nodeTypes: "/api/node-types",
-      credentials: "/api/credentials",
-      variables: "/api/variables",
-      teams: "/api/teams",
-      triggers: "/api/triggers",
-      webhooks: "/webhook/{webhookId}",
-      webhookTest: "/webhook/{webhookId}/test",
-      forms: "/webhook/forms/{formId}",
-      formSubmit: "/webhook/forms/{formId}/submit",
-      chats: "/webhook/chats/{chatId}",
-      chatMessage: "/webhook/chats/{chatId}/message",
-      customNodes: "/api/custom-nodes",
-      flowExecution: "/api/flow-execution",
-      executionControl: "/api/execution-control",
-      executionHistory: "/api/execution-history",
-      executionRecovery: "/api/execution-recovery",
-      oauth: "/api/oauth",
-      google: "/api/google",
-      health: "/health",
-    },
+    health: "/health",
   });
 });
 
-// Debug routes (remove in production)
-import debugCredentialsRoutes from "./routes/debug-credentials";
-app.use("/api", debugCredentialsRoutes);
+// Setup all API routes
+setupRoutes(app);
 
-// API routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-
-// System routes
-import editionRoutes from "./routes/edition";
-import systemRoutes from "./routes/system";
-app.use("/api/system", systemRoutes);
-app.use("/api/edition", editionRoutes);
-app.use("/api/workflows", workflowRoutes);
-app.use("/api", environmentRoutes); // Environment routes are nested under workflows
-app.use("/api/executions", executionRoutes);
-app.use("/api/nodes", nodeRoutes);
-app.use("/api/node-types", nodeTypeRoutes);
-app.use("/api/credentials", credentialRoutes);
-app.use("/api/variables", variableRoutes);
-app.use("/api/teams", teamRoutes);
-app.use("/api/workspaces", workspaceRoutes);
-app.use("/api/triggers", triggerRoutes);
-app.use("/api/custom-nodes", customNodeRoutes);
-app.use("/api/flow-execution", flowExecutionRoutes);
-app.use("/api/execution-control", executionControlRoutes);
-app.use("/api/execution-history", executionHistoryRoutes);
-app.use("/api/execution-recovery", executionRecoveryRoutes);
-app.use("/api/executions", executionResumeRoutes);
-app.use("/api", oauthGenericRoutes);
-app.use("/api/google", googleRoutes);
-app.use("/api/ai-memory", aiMemoryRoutes);
-app.use("/api/ai", aiRoutes); // Register AI routes
-  app.use("/api/backup", backupRoutes);
-  app.use("/api", webhookLogsRoutes);
-  app.use("/api/git", gitRouter);
-  app.use("/webhook/forms", publicFormsRoutes);
-  app.use("/webhook/chats", publicChatsRoutes);
-  app.use("/webhook", webhookRoutes);
-
-// Serve frontend static files (for unified Docker image)
-// This allows the backend to serve the frontend in production
-import path from "path";
+// Static files (frontend)
 const publicPath = path.join(__dirname, "..", "public");
+app.use(
+  express.static(publicPath, {
+    maxAge: "1y",
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  })
+);
 
-// Serve static files with proper caching
-app.use(express.static(publicPath, {
-  maxAge: "1y", // Cache static assets for 1 year
-  etag: true,
-  lastModified: true,
-  setHeaders: (res, filePath) => {
-    // Don't cache index.html
-    if (filePath.endsWith("index.html")) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    }
-  },
-}));
-
-// SPA fallback - serve index.html for all non-API routes
-// This must come AFTER all API routes but BEFORE 404 handler
+// SPA fallback
 app.get("*", (req, res, next) => {
-  // Skip if this is an API route or webhook
   if (req.path.startsWith("/api") || req.path.startsWith("/webhook") || req.path.startsWith("/health")) {
     return next();
   }
-  
-  // Serve index.html for all other routes (SPA routing)
-  const indexPath = path.join(publicPath, "index.html");
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      // If index.html doesn't exist, continue to 404 handler
-      next();
-    }
+  res.sendFile(path.join(publicPath, "index.html"), (err) => {
+    if (err) next();
   });
 });
 
-// 404 handler
+// Error handlers
 app.use(notFoundHandler);
-
-// Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
+// ============================================================================
+// Server Start
+// ============================================================================
+
 httpServer.listen(PORT, async () => {
-  logger.info(`🚀 Server running on port ${PORT} - BACKEND HOT RELOAD WORKS!`);
-  logger.info(`📊 Health check: http://localhost:${PORT}/health`);
-  logger.info(`🔌 Socket.io enabled for real-time updates`);
-  logger.info(`🔗 API endpoints:`);
-  logger.info(`   - Auth: http://localhost:${PORT}/api/auth`);
-  logger.info(`   - Workflows: http://localhost:${PORT}/api/workflows`);
-  logger.info(`   - Executions: http://localhost:${PORT}/api/executions`);
-  logger.info(`   - Nodes: http://localhost:${PORT}/api/nodes`);
-  logger.info(`   - Node Types: http://localhost:${PORT}/api/node-types`);
-  logger.info(`   - Credentials: http://localhost:${PORT}/api/credentials`);
-  logger.info(`   - Variables: http://localhost:${PORT}/api/variables`);
-  logger.info(`   - Triggers: http://localhost:${PORT}/api/triggers`);
-  logger.info(`   - Custom Nodes: http://localhost:${PORT}/api/custom-nodes`);
-  logger.info(`📨 Webhook endpoint (public):`);
-  logger.info(`   - http://localhost:${PORT}/webhook/{webhookId}`);
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`📊 Health: http://localhost:${PORT}/health`);
 
-  // Initialize node systems after server starts
-  await initializeNodeSystems();
+  // Initialize node systems (load, register, embeddings)
+  await initializeNodeSystems(nodeService, nodeLoader);
 
-  // Initialize Git storage directories
-  try {
-    const { initializeGitStorage } = await import('./config/git');
-    await initializeGitStorage();
-    logger.info(`✅ Initialized Git storage directories`);
-  } catch (error) {
-    logger.error(`❌ Failed to initialize Git storage`, { error });
-  }
-
-  // Initialize TriggerService singleton to load active triggers
-  try {
-    await initializeTriggerService(
-      db,
-      workflowService,
-      executionService,
-      socketService,
-      nodeService,
-      executionHistoryService,
-      credentialService as any
-    );
-    global.triggerService = getTriggerService();
-    logger.info(`✅ Initialized triggers & webhooks`);
-  } catch (error) {
-    logger.error(`Failed to initialize TriggerService`, { error });
-  }
-
-  // Initialize ErrorTriggerService for workflow failure monitoring
-  try {
-    errorTriggerService.setExecutionService(executionService);
-    await errorTriggerService.initialize();
-    logger.info(`✅ Initialized error triggers (${errorTriggerService.getActiveCount()} active)`);
-  } catch (error) {
-    logger.error(`Failed to initialize ErrorTriggerService`, { error });
-  }
-
-  // Initialize ScheduleJobManager for persistent schedule jobs
-  try {
-    await scheduleJobManager.initialize();
-    logger.info(`✅ Initialized schedule jobs`);
-  } catch (error) {
-    logger.error(`❌ Failed to initialize ScheduleJobManager`, { error });
-  }
-
-  // Initialize WaitJobManager for persistent wait operations
-  try {
-    // Set up the resume callback to resume paused executions
-    waitJobManager.setResumeCallback(async (waitId, executionId, workflowId, nodeId, inputData, executionState, webhookData) => {
-      logger.info(`Resuming execution from wait: ${waitId}`, { executionId, workflowId, nodeId });
-      
-      try {
-        // Use the RealtimeExecutionEngine to resume from the saved state
-        // This ensures WebSocket events are properly emitted
-        await realtimeExecutionEngine.resumeFromWait(
-          waitId,
-          executionId,
-          workflowId,
-          nodeId,
-          inputData,
-          executionState,
-          webhookData
-        );
-        
-        logger.info(`Execution resumed successfully from wait: ${waitId}`, {
-          executionId,
-        });
-      } catch (error) {
-        logger.error(`Failed to resume execution from wait: ${waitId}`, {
-          executionId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    });
-    
-    await waitJobManager.initialize();
-    logger.info(`✅ Initialized wait job manager`);
-  } catch (error) {
-    logger.error(`❌ Failed to initialize WaitJobManager`, { error });
-  }
-
-  // Initialize ExecutionEventBridge for Redis Pub/Sub to WebSocket forwarding
-  try {
-    global.executionEventBridge = await createExecutionEventBridge(socketService);
-    logger.info(`✅ Initialized execution event bridge (Redis -> WebSocket)`);
-  } catch (error) {
-    logger.error(`❌ Failed to initialize ExecutionEventBridge`, { error });
-  }
-
-  // Initialize ExecutionQueueService for queue-based workflow execution
-  try {
-    global.executionQueueService = getExecutionQueueService();
-    await global.executionQueueService.initialize();
-    logger.info(`✅ Initialized execution queue service`);
-  } catch (error) {
-    logger.error(`❌ Failed to initialize ExecutionQueueService`, { error });
-    // Don't throw - allow fallback to direct execution
-  }
-
-  // Initialize ExecutionWorker for processing queued jobs
-  // Only start worker if not in API-only mode
-  const workerMode = process.env.WORKER_MODE || 'hybrid'; // hybrid | api-only | worker-only
-  
-  if (workerMode !== 'api-only') {
-    try {
-      global.executionWorker = getExecutionWorker();
-      await global.executionWorker.initialize(nodeService);
-      await global.executionWorker.start();
-      const workerStatus = global.executionWorker.getStatus();
-      logger.info(`✅ Initialized execution worker (running: ${workerStatus.isRunning}, mode: ${workerMode})`);
-    } catch (error) {
-      logger.error(`❌ Failed to initialize ExecutionWorker`, { error });
-      // Don't throw - allow fallback to direct execution
-    }
-  } else {
-    logger.info(`ℹ️  Worker disabled (WORKER_MODE=${workerMode})`);
-  }
+  // Initialize all other services
+  await initializeServices({
+    nodeService,
+    socketService,
+    executionService,
+    executionHistoryService,
+    errorTriggerService,
+    scheduleJobManager,
+    waitJobManager,
+    realtimeExecutionEngine,
+  });
 });
 
-// Memory monitoring to detect leaks
+// ============================================================================
+// Memory Monitoring
+// ============================================================================
+
 setInterval(() => {
   const usage = process.memoryUsage();
   const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
-  const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024);
-  
-  // Memory monitoring (silent)
-  
-  // Alert if memory usage is high
-  if (heapUsedMB > 1024) { // 1GB threshold
-    logger.warn(`⚠️  High memory usage detected: ${heapUsedMB}MB`);
-    
-    // Log active resources
-    const activeExecutions = (realtimeExecutionEngine as any).activeExecutions?.size || 0;
-    const connectedSockets = socketService.getConnectedUsersCount();
-    const eventBufferSize = (socketService as any).executionEventBuffer?.size || 0;
-    const listenerStats = executionListenerManager.getStats();
-    
-    logger.debug(`  Active executions: ${activeExecutions}`);
-    logger.debug(`  Connected sockets: ${connectedSockets}`);
-    logger.debug(`  Event buffer size: ${eventBufferSize}`);
-    logger.debug(`  Event listeners: ${listenerStats.totalListeners} (${listenerStats.activeExecutions} executions)`);
-    
-    // Force garbage collection if available
-    if (global.gc) {
-      logger.debug('  Running garbage collection...');
-      global.gc();
-    }
-  }
-}, 30000); // Every 30 seconds
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  logger.info("SIGTERM received, shutting down gracefully...");
-  
-  // Cleanup listener manager first
+  if (heapUsedMB > 1024) {
+    logger.warn(`⚠️ High memory usage: ${heapUsedMB}MB`);
+    if (global.gc) global.gc();
+  }
+}, 30000);
+
+// ============================================================================
+// Graceful Shutdown
+// ============================================================================
+
+async function shutdown(signal: string) {
+  logger.info(`${signal} received, shutting down...`);
+
   executionListenerManager.cleanupAll();
-  
-  // Remove all event listeners to prevent memory leaks
   realtimeExecutionEngine.removeAllListeners();
-  
-  // Import drain function for graceful connection pool shutdown
-  const { drainConnectionPool } = await import('./db/client');
-  
+
+  const { drainConnectionPool } = await import("./db/client");
+
   await nodeLoader.cleanup();
   await socketService.shutdown();
   await scheduleJobManager.shutdown();
   await waitJobManager.shutdown();
-  
-  // Stop execution event bridge
-  if (global.executionEventBridge) {
-    await global.executionEventBridge.stop();
-  }
 
-  // Stop execution worker
-  if (global.executionWorker) {
-    await global.executionWorker.stop();
-  }
+  if (global.executionEventBridge) await global.executionEventBridge.stop();
+  if (global.executionWorker) await global.executionWorker.stop();
+  if (global.executionQueueService) await global.executionQueueService.shutdown();
 
-  // Shutdown execution queue service
-  if (global.executionQueueService) {
-    await global.executionQueueService.shutdown();
-  }
-  
-  // Drain connection pool before closing
   await drainConnectionPool(30000);
   await disconnectDatabase();
-  
+
   httpServer.close(() => {
     logger.info("Server closed");
     process.exit(0);
   });
-});
+}
 
-process.on("SIGINT", async () => {
-  logger.info("SIGINT received, shutting down gracefully...");
-  
-  // Cleanup listener manager first
-  executionListenerManager.cleanupAll();
-  
-  // Remove all event listeners to prevent memory leaks
-  realtimeExecutionEngine.removeAllListeners();
-  
-  await nodeLoader.cleanup();
-  await socketService.shutdown();
-  await scheduleJobManager.shutdown();
-  await waitJobManager.shutdown();
-  
-  // Stop execution event bridge
-  if (global.executionEventBridge) {
-    await global.executionEventBridge.stop();
-  }
-
-  // Stop execution worker
-  if (global.executionWorker) {
-    await global.executionWorker.stop();
-  }
-
-  // Shutdown execution queue service
-  if (global.executionQueueService) {
-    await global.executionQueueService.shutdown();
-  }
-  
-  // Drain connection pool before closing
-  const { drainConnectionPool } = await import('./db/client');
-  await drainConnectionPool(30000);
-  await disconnectDatabase();
-  
-  httpServer.close(() => {
-    logger.info("Server closed");
-    process.exit(0);
-  });
-});
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 export { app };
 export default app;
-
-
-

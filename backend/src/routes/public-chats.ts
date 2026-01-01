@@ -9,7 +9,7 @@ import {
 } from "../rate-limit/rate-limit.config";
 import { CredentialService } from "../services/CredentialService";
 import ExecutionHistoryService from "../services/execution/ExecutionHistoryService";
-import { executionServiceDrizzle } from "../services/execution/ExecutionService.factory";
+import { getExecutionServiceInstance } from "../services/execution/ExecutionService.factory";
 import { SocketService } from "../services/SocketService";
 import { workflowService } from "../services/WorkflowService";
 
@@ -89,7 +89,7 @@ const socketService = new SocketService(httpServer);
 
 // Use Drizzle-based execution service
 const getExecutionService = () => {
-  return executionServiceDrizzle;
+  return getExecutionServiceInstance();
 };
 
 /**

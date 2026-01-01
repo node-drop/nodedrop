@@ -109,7 +109,7 @@ export function NodeTypesList({ }: NodeTypesListProps) {
     return activeNodeTypes.filter(nodeType =>
       nodeType.displayName.toLowerCase().includes(effectiveSearchTerm.toLowerCase()) ||
       nodeType.description.toLowerCase().includes(effectiveSearchTerm.toLowerCase()) ||
-      nodeType.identifier.toLowerCase().includes(effectiveSearchTerm.toLowerCase()) ||
+      nodeType.name.toLowerCase().includes(effectiveSearchTerm.toLowerCase()) ||
       nodeType.group.some(group => group.toLowerCase().includes(effectiveSearchTerm.toLowerCase()))
     )
   }, [activeNodeTypes, searchTerm])
@@ -207,11 +207,11 @@ export function NodeTypesList({ }: NodeTypesListProps) {
   const handleDeleteNode = async () => {
     if (!nodeToDelete) return;
 
-    setProcessingNode(nodeToDelete.identifier);
+    setProcessingNode(nodeToDelete.name);
     setDeleteDialogOpen(false);
 
     try {
-      await nodeTypeService.deleteNodeType(nodeToDelete.identifier);
+      await nodeTypeService.deleteNodeType(nodeToDelete.name);
 
       globalToastManager.showSuccess(
         'Node Uninstalled',
@@ -258,10 +258,10 @@ export function NodeTypesList({ }: NodeTypesListProps) {
 
     const nodeWithStatus = nodeType as ExtendedNodeType;
     const newStatus = !(nodeWithStatus.active ?? true); // Default to true if not set
-    setProcessingNode(nodeType.identifier);
+    setProcessingNode(nodeType.name);
 
     try {
-      await nodeTypeService.updateNodeTypeStatus(nodeType.identifier, newStatus);
+      await nodeTypeService.updateNodeTypeStatus(nodeType.name, newStatus);
 
       // Refresh the list immediately after successful update
       await refetchNodeTypes();
@@ -341,7 +341,7 @@ export function NodeTypesList({ }: NodeTypesListProps) {
                     <NodeIcon
                       config={{
                         icon: nodeType.icon,
-                        nodeType: nodeType.identifier,
+                        nodeType: nodeType.name,
                         nodeGroup: nodeType.group,
                         displayName: nodeType.displayName,
                         color: nodeType.color,
@@ -354,7 +354,7 @@ export function NodeTypesList({ }: NodeTypesListProps) {
                       <div className="font-medium">
                         <div className="flex items-start gap-2 flex-wrap">
                           <span className="break-words min-w-0" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{nodeType.displayName}</span>
-                          {isPinned(nodeType.identifier) && (
+                          {isPinned(nodeType.name) && (
                             <Badge variant="secondary" className="text-xs h-4 px-1 shrink-0">
                               <Pin className="h-2 w-2" />
                             </Badge>
@@ -399,15 +399,15 @@ export function NodeTypesList({ }: NodeTypesListProps) {
 
                 // Wrap with context menu
                 return (
-                  <ContextMenu key={`${nodeType.identifier}-${(nodeType as ExtendedNodeType).active}`}>
+                  <ContextMenu key={`${nodeType.name}-${(nodeType as ExtendedNodeType).active}`}>
                     <ContextMenuTrigger className="block w-full">
                       {nodeElement}
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-48">
                       <ContextMenuItem
-                        onClick={() => togglePin(nodeType.identifier)}
+                        onClick={() => togglePin(nodeType.name)}
                       >
-                        {isPinned(nodeType.identifier) ? (
+                        {isPinned(nodeType.name) ? (
                           <>
                             <PinOff className="h-4 w-4 mr-2" />
                             Unpin from Toolbar
@@ -421,7 +421,7 @@ export function NodeTypesList({ }: NodeTypesListProps) {
                       </ContextMenuItem>
                       <ContextMenuItem
                         onClick={() => !isCore && handleToggleNodeStatus(nodeType)}
-                        disabled={isCore || processingNode === nodeType.identifier}
+                        disabled={isCore || processingNode === nodeType.name}
                       >
                         {(nodeType as ExtendedNodeType).active !== false ? (
                           <>
@@ -437,7 +437,7 @@ export function NodeTypesList({ }: NodeTypesListProps) {
                       </ContextMenuItem>
                       <ContextMenuItem
                         onClick={() => isDeletable && showDeleteDialog(nodeType)}
-                        disabled={!isDeletable || processingNode === nodeType.identifier}
+                        disabled={!isDeletable || processingNode === nodeType.name}
                         className={isDeletable ? "text-destructive focus:text-destructive" : ""}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
@@ -526,11 +526,11 @@ export function NodeTypesList({ }: NodeTypesListProps) {
         onConfirm={handleDeleteNode}
         title="Uninstall Node"
         message={`Are you sure you want to uninstall "${nodeToDelete?.displayName}"? This action cannot be undone and will remove the node from your workflow editor.`}
-        confirmText={processingNode === nodeToDelete?.identifier ? 'Uninstalling...' : 'Uninstall Node'}
+        confirmText={processingNode === nodeToDelete?.name ? 'Uninstalling...' : 'Uninstall Node'}
         cancelText="Cancel"
         severity="danger"
-        loading={processingNode === nodeToDelete?.identifier}
-        disabled={processingNode === nodeToDelete?.identifier}
+        loading={processingNode === nodeToDelete?.name}
+        disabled={processingNode === nodeToDelete?.name}
       />
     </>
   )

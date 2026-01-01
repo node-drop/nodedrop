@@ -23,7 +23,7 @@ async function detectMissingNodes(workflow: Workflow): Promise<string[]> {
   
   const usedTypes = new Set(workflow.nodes.map(n => n.type));
   const installed = await nodeServiceInstance.getNodeTypes();
-  const installedTypes = new Set(installed.map(n => n.identifier));
+  const installedTypes = new Set(installed.map(n => n.name));
   
   const missing: string[] = [];
   for (const type of usedTypes) {

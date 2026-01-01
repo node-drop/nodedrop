@@ -56,7 +56,7 @@ export const NodeHeader = memo(function NodeHeader({
           <NodeIcon
             config={{
               icon: nodeType.icon,
-              nodeType: nodeType.identifier,
+              nodeType: nodeType.name,
               nodeGroup: nodeType.group,
               displayName: nodeType.displayName,
               color: nodeType.color,

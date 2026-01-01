@@ -570,7 +570,7 @@ export class ExecutionWorker {
 
     try {
       const allNodeTypes = await this.nodeService.getNodeTypes();
-      const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === nodeType);
+      const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === nodeType);
 
       if (!nodeTypeInfo) {
         return false;
@@ -957,7 +957,7 @@ export class ExecutionWorker {
     let nodeTypeProperties: any[] = [];
     try {
       const allNodeTypes = await this.nodeService.getNodeTypes();
-      const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === node.type);
+      const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === node.type);
       nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
     } catch (error) {
       logger.error("[ExecutionWorker] Failed to get node type definition", {

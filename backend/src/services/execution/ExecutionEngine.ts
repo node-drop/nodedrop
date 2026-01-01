@@ -500,7 +500,7 @@ export class ExecutionEngine extends EventEmitter {
       let credentialsMapping: Record<string, string> = {};
       try {
         const allNodeTypes = await this.nodeService.getNodeTypes();
-        const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === node.type);
+        const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === node.type);
         const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
         
         const { mapping } = await buildCredentialsMapping({
@@ -1187,7 +1187,7 @@ export class ExecutionEngine extends EventEmitter {
             let credentialsMapping: Record<string, string> = {};
             try {
               const allNodeTypes = await this.nodeService.getNodeTypes();
-              const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+              const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === sourceNode.type);
               const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
               
               const { mapping } = await buildCredentialsMapping({
@@ -1345,7 +1345,7 @@ export class ExecutionEngine extends EventEmitter {
               let credentialsMapping: Record<string, string> = {};
               try {
                 const allNodeTypes = await this.nodeService.getNodeTypes();
-                const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+                const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === sourceNode.type);
                 const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
                 
                 const { mapping } = await buildCredentialsMapping({

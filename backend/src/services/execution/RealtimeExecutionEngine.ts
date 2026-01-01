@@ -122,7 +122,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
         let nodeTypeProperties: any[] = [];
         try {
             const allNodeTypes = await this.nodeService.getNodeTypes();
-            const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === node.type);
+            const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === node.type);
             nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
         } catch (error) {
             logger.error(`[RealtimeExecution] Failed to get node type definition`, { error });
@@ -377,7 +377,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
     private async isServiceNode(nodeType: string): Promise<boolean> {
         try {
             const allNodeTypes = await this.nodeService.getNodeTypes();
-            const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === nodeType);
+            const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === nodeType);
             
             if (!nodeTypeInfo) {
                 return false;
@@ -1296,7 +1296,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
                         let credentialsMapping: Record<string, string> = {};
                         try {
                             const allNodeTypes = await this.nodeService.getNodeTypes();
-                            const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+                            const nodeTypeInfo = allNodeTypes.find((nt) => nt.name === sourceNode.type);
                             const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
                             
                             const { mapping } = await buildCredentialsMapping({

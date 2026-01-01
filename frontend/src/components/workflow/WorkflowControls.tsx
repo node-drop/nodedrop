@@ -488,19 +488,19 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       {showAddNode && pinnedNodeTypes.length > 0 && (
         <>
           {pinnedNodeTypes.map((nodeType) => (
-            <ContextMenu key={nodeType.identifier}>
+            <ContextMenu key={nodeType.name}>
               <ContextMenuTrigger asChild>
                 <div
                   draggable
-                  onDragStart={(e) => handleDragStart(e, nodeType.identifier)}
+                  onDragStart={(e) => handleDragStart(e, nodeType.name)}
                   onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleDragOver(e, nodeType.identifier)}
+                  onDragOver={(e) => handleDragOver(e, nodeType.name)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, nodeType.identifier)}
+                  onDrop={(e) => handleDrop(e, nodeType.name)}
                   className={cn(
                     "relative cursor-grab transition-all duration-150",
-                    dragOverNodeId === nodeType.identifier && "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-6 before:bg-primary before:rounded-full",
-                    draggedNodeId === nodeType.identifier && "opacity-50"
+                    dragOverNodeId === nodeType.name && "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-6 before:bg-primary before:rounded-full",
+                    draggedNodeId === nodeType.name && "opacity-50"
                   )}
                 >
                   <Tooltip>
@@ -513,7 +513,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
                         <NodeIcon
                           config={{
                             icon: nodeType.icon,
-                            nodeType: nodeType.identifier,
+                            nodeType: nodeType.name,
                             nodeGroup: nodeType.group,
                             displayName: nodeType.displayName,
                             color: nodeType.color,
@@ -532,21 +532,21 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
               </ContextMenuTrigger>
               <ContextMenuContent className="w-32">
                 <ContextMenuItem 
-                  onClick={() => handleMovePinnedNodeLeft(nodeType.identifier)}
-                  disabled={pinnedNodeIds.indexOf(nodeType.identifier) === 0}
+                  onClick={() => handleMovePinnedNodeLeft(nodeType.name)}
+                  disabled={pinnedNodeIds.indexOf(nodeType.name) === 0}
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Move Left
                 </ContextMenuItem>
                 <ContextMenuItem 
-                  onClick={() => handleMovePinnedNodeRight(nodeType.identifier)}
-                  disabled={pinnedNodeIds.indexOf(nodeType.identifier) === pinnedNodeIds.length - 1}
+                  onClick={() => handleMovePinnedNodeRight(nodeType.name)}
+                  disabled={pinnedNodeIds.indexOf(nodeType.name) === pinnedNodeIds.length - 1}
                 >
                   <ChevronRight className="h-4 w-4 mr-2" />
                   Move Right
                 </ContextMenuItem>
                 <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => unpinNode(nodeType.identifier)}>
+                <ContextMenuItem onClick={() => unpinNode(nodeType.name)}>
                   <PinOff className="h-4 w-4 mr-2" />
                   Unpin 
                 </ContextMenuItem>
