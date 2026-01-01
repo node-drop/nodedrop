@@ -206,13 +206,19 @@ export const CustomNode = memo(function CustomNode({ data, selected, id }: NodeP
     return outputCount > 1
   }, [computedOutputs?.length])
 
-  // Calculate node width - service nodes are smaller
+  // Calculate node width - use node definition style.width if provided, otherwise use defaults
   const nodeWidth = useMemo(() => {
+    // First check if node definition has a custom width in style
+    if (data.nodeTypeDefinition?.style?.width) {
+      return data.nodeTypeDefinition.style.width
+    }
+    
+    // Fallback to category-based defaults
     if (isServiceNode) {
       return '100px' // Smaller width for service nodes (tools, memory, model)
     }
     return '150px' // Default width for regular nodes
-  }, [isServiceNode])
+  }, [data.nodeTypeDefinition?.style?.width, isServiceNode])
 
   return (
     <BaseNodeWrapper

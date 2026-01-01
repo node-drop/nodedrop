@@ -48,6 +48,7 @@ export const nodeTypes = pgTable(
     // Appearance
     icon: text('icon'),
     color: text('color'),
+    style: json('style'), // Custom node styles (width, height, etc.)
     outputComponent: text('output_component'), // Custom output component identifier
     
     // Status and flags

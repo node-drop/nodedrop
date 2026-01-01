@@ -323,6 +323,8 @@ export const NodeTypeInfoSchema = z.object({
   canBeDisabled: z.boolean().optional(),
   /** Keywords for AI semantic search and understanding */
   keywords: z.array(z.string()).optional(),
+  /** Optional custom node styles (width, height, etc.) */
+  style: z.record(z.any()).optional(),
 });
 export type NodeTypeInfo = z.infer<typeof NodeTypeInfoSchema>;
 

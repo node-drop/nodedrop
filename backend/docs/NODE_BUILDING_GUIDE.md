@@ -30,6 +30,7 @@ const MyNode = {
   description: 'What this node does',
   icon: 'lucide:icon-name',        // Icon from lucide
   color: '#HEX',                   // Node color in canvas
+  style: { width: '120px' },       // Optional: Custom node styles (default: 150px for regular, 100px for service nodes)
   
   // AI metadata for intelligent node suggestions and documentation
   ai: {
@@ -120,20 +121,54 @@ ai: {
 ### Regular Nodes
 - Have `main` input/output
 - Execute in workflow flow
+- Default width: 150px (can be customized with `nodeWidth`)
 - Examples: HTTP Request, Code, Transform
 
 ### Service Nodes
 - Set `nodeCategory: 'service'`
 - Connect to bottom of orchestrator nodes
 - Don't execute directly in flow
+- Default width: 100px (can be customized with `nodeWidth`)
 - Examples: Model nodes, Tool nodes, Memory nodes
 
 ```javascript
 const ServiceNode = {
   identifier: 'my-service',
   nodeCategory: 'service',  // <-- Important!
+  nodeWidth: '120px',       // Optional: Override default 100px width
   // ...
 };
+```
+
+### Custom Node Styles
+
+You can customize the visual appearance of any node by adding the `style` property:
+
+```javascript
+const MyNode = {
+  identifier: 'my-node',
+  displayName: 'My Node',
+  style: { width: '180px' },  // Custom width - overrides category defaults
+  // ...
+};
+```
+
+**Default Widths:**
+- Regular nodes: `150px`
+- Service nodes (nodeCategory: 'service'): `100px`
+
+**When to customize:**
+- Service nodes with longer labels that need more space
+- Compact nodes that should be smaller than default
+- Nodes with special visual requirements
+
+**Future extensibility:**
+The `style` object can be extended to support other properties like `height`, `minWidth`, etc.
+
+**Important:** After modifying a node definition, you must re-register the nodes for changes to take effect:
+```bash
+cd backend
+bun run nodes:register
 ```
 
 ---
