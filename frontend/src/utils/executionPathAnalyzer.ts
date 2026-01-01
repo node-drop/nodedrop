@@ -36,8 +36,12 @@ export function getAffectedNodes(
   const queue: string[] = [triggerNodeId];
   const affectedNodes: string[] = [triggerNodeId];
 
-  // Build adjacency map for faster lookups
+  // Build adjacency map for faster lookups (downstream connections)
   const adjacencyMap = buildAdjacencyMap(workflow.connections);
+  
+  // Build reverse adjacency map to find service nodes (nodes that connect TO a node)
+  // This is needed because service nodes (model, memory, tools) connect TO the consuming node
+  const reverseAdjacencyMap = buildReverseAdjacencyMap(workflow.connections);
 
   while (queue.length > 0) {
     const currentNodeId = queue.shift()!;
@@ -46,13 +50,32 @@ export function getAffectedNodes(
     if (visited.has(currentNodeId)) continue;
     visited.add(currentNodeId);
 
-    // Get all nodes connected from this node
+    // Get all nodes connected from this node (downstream)
     const outgoingNodes = adjacencyMap.get(currentNodeId) || [];
 
     for (const targetNodeId of outgoingNodes) {
       if (!visited.has(targetNodeId)) {
         queue.push(targetNodeId);
         affectedNodes.push(targetNodeId);
+      }
+    }
+    
+    // CRITICAL FIX: Also include service nodes that connect TO this node
+    // Service nodes (model, memory, tools) connect to service inputs (modelService, memoryService, etc.)
+    // These nodes need to be included in affectedNodes for visual indicators to work
+    const incomingNodes = reverseAdjacencyMap.get(currentNodeId) || [];
+    for (const { sourceNodeId, targetInput } of incomingNodes) {
+      // Only include if it's a service input (not 'main')
+      const isServiceInput = targetInput && targetInput !== 'main' && 
+        (targetInput.toLowerCase().includes('service') || 
+         targetInput === 'tools' || 
+         targetInput === 'model' || 
+         targetInput === 'memory');
+      
+      if (isServiceInput && !visited.has(sourceNodeId)) {
+        visited.add(sourceNodeId);
+        affectedNodes.push(sourceNodeId);
+        // Don't add to queue - service nodes don't have downstream nodes to process
       }
     }
   }
@@ -98,6 +121,32 @@ function buildAdjacencyMap(
   }
 
   return adjacencyMap;
+}
+
+/**
+ * Build reverse adjacency map from connections
+ * Map<targetNodeId, Array<{sourceNodeId, targetInput}>>
+ * This is used to find service nodes that connect TO a node
+ */
+function buildReverseAdjacencyMap(
+  connections: WorkflowConnection[]
+): Map<string, Array<{ sourceNodeId: string; targetInput: string }>> {
+  const reverseMap = new Map<string, Array<{ sourceNodeId: string; targetInput: string }>>();
+
+  for (const connection of connections) {
+    const { sourceNodeId, targetNodeId, targetInput } = connection;
+
+    if (!reverseMap.has(targetNodeId)) {
+      reverseMap.set(targetNodeId, []);
+    }
+
+    reverseMap.get(targetNodeId)!.push({
+      sourceNodeId,
+      targetInput: targetInput || 'main',
+    });
+  }
+
+  return reverseMap;
 }
 
 /**
