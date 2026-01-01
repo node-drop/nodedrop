@@ -1106,6 +1106,148 @@ export class ExecutionEngine extends EventEmitter {
   }
 
   /**
+   * Recursively get service connections for a node
+   * This allows nested service nodes (e.g., Worker Agent's Model/Tools) to be discovered
+   * @param nodeId - The node to get service connections for
+   * @param graph - The execution graph
+   * @param context - The execution context
+   * @param depth - Current recursion depth (to prevent infinite loops)
+   * @returns Object containing service connections keyed by input name
+   */
+  private async getNestedServiceConnections(
+    nodeId: string,
+    graph: ExecutionGraph,
+    context: ExecutionContext,
+    depth: number = 0
+  ): Promise<Record<string, any[]>> {
+    const MAX_DEPTH = 3; // Prevent infinite recursion
+    
+    logger.info(`[NestedServices] Getting nested services for node ${nodeId} at depth ${depth}`);
+    
+    if (depth >= MAX_DEPTH) {
+      logger.debug(`[NestedServices] Max depth reached for node ${nodeId}`);
+      return {};
+    }
+    
+    const serviceConnections: Record<string, any[]> = {};
+    
+    // Find all connections that target this node
+    const incomingConnections = graph.connections.filter(
+      (conn) => conn.targetNodeId === nodeId
+    );
+    
+    logger.info(`[NestedServices] Found ${incomingConnections.length} incoming connections for ${nodeId}`, {
+      connections: incomingConnections.map(c => ({
+        source: c.sourceNodeId,
+        target: c.targetNodeId,
+        targetInput: c.targetInput,
+      })),
+    });
+    
+    // Group by target input
+    const connectionsByInput = new Map<string, typeof incomingConnections>();
+    for (const connection of incomingConnections) {
+      const targetInput = connection.targetInput || 'main';
+      if (!connectionsByInput.has(targetInput)) {
+        connectionsByInput.set(targetInput, []);
+      }
+      connectionsByInput.get(targetInput)!.push(connection);
+    }
+    
+    logger.info(`[NestedServices] Grouped connections by input for ${nodeId}`, {
+      inputs: Array.from(connectionsByInput.keys()),
+    });
+    
+    // Process service inputs only
+    for (const [inputName, connections] of connectionsByInput.entries()) {
+      const isServiceInput = inputName !== 'main' && inputName !== 'done';
+      
+      logger.debug(`[NestedServices] Processing input '${inputName}' for ${nodeId}`, {
+        isServiceInput,
+        connectionCount: connections.length,
+      });
+      
+      if (isServiceInput && connections.length > 0) {
+        const serviceNodes: any[] = [];
+        
+        for (const connection of connections) {
+          const sourceNode = graph.nodes.get(connection.sourceNodeId);
+          
+          logger.info(`[NestedServices] Processing service connection`, {
+            sourceNodeId: connection.sourceNodeId,
+            sourceNodeFound: !!sourceNode,
+            sourceNodeType: sourceNode?.type,
+            inputName,
+          });
+          
+          if (sourceNode) {
+            const nodeParameters = (sourceNode as any).parameters || {};
+            
+            // Build credentials mapping
+            let credentialsMapping: Record<string, string> = {};
+            try {
+              const allNodeTypes = await this.nodeService.getNodeTypes();
+              const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+              const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
+              
+              const { mapping } = await buildCredentialsMapping({
+                nodeParameters,
+                nodeTypeProperties,
+                userId: context.userId,
+                legacyCredentials: (sourceNode as any).credentials,
+                logPrefix: "[ExecutionEngine-NestedService]",
+              });
+              
+              credentialsMapping = mapping;
+            } catch (error) {
+              logger.warn(`[NestedServices] Failed to build credentials for ${connection.sourceNodeId}`, {
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
+            }
+            
+            // Recursively get this service node's own service connections
+            logger.info(`[NestedServices] Recursively getting services for ${connection.sourceNodeId}`);
+            const nestedServices = await this.getNestedServiceConnections(
+              connection.sourceNodeId,
+              graph,
+              context,
+              depth + 1
+            );
+            
+            logger.info(`[NestedServices] Got nested services for ${connection.sourceNodeId}`, {
+              nestedServiceKeys: Object.keys(nestedServices),
+              nestedServiceCounts: Object.fromEntries(
+                Object.entries(nestedServices).map(([k, v]) => [k, v.length])
+              ),
+            });
+            
+            serviceNodes.push({
+              id: sourceNode.id,
+              type: sourceNode.type,
+              nodeId: connection.sourceNodeId,
+              parameters: nodeParameters,
+              credentials: credentialsMapping,
+              // Include nested service connections (e.g., Worker's Model, Tools)
+              inputData: Object.keys(nestedServices).length > 0 ? nestedServices : undefined,
+            });
+          }
+        }
+        
+        if (serviceNodes.length > 0) {
+          serviceConnections[inputName] = serviceNodes;
+          logger.info(`[NestedServices] Added ${serviceNodes.length} service nodes for input '${inputName}'`);
+        }
+      }
+    }
+    
+    logger.info(`[NestedServices] Completed for ${nodeId}`, {
+      serviceConnectionKeys: Object.keys(serviceConnections),
+    });
+    
+    return serviceConnections;
+  }
+
+  /**
    * Prepare input data for a node based on its connections
    */
   private async prepareNodeInputData(
@@ -1183,8 +1325,19 @@ export class ExecutionEngine extends EventEmitter {
           // For service inputs, store references to the connected nodes
           const serviceNodes: any[] = [];
           
+          logger.info(`[PrepareInput] Processing service input '${inputName}' for node ${nodeId}`, {
+            connectionCount: connections.length,
+          });
+          
           for (const connection of connections) {
             const sourceNode = graph.nodes.get(connection.sourceNodeId);
+            
+            logger.info(`[PrepareInput] Processing service node connection`, {
+              sourceNodeId: connection.sourceNodeId,
+              sourceNodeType: sourceNode?.type,
+              targetInput: inputName,
+            });
+            
             if (sourceNode) {
               const nodeParameters = (sourceNode as any).parameters || {};
               
@@ -1210,22 +1363,53 @@ export class ExecutionEngine extends EventEmitter {
                 });
               }
               
-              serviceNodes.push({
+              // Get nested service connections for this service node
+              // This allows nodes like Worker Agent to have their Model/Tools discovered
+              logger.info(`[PrepareInput] Getting nested services for ${connection.sourceNodeId} (${sourceNode.type})`);
+              const nestedInputData = await this.getNestedServiceConnections(
+                connection.sourceNodeId,
+                graph,
+                context,
+                0
+              );
+              
+              logger.info(`[PrepareInput] Nested services result for ${connection.sourceNodeId}`, {
+                hasNestedData: Object.keys(nestedInputData).length > 0,
+                nestedKeys: Object.keys(nestedInputData),
+              });
+              
+              const serviceNodeData = {
                 id: sourceNode.id,
                 type: sourceNode.type,
                 nodeId: connection.sourceNodeId,
                 parameters: nodeParameters,
                 credentials: credentialsMapping,
+                // Include nested service connections (e.g., Worker's Model, Tools, Memory)
+                inputData: Object.keys(nestedInputData).length > 0 ? nestedInputData : undefined,
+              };
+              
+              logger.info(`[PrepareInput] Service node data prepared`, {
+                nodeId: connection.sourceNodeId,
+                type: sourceNode.type,
+                hasInputData: !!serviceNodeData.inputData,
+                inputDataKeys: serviceNodeData.inputData ? Object.keys(serviceNodeData.inputData) : [],
               });
+              
+              serviceNodes.push(serviceNodeData);
             }
           }
           
           // Store service node references
           (inputData as any)[inputName] = serviceNodes;
           
-          logger.debug(`Prepared service input '${inputName}' for node ${nodeId}`, {
+          logger.info(`[PrepareInput] Prepared service input '${inputName}' for node ${nodeId}`, {
             serviceNodeCount: serviceNodes.length,
             serviceNodeTypes: serviceNodes.map(n => n.type),
+            hasNestedServices: serviceNodes.some(n => n.inputData),
+            nestedServiceDetails: serviceNodes.map(n => ({
+              type: n.type,
+              inputDataKeys: n.inputData ? Object.keys(n.inputData) : [],
+            })),
           });
         } else {
           // Regular data input - process normally

@@ -340,6 +340,14 @@ export class RealtimeExecutionEngine extends EventEmitter {
             // Build execution graph
             const nodeMap = new Map(nodes.map((n) => [n.id, n]));
             const graph = this.buildExecutionGraph(nodes, connections);
+            
+            // DEBUG: Log the execution graph
+            console.log(`[DEBUG-EXEC] Execution graph for ${executionId}:`);
+            console.log(`[DEBUG-EXEC] Start node: ${startNodeId}`);
+            console.log(`[DEBUG-EXEC] All nodes:`, nodes.map(n => `${n.id}(${n.type})`).join(', '));
+            graph.forEach((downstream, nodeId) => {
+                console.log(`[DEBUG-EXEC]   ${nodeId} -> [${downstream.join(', ')}]`);
+            });
 
             // Execute nodes in order starting from trigger
             await this.executeNode(executionId, startNodeId, nodeMap, graph, context);
@@ -390,7 +398,7 @@ export class RealtimeExecutionEngine extends EventEmitter {
     }
 
     /**
-     * Validate a service node (model, memory, tool)
+     * Validate a service node (model, memory, tool, or worker agent)
      */
     private validateServiceNode(
         serviceNode: any,
@@ -399,11 +407,18 @@ export class RealtimeExecutionEngine extends EventEmitter {
     ): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
         
-        // Validate that the service node has no inputs (is actually a service node)
+        // Validate that the service node is a valid service node
+        // Service nodes either:
+        // 1. Have no inputs (inputs: []) - traditional service nodes like models, tools
+        // 2. Have only service inputs (no 'main' input) - like worker-agent which has modelService, toolService
         if (nodeDefinition && Array.isArray(nodeDefinition.inputs) && nodeDefinition.inputs.length > 0) {
-            errors.push(
-                `Invalid service node: ${serviceNode.type} has inputs and cannot be used as a service node`
-            );
+            const hasMainInput = nodeDefinition.inputs.includes('main');
+            if (hasMainInput) {
+                errors.push(
+                    `Invalid service node: ${serviceNode.type} has a 'main' input and cannot be used as a service node`
+                );
+            }
+            // If it only has service inputs (no 'main'), it's valid as a service node
         }
         
         // Validate required parameters
@@ -462,6 +477,10 @@ export class RealtimeExecutionEngine extends EventEmitter {
         context: ExecutionContext
     ): Promise<void> {
         const node = nodeMap.get(nodeId);
+        
+        // DEBUG: Log every executeNode call
+        console.log(`[DEBUG-EXEC] executeNode called for nodeId=${nodeId}, type=${node?.type}, name=${node?.name}`);
+        
         if (!node) {
             logger.warn(`[RealtimeExecution] Node ${nodeId} not found`);
             return;
@@ -477,6 +496,8 @@ export class RealtimeExecutionEngine extends EventEmitter {
         // Service nodes are identified by having no inputs (inputs: [])
         // This includes model nodes, memory nodes, and tool nodes
         const isServiceNode = await this.isServiceNode(node.type);
+        
+        console.log(`[DEBUG-EXEC] Node ${nodeId} (${node.type}): isServiceNode=${isServiceNode}`);
         
         if (isServiceNode) {
             logger.info(`[RealtimeExecution] Skipping service node ${nodeId} (${node.type}) - will be called by parent node`);
@@ -513,7 +534,19 @@ export class RealtimeExecutionEngine extends EventEmitter {
             );
             
             if (incomingConnections.length > 0) {
-                const upstreamNodeIds = [...new Set(incomingConnections.map(conn => conn.sourceNodeId))];
+                // Filter out service connections - connections to service inputs (not 'main')
+                // Service inputs include: modelService, memoryService, toolService, agentService, etc.
+                // These nodes are called by the parent node, not executed independently
+                const mainConnections = incomingConnections.filter(conn => {
+                    const targetInput = conn.targetInput || 'main';
+                    const isServiceInput = targetInput !== 'main' && targetInput.toLowerCase().includes('service');
+                    if (isServiceInput) {
+                        logger.debug(`[RealtimeExecution] Skipping service connection from ${conn.sourceNodeId} to ${nodeId} (input: ${targetInput})`);
+                    }
+                    return !isServiceInput;
+                });
+                
+                const upstreamNodeIds = [...new Set(mainConnections.map(conn => conn.sourceNodeId))];
                 
                 // Filter out service nodes from upstream dependencies
                 // Service nodes (model, memory, tools) don't execute independently and shouldn't be waited for
@@ -1183,6 +1216,124 @@ export class RealtimeExecutionEngine extends EventEmitter {
     }
 
     /**
+     * Recursively get nested service connections for a node
+     * This allows nested service nodes (e.g., Worker Agent's Model/Tools) to be discovered
+     */
+    private async getNestedServiceConnections(
+        nodeId: string,
+        context: ExecutionContext,
+        depth: number = 0
+    ): Promise<Record<string, any[]>> {
+        const MAX_DEPTH = 3;
+        
+        logger.info(`[RealtimeExecution-Nested] Getting nested services for ${nodeId} at depth ${depth}`);
+        
+        if (depth >= MAX_DEPTH) {
+            logger.debug(`[RealtimeExecution-Nested] Max depth reached for ${nodeId}`);
+            return {};
+        }
+        
+        const serviceConnections: Record<string, any[]> = {};
+        
+        // Find connections targeting this node
+        const incomingConnections = context.connections.filter(
+            (conn) => conn.targetNodeId === nodeId
+        );
+        
+        logger.info(`[RealtimeExecution-Nested] Found ${incomingConnections.length} connections for ${nodeId}`, {
+            connections: incomingConnections.map(c => ({
+                source: c.sourceNodeId,
+                targetInput: c.targetInput,
+            })),
+        });
+        
+        // Group by target input
+        const connectionsByInput = new Map<string, typeof incomingConnections>();
+        for (const connection of incomingConnections) {
+            const targetInput = connection.targetInput || 'main';
+            if (!connectionsByInput.has(targetInput)) {
+                connectionsByInput.set(targetInput, []);
+            }
+            connectionsByInput.get(targetInput)!.push(connection);
+        }
+        
+        // Process service inputs only
+        for (const [inputName, connections] of connectionsByInput.entries()) {
+            const isServiceInput = inputName !== 'main' && inputName !== 'done';
+            
+            if (isServiceInput && connections.length > 0) {
+                const serviceNodes: any[] = [];
+                
+                for (const connection of connections) {
+                    const sourceNode = context.nodes.find((n: any) => n.id === connection.sourceNodeId);
+                    
+                    logger.info(`[RealtimeExecution-Nested] Processing nested service`, {
+                        sourceNodeId: connection.sourceNodeId,
+                        sourceNodeType: sourceNode?.type,
+                        inputName,
+                    });
+                    
+                    if (sourceNode) {
+                        const nodeParameters = sourceNode.parameters || {};
+                        
+                        // Build credentials mapping
+                        let credentialsMapping: Record<string, string> = {};
+                        try {
+                            const allNodeTypes = await this.nodeService.getNodeTypes();
+                            const nodeTypeInfo = allNodeTypes.find((nt) => nt.identifier === sourceNode.type);
+                            const nodeTypeProperties = extractCredentialProperties(nodeTypeInfo);
+                            
+                            const { mapping } = await buildCredentialsMapping({
+                                nodeParameters,
+                                nodeTypeProperties,
+                                userId: context.userId,
+                                legacyCredentials: sourceNode.credentials,
+                                logPrefix: "[RealtimeExecution-NestedService]",
+                            });
+                            
+                            credentialsMapping = mapping;
+                        } catch (error) {
+                            logger.warn(`[RealtimeExecution-Nested] Failed to build credentials for ${connection.sourceNodeId}`, {
+                                error: error instanceof Error ? error.message : "Unknown error",
+                            });
+                        }
+                        
+                        // Recursively get this service node's own service connections
+                        const nestedServices = await this.getNestedServiceConnections(
+                            connection.sourceNodeId,
+                            context,
+                            depth + 1
+                        );
+                        
+                        logger.info(`[RealtimeExecution-Nested] Got nested services for ${connection.sourceNodeId}`, {
+                            nestedKeys: Object.keys(nestedServices),
+                        });
+                        
+                        serviceNodes.push({
+                            id: sourceNode.id,
+                            type: sourceNode.type,
+                            nodeId: connection.sourceNodeId,
+                            parameters: nodeParameters,
+                            credentials: credentialsMapping,
+                            inputData: Object.keys(nestedServices).length > 0 ? nestedServices : undefined,
+                        });
+                    }
+                }
+                
+                if (serviceNodes.length > 0) {
+                    serviceConnections[inputName] = serviceNodes;
+                }
+            }
+        }
+        
+        logger.info(`[RealtimeExecution-Nested] Completed for ${nodeId}`, {
+            serviceKeys: Object.keys(serviceConnections),
+        });
+        
+        return serviceConnections;
+    }
+
+    /**
      * Get input data for a node from its upstream nodes
      */
     private async getNodeInputData(
@@ -1411,12 +1562,31 @@ export class RealtimeExecutionEngine extends EventEmitter {
                                 });
                             }
                             
+                            // Get nested service connections for this service node
+                            // This allows nodes like Worker Agent to have their Model/Tools discovered
+                            logger.info(`[RealtimeExecution] Getting nested services for ${connection.sourceNodeId} (${sourceNode.type})`);
+                            const nestedInputData = await this.getNestedServiceConnections(
+                                connection.sourceNodeId,
+                                context,
+                                0
+                            );
+                            
+                            logger.info(`[RealtimeExecution] Nested services result for ${connection.sourceNodeId}`, {
+                                hasNestedData: Object.keys(nestedInputData).length > 0,
+                                nestedKeys: Object.keys(nestedInputData),
+                                nestedDetails: Object.fromEntries(
+                                    Object.entries(nestedInputData).map(([k, v]) => [k, (v as any[]).map(n => n.type)])
+                                ),
+                            });
+                            
                             serviceNodes.push({
                                 id: sourceNode.id,
                                 type: sourceNode.type,
                                 nodeId: connection.sourceNodeId,
                                 parameters: nodeParameters,
                                 credentials: credentialsMapping,
+                                // Include nested service connections (e.g., Worker's Model, Tools)
+                                inputData: Object.keys(nestedInputData).length > 0 ? nestedInputData : undefined,
                             });
                         }
                     }
@@ -1457,11 +1627,14 @@ export class RealtimeExecutionEngine extends EventEmitter {
                 logger.info(`[RealtimeExecution] ✅ Prepared service input '${inputName}' for node ${nodeId}`, {
                     serviceNodeCount: serviceNodes.length,
                     serviceNodeTypes: serviceNodes.map((n: any) => n.type),
+                    hasNestedServices: serviceNodes.some((n: any) => n.inputData),
                     serviceNodesDetails: serviceNodes.map((n: any) => ({
                         type: n.type,
                         nodeId: n.nodeId,
                         credentialKeys: Object.keys(n.credentials || {}),
                         credentials: n.credentials,
+                        hasInputData: !!n.inputData,
+                        inputDataKeys: n.inputData ? Object.keys(n.inputData) : [],
                     })),
                 });
             } else {
