@@ -27,6 +27,7 @@ export function AddAnnotationControl() {
       id: annotationId,
       type: 'annotation',
       position: viewportCenter,
+      style: { width: 200, height: 100 },
       data: {
         label: 'Add your note here...',
       },
@@ -45,6 +46,7 @@ export function AddAnnotationControl() {
           label: 'Add your note here...',
         },
         position: viewportCenter,
+        style: { width: 200, height: 100 },
         disabled: false,
       }
 

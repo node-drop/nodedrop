@@ -696,7 +696,7 @@ export class SecureExecutionService {
       }
 
       // Get OAuth provider from registry
-      const { oauthProviderRegistry } = require('../oauth');
+      const { oauthProviderRegistry } = require('../../oauth');
       const oauthProvider = oauthProviderRegistry.get(credentialType.oauthProvider);
       
       if (!oauthProvider) {

@@ -355,6 +355,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
       id: annotationId,
       type: 'annotation',
       position: viewportCenter,
+      style: { width: 200, height: 100 },
       data: {
         label: 'Add your note here...',
       },
@@ -373,6 +374,7 @@ export function WorkflowControls({ className, showAddNode = true, showExecute = 
           label: 'Add your note here...',
         },
         position: viewportCenter,
+        style: { width: 200, height: 100 },
         disabled: false,
       }
 

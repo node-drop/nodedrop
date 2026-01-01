@@ -651,7 +651,7 @@ export class NodeLoader {
       }
 
       // Register with OAuth provider registry
-      const { oauthProviderRegistry } = require("../oauth");
+      const { oauthProviderRegistry } = require("../../oauth");
       oauthProviderRegistry.register(provider);
 
       logger.info(`✅ Registered OAuth provider: ${provider.name}`);

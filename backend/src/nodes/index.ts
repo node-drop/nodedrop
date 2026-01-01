@@ -14,6 +14,7 @@ export * from "./Json";
 export * from "./Loop";
 export * from "./Merge";
 export * from "./Split";
+export * from "./Aggregate";
 export * from "./ManualTrigger";
 export * from "./ScheduleTrigger";
 export * from "./Set";

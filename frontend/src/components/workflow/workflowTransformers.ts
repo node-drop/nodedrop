@@ -250,6 +250,8 @@ export function transformWorkflowNodesToReactFlow(
       id: node.id,
       type: reactFlowNodeType,
       position: node.position,
+      // Preserve style for resizable nodes (annotation, group)
+      ...(node.style && { style: node.style }),
       // Note: draggable, selectable, deletable should not be set as boolean props
       // They are controlled by ReactFlow component props (nodesDraggable, elementsSelectable, etc.)
       data: {

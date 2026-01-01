@@ -188,6 +188,22 @@ export function useReactFlowInteractions() {
                   position: rfNode.position,
                   style: style as any,
                 });
+              } else if (rfNode.type === "annotation" && existingNode) {
+                // Handle annotation node resize - preserve dimensions in style
+                const style = {
+                  ...(existingNode.style || {}),
+                  ...(rfNode.style || {}),
+                  ...(rfNode.width !== undefined && { width: rfNode.width }),
+                  ...(rfNode.height !== undefined && { height: rfNode.height }),
+                };
+
+                updatedNodes.push({
+                  ...existingNode,
+                  position: rfNode.position,
+                  style: style as any,
+                  parentId: rfNode.parentId || undefined,
+                  extent: (rfNode.extent || undefined) as any,
+                });
               } else if (existingNode) {
                 updatedNodes.push({
                   ...existingNode,
@@ -272,6 +288,22 @@ export function useReactFlowInteractions() {
             ...baseGroupNode,
             position: rfNode.position,
             style: style as any,
+          });
+        } else if (rfNode.type === "annotation" && existingNode) {
+          // Handle annotation nodes - preserve dimensions in style
+          const style = {
+            ...(existingNode.style || {}),
+            ...(rfNode.style || {}),
+            ...(rfNode.width !== undefined && { width: rfNode.width }),
+            ...(rfNode.height !== undefined && { height: rfNode.height }),
+          };
+
+          updatedNodes.push({
+            ...existingNode,
+            position: rfNode.position,
+            style: style as any,
+            parentId: rfNode.parentId || undefined,
+            extent: (rfNode.extent || undefined) as any,
           });
         } else if (existingNode) {
           // Update existing regular nodes
